@@ -1,0 +1,623 @@
+/**
+ * Form Automation Script
+ * 
+ * This script automates the process of adding AccuMeasure forms to Fossa visits
+ * and filling them with dispenser information.
+ */
+import { chromium } from 'playwright';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import * as logger from '../utils/logger.js';
+import { loginToFossa } from '../../scripts/utils/login.js';
+
+// Load environment variables
+dotenv.config();
+
+// Status tracking
+let currentStatus = {
+  status: 'idle',
+  message: 'Ready to process forms',
+};
+
+// Batch status tracking
+let batchStatus = {
+  status: 'idle',
+  message: 'Ready to process batch',
+  totalVisits: 0,
+  completedVisits: 0,
+};
+
+/**
+ * Add AccuMeasure form to a visit
+ * @param {object} page - Playwright page
+ * @param {number} formCount - Number of forms to create
+ * @returns {Promise<boolean>} - Success/failure of form preparation
+ */
+async function prepareForm(page, dispensers, formCount = null) {
+  try {
+    logger.info('Preparing AccuMeasure form...');
+    currentStatus = { status: 'running', message: 'Preparing AccuMeasure form...' };
+    
+    // Check if we're on a visit page
+    const isVisitPage = await page.evaluate(() => {
+      return window.location.href.includes('/visits/');
+    });
+    
+    if (!isVisitPage) {
+      throw new Error('Not on a visit page');
+    }
+    
+    // Use formCount if provided, otherwise default to dispensers length
+    const formsToCreate = formCount || dispensers.length || 1;
+    logger.info(`Need to create ${formsToCreate} AccuMeasure forms`);
+    
+    // More reliable form detection - check for form entries with AccuMeasure
+    const getFormCount = async () => {
+      await page.waitForTimeout(300); // Brief pause to ensure DOM is updated
+      return page.evaluate(() => {
+        // Multiple ways to detect AccuMeasure forms
+        const linkForms = Array.from(document.querySelectorAll('a.none')).filter(a => 
+          a.textContent.trim().includes('AccuMeasure')
+        );
+        
+        const spanForms = Array.from(document.querySelectorAll('span.text-sm')).filter(span => 
+          span.textContent.trim().includes('AccuMeasure') && 
+          span.closest('a') !== null
+        );
+        
+        // Return the count that seems most accurate (non-zero if possible)
+        return Math.max(linkForms.length, spanForms.length);
+      });
+    };
+    
+    // Get initial form count
+    const existingFormCount = await getFormCount();
+    logger.info(`Found ${existingFormCount} existing AccuMeasure forms`);
+    
+    // Calculate how many more forms we need to add
+    const remainingFormsToAdd = Math.max(0, formsToCreate - existingFormCount);
+    logger.info(`Need to add ${remainingFormsToAdd} more AccuMeasure forms`);
+    
+    if (remainingFormsToAdd === 0) {
+      logger.info('All required forms already exist, skipping form addition');
+      currentStatus = { status: 'completed', message: 'All required forms already exist' };
+      return true;
+    }
+    
+    // Keep track of total forms added
+    let totalFormsAdded = 0;
+    
+    // For each form we need to create
+    for (let formIndex = 0; formIndex < remainingFormsToAdd; formIndex++) {
+      // Check current form count before adding
+      const currentCount = await getFormCount();
+      
+      // Stop if we've already reached or exceeded the target
+      if (currentCount >= formsToCreate) {
+        logger.info(`Already reached target of ${formsToCreate} forms (current: ${currentCount}), stopping`);
+        break;
+      }
+      
+      logger.info(`Adding form ${formIndex + 1} of ${remainingFormsToAdd} (current count: ${currentCount})`);
+      
+      // Get the current form count before adding a new one
+      const beforeFormCount = currentCount;
+      
+      // Add the form - either "Attach" (first time) or "New" (subsequent times)
+      if (formIndex === 0 && existingFormCount === 0) {
+        // For the first form when no forms exist, click "Attach"
+        logger.info('Adding first form using Attach button');
+        
+        // Using a more specific selector to target the Attach button next to AccuMeasure
+        const attachLinkSelector = 'li.plain-header:has-text("AccuMeasure") a:has-text("Attach")';
+        
+        try {
+          await page.waitForSelector(attachLinkSelector, { timeout: 5000 });
+          await page.click(attachLinkSelector);
+          logger.info('Clicked Attach button next to AccuMeasure');
+        } catch (error) {
+          logger.warn(`Could not find specific Attach button: ${error.message}`);
+          
+          // Try using JavaScript evaluation as a fallback
+          const attached = await page.evaluate(() => {
+            // Find the AccuMeasure text element
+            const accuElements = Array.from(document.querySelectorAll('span.text-sm')).filter(el => 
+              el.textContent.includes('AccuMeasure')
+            );
+            
+            if (accuElements.length > 0) {
+              // Find the Attach link near it
+              const accuElement = accuElements[0];
+              const parent = accuElement.closest('li.plain-header') || accuElement.parentElement;
+              
+              if (parent) {
+                const attachLink = parent.querySelector('a[title*="Attach"]') || 
+                                  Array.from(parent.querySelectorAll('a')).find(a => 
+                                    a.textContent.trim() === 'Attach'
+                                  );
+                
+                if (attachLink) {
+                  attachLink.click();
+                  return true;
+                }
+              }
+            }
+            
+            return false;
+          });
+          
+          if (!attached) {
+            throw new Error('Failed to find and click Attach button');
+          }
+        }
+      } else {
+        // For subsequent forms or when forms already exist, click "New"
+        logger.info('Adding additional form using New button');
+        
+        // Using a much more targeted approach to find the correct New button
+        const buttonClicked = await page.evaluate(() => {
+          // First, try to find the AccuMeasure section
+          const accuElements = Array.from(document.querySelectorAll('span.text-sm, div.text-sm')).filter(el => 
+            el.textContent.includes('AccuMeasure')
+          );
+          
+          if (accuElements.length > 0) {
+            // Look for the closest New button near the AccuMeasure element
+            const accumeasureElement = accuElements[0];
+            // Go up to find common parent
+            let parent = accumeasureElement.parentElement;
+            for (let i = 0; i < 5; i++) { // Go up max 5 levels
+              if (!parent) break;
+              
+              // Look for New button or + icon in this parent or its siblings
+              const newButtonsInContext = Array.from(
+                parent.querySelectorAll('a')
+              ).filter(a => 
+                a.textContent.trim().includes('New') || 
+                a.querySelector('svg.fa-plus')
+              );
+              
+              if (newButtonsInContext.length > 0) {
+                // Found the right button in context!
+                newButtonsInContext[0].click();
+                return true;
+              }
+              
+              // Try parent's next sibling - for cases where buttons are adjacent
+              if (parent.nextElementSibling) {
+                const siblingButtons = Array.from(
+                  parent.nextElementSibling.querySelectorAll('a')
+                ).filter(a => 
+                  a.textContent.trim().includes('New') || 
+                  a.querySelector('svg.fa-plus')
+                );
+                
+                if (siblingButtons.length > 0) {
+                  siblingButtons[0].click();
+                  return true;
+                }
+              }
+              
+              parent = parent.parentElement;
+            }
+          }
+          
+          // If still not found, look specifically in the suggested forms section
+          const suggestedForms = document.querySelector('div[dusk="suggested_forms"]');
+          if (suggestedForms) {
+            const newButtons = Array.from(
+              suggestedForms.querySelectorAll('a.text-xs')
+            ).filter(a => 
+              a.textContent.trim().includes('New') || 
+              a.querySelector('svg.fa-plus')
+            );
+            
+            if (newButtons.length > 0) {
+              newButtons[0].click();
+              return true;
+            }
+          }
+          
+          return false;
+        });
+        
+        if (!buttonClicked) {
+          logger.warn('Could not find New button via targeted JavaScript, trying fallback method');
+          
+          // Try a direct click with very specific selectors
+          try {
+            // Try more specific selector first
+            const specificSelectors = [
+              'div[dusk="suggested_forms"] a.text-xs:has(svg.fa-plus)',
+              'a.text-xs:has-text("New"):not([title])',
+              '.panel-body a:has(svg.fa-plus)',
+              'a.text-xs:has(svg.fa-plus)'
+            ];
+            
+            let clicked = false;
+            for (const selector of specificSelectors) {
+              if (await page.$(selector)) {
+                await page.click(selector);
+                clicked = true;
+                logger.info(`Clicked using selector: ${selector}`);
+                break;
+              }
+            }
+            
+            if (!clicked) {
+              throw new Error('Could not find New button with any selector');
+            }
+          } catch (error) {
+            logger.error(`Failed to click New button: ${error.message}`);
+          }
+        }
+      }
+      
+      // Wait for the loader to disappear, indicating the form is ready
+      logger.info('Waiting for loader to disappear...');
+      try {
+        // Wait for the loader line to disappear (display:none)
+        await page.waitForFunction(() => {
+          const loaders = document.querySelectorAll('.loader-line');
+          for (const loader of loaders) {
+            if (window.getComputedStyle(loader).display !== 'none') {
+              return false;
+            }
+          }
+          return true;
+        }, { timeout: 10000 });
+        logger.info('Loader disappeared, form is ready');
+      } catch (error) {
+        logger.warn(`Loader wait timed out: ${error.message}`);
+      }
+      
+      // Check if the form count has increased using our more reliable method
+      const afterFormCount = await getFormCount();
+      
+      // If form count hasn't increased, retry
+      if (afterFormCount <= beforeFormCount) {
+        logger.warn(`Form count didn't increase (${beforeFormCount} -> ${afterFormCount}). Retrying...`);
+        
+        // Try clicking again using a different approach
+        try {
+          await page.click('a:has-text("New")');
+          
+          // Wait again for the loader
+          await page.waitForFunction(() => {
+            const loaders = document.querySelectorAll('.loader-line');
+            for (const loader of loaders) {
+              if (window.getComputedStyle(loader).display !== 'none') {
+                return false;
+              }
+            }
+            return true;
+          }, { timeout: 10000 });
+          
+          // Check form count again
+          const retryFormCount = await getFormCount();
+          
+          if (retryFormCount <= beforeFormCount) {
+            logger.error(`Failed to add form after retry (count: ${retryFormCount})`);
+            formIndex--; // Try this form index again
+            continue;
+          } else {
+            // Success after retry
+            totalFormsAdded++;
+          }
+        } catch (error) {
+          logger.error(`Error during retry: ${error.message}`);
+          formIndex--; // Try this form index again
+          continue;
+        }
+      } else {
+        // Form was added successfully
+        totalFormsAdded++;
+        logger.info(`Form ${formIndex + 1} added successfully (count: ${afterFormCount})`);
+      }
+      
+      // Double-check that we haven't exceeded our target
+      if (afterFormCount >= formsToCreate) {
+        logger.info(`Reached target of ${formsToCreate} forms (current: ${afterFormCount}), stopping`);
+        break;
+      }
+      
+      // Just a tiny pause before adding the next form
+      await page.waitForTimeout(500);
+    }
+    
+    // Final verification
+    const finalFormCount = await getFormCount();
+    
+    logger.info(`Forms prepared successfully. Added ${totalFormsAdded} forms. Final form count: ${finalFormCount}`);
+    currentStatus = { 
+      status: 'completed', 
+      message: `Forms prepared successfully. Added ${totalFormsAdded} forms (total: ${finalFormCount})` 
+    };
+    return true;
+  } catch (error) {
+    logger.error(`Form preparation error: ${error.message}`);
+    currentStatus = { status: 'error', message: `Form preparation error: ${error.message}` };
+    return false;
+  }
+}
+
+/**
+ * Process a single visit
+ * @param {string} visitUrl - URL of the visit to process
+ * @param {boolean} headless - Whether to run browser in headless mode
+ * @param {string} workOrderId - Optional work order ID to get dispenser data
+ * @returns {Promise<object>} - Result of the operation
+ */
+async function processVisit(visitUrl, headless = true, workOrderId = null) {
+  let browser = null;
+  let page = null;
+  
+  try {
+    logger.info(`Processing visit: ${visitUrl}`);
+    currentStatus = { status: 'running', message: `Processing visit: ${visitUrl}` };
+    
+    // Use the improved loginToFossa function from login.js
+    const loginResult = await loginToFossa({ headless });
+    
+    if (!loginResult.success) {
+      throw new Error('Failed to login to Fossa');
+    }
+    
+    // Get the browser and page objects from the login result
+    browser = loginResult.browser;
+    page = loginResult.page;
+    
+    // Navigate to the visit page
+    logger.info(`Navigating to visit: ${visitUrl}`);
+    currentStatus = { status: 'running', message: `Navigating to visit: ${visitUrl}` };
+    await page.goto(visitUrl);
+    await page.waitForLoadState('networkidle');
+    
+    // Get dispenser data and form count
+    let dispensers = [];
+    let formCount = 0;
+    
+    if (workOrderId) {
+      // Load dispensers from the JSON data file
+      const dataPath = path.join(process.cwd(), 'data', 'scraped_content.json');
+      if (fs.existsSync(dataPath)) {
+        const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+        const workOrder = data.workOrders.find(wo => wo.id === workOrderId);
+        
+        if (workOrder) {
+          // Get dispensers if available
+          if (workOrder.dispensers && workOrder.dispensers.length > 0) {
+            dispensers = workOrder.dispensers;
+            logger.info(`Found ${dispensers.length} dispensers for work order ${workOrderId}`);
+          } else {
+            logger.warn(`No dispensers found for work order ${workOrderId}`);
+          }
+          
+          // Check services for quantity
+          if (workOrder.services && workOrder.services.length > 0) {
+            // Get the total quantity of dispensers from services
+            formCount = workOrder.services.reduce((total, service) => {
+              return total + (service.quantity || 0);
+            }, 0);
+            
+            if (formCount > 0) {
+              logger.info(`Found quantity of ${formCount} in services for work order ${workOrderId}`);
+            }
+          }
+          
+          // If we couldn't find a quantity, use the number of dispensers
+          if (formCount === 0 && dispensers.length > 0) {
+            formCount = dispensers.length;
+            logger.info(`Using dispenser count (${formCount}) as form count`);
+          }
+          
+          currentStatus = { 
+            status: 'running', 
+            message: `Found ${dispensers.length} dispensers, creating ${formCount} forms for work order ${workOrderId}` 
+          };
+        } else {
+          logger.warn(`Work order ${workOrderId} not found`);
+          currentStatus = { 
+            status: 'running', 
+            message: `Work order ${workOrderId} not found` 
+          };
+        }
+      } else {
+        logger.warn('No scraped data file found');
+        currentStatus = { status: 'running', message: 'No scraped data file found' };
+      }
+    }
+    
+    // Prepare the form with dispenser data
+    const prepareSuccess = await prepareForm(page, dispensers, formCount);
+    
+    // Wait a moment to ensure everything is saved
+    await page.waitForTimeout(1000);
+    
+    // Return result
+    if (prepareSuccess) {
+      currentStatus = { status: 'completed', message: 'Visit processed successfully' };
+      return { success: true, message: 'Visit processed successfully' };
+    } else {
+      return { success: false, message: 'Failed to prepare form' };
+    }
+  } catch (error) {
+    logger.error(`Visit processing error: ${error.message}`);
+    currentStatus = { status: 'error', message: `Visit processing error: ${error.message}` };
+    return { success: false, message: `Error: ${error.message}` };
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+/**
+ * Process a batch of visits from a JSON file
+ * @param {string} filePath - Path to the JSON file with visit data
+ * @param {boolean} headless - Whether to run browser in headless mode
+ * @returns {Promise<object>} - Result of the operation
+ */
+async function processBatch(filePath, headless = true) {
+  let browser = null;
+  let page = null;
+  
+  try {
+    logger.info(`Processing batch from: ${filePath}`);
+    batchStatus = { 
+      status: 'running', 
+      message: `Starting batch processing from: ${filePath}`,
+      totalVisits: 0,
+      completedVisits: 0
+    };
+    
+    // Load the data file
+    const dataPath = path.join(process.cwd(), filePath);
+    if (!fs.existsSync(dataPath)) {
+      throw new Error(`Data file not found: ${filePath}`);
+    }
+    
+    const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Extract visits that need processing
+    const visitsToProcess = [];
+    
+    for (const workOrder of data.workOrders) {
+      if (
+        workOrder.visits && 
+        workOrder.visits.nextVisit && 
+        workOrder.visits.nextVisit.url
+      ) {
+        let formCount = 0;
+        let dispensers = [];
+        
+        // Get dispensers if available
+        if (workOrder.dispensers && workOrder.dispensers.length > 0) {
+          dispensers = workOrder.dispensers;
+        }
+        
+        // Check services for quantity
+        if (workOrder.services && workOrder.services.length > 0) {
+          // Get the total quantity of dispensers from services
+          formCount = workOrder.services.reduce((total, service) => {
+            return total + (service.quantity || 0);
+          }, 0);
+        }
+        
+        // If we couldn't find a quantity, use the number of dispensers
+        if (formCount === 0 && dispensers.length > 0) {
+          formCount = dispensers.length;
+        }
+        
+        // Only add to processing if we have either dispensers or a form count
+        if (formCount > 0 || dispensers.length > 0) {
+          visitsToProcess.push({
+            id: workOrder.id,
+            url: `https://app.workfossa.com${workOrder.visits.nextVisit.url}`,
+            dispensers: dispensers,
+            formCount: formCount
+          });
+        }
+      }
+    }
+    
+    if (visitsToProcess.length === 0) {
+      logger.warn('No valid visits found to process');
+      batchStatus = { 
+        status: 'completed', 
+        message: 'No valid visits found to process',
+        totalVisits: 0,
+        completedVisits: 0
+      };
+      return { success: false, message: 'No valid visits found to process' };
+    }
+    
+    // Update batch status
+    batchStatus.totalVisits = visitsToProcess.length;
+    batchStatus.message = `Found ${visitsToProcess.length} visits to process`;
+    logger.info(`Found ${visitsToProcess.length} visits to process`);
+    
+    // Use the improved loginToFossa function from login.js
+    const loginResult = await loginToFossa({ headless });
+    
+    if (!loginResult.success) {
+      throw new Error('Failed to login to Fossa');
+    }
+    
+    // Get the browser and page objects from the login result
+    browser = loginResult.browser;
+    page = loginResult.page;
+    
+    // Process each visit
+    for (let i = 0; i < visitsToProcess.length; i++) {
+      const visit = visitsToProcess[i];
+      
+      try {
+        logger.info(`Processing visit ${i + 1}/${visitsToProcess.length}: ${visit.url}`);
+        batchStatus.message = `Processing visit ${i + 1}/${visitsToProcess.length}: Work Order ${visit.id}`;
+        
+        // Navigate to the visit page
+        await page.goto(visit.url);
+        await page.waitForLoadState('networkidle');
+        
+        // Prepare the form with dispenser data and form count
+        await prepareForm(page, visit.dispensers, visit.formCount);
+        
+        // Wait a moment to ensure everything is saved
+        await page.waitForTimeout(1000);
+        
+        // Update completed count
+        batchStatus.completedVisits++;
+        
+      } catch (error) {
+        logger.error(`Error processing visit ${visit.url}: ${error.message}`);
+        // Continue with the next visit even if one fails
+      }
+    }
+    
+    // Update batch status
+    batchStatus.status = 'completed';
+    batchStatus.message = `Batch processing completed. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.`;
+    
+    logger.info(`Batch processing completed. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.`);
+    
+    return { 
+      success: true, 
+      message: `Batch processing completed. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.` 
+    };
+    
+  } catch (error) {
+    logger.error(`Batch processing error: ${error.message}`);
+    batchStatus.status = 'error';
+    batchStatus.message = `Batch processing error: ${error.message}`;
+    return { success: false, message: `Error: ${error.message}` };
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+/**
+ * Get the current status of form automation
+ * @returns {object} - Current status
+ */
+function getStatus() {
+  return currentStatus;
+}
+
+/**
+ * Get the current status of batch automation
+ * @returns {object} - Current batch status
+ */
+function getBatchStatus() {
+  return batchStatus;
+}
+
+export {
+  processVisit,
+  processBatch,
+  getStatus,
+  getBatchStatus
+}; 

@@ -1,0 +1,83 @@
+import React, { Suspense } from 'react';
+import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { FiHome, FiSettings, FiFilter, FiZap } from 'react-icons/fi'
+import { ThemeToggle } from './components/ThemeToggle'
+import bannerImage from './assets/images/FossaMonitorLogo.png'
+
+// Lazy load pages
+const Home = React.lazy(() => import('./pages/Home'))
+const Settings = React.lazy(() => import('./pages/Settings'))
+const Filters = React.lazy(() => import('./pages/Filters'))
+const AutoFossa = React.lazy(() => import('./pages/AutoFossa'))
+
+function App() {
+  const location = useLocation();
+
+  return (
+    <div className="min-h-screen flex bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white dark:bg-gray-800 shadow-lg fixed h-full transition-colors duration-200">
+        <div className="p-4">
+          <div>
+            <img 
+              src={bannerImage} 
+              alt="Fossa Monitor" 
+              className="w-full h-auto object-cover rounded-md shadow-md"
+            />
+          </div>
+          <div className="flex justify-end">
+            <ThemeToggle />
+          </div>
+        </div>
+        <nav className="mt-4 space-y-1 px-3">
+          <Link
+            to="/"
+            className={`sidebar-link ${location.pathname === '/' ? 'active' : ''}`}
+          >
+            <FiHome className="w-5 h-5 mr-3" />
+            Home
+          </Link>
+          <Link
+            to="/filters"
+            className={`sidebar-link ${location.pathname === '/filters' ? 'active' : ''}`}
+          >
+            <FiFilter className="w-5 h-5 mr-3" />
+            Filters
+          </Link>
+          <Link
+            to="/auto-fossa"
+            className={`sidebar-link ${location.pathname === '/auto-fossa' ? 'active' : ''}`}
+          >
+            <FiZap className="w-5 h-5 mr-3" />
+            Auto Fossa
+          </Link>
+          <Link
+            to="/settings"
+            className={`sidebar-link ${location.pathname === '/settings' ? 'active' : ''}`}
+          >
+            <FiSettings className="w-5 h-5 mr-3" />
+            Settings
+          </Link>
+        </nav>
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 ml-64 p-8 dark:text-gray-100 transition-colors duration-200">
+        <div className="max-w-7xl mx-auto">
+          <Suspense fallback={<div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+          </div>}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/filters" element={<Filters />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/auto-fossa" element={<AutoFossa />} />
+            </Routes>
+          </Suspense>
+        </div>
+      </main>
+    </div>
+  )
+}
+
+export default App 

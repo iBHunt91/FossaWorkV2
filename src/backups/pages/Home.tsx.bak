@@ -1,0 +1,2418 @@
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { 
+  FiActivity, 
+  FiAlertCircle, 
+  FiCheckCircle, 
+  FiClock, 
+  FiHome, 
+  FiMapPin, 
+  FiFileText, 
+  FiTool, 
+  FiBriefcase, 
+  FiExternalLink, 
+  FiCalendar,
+  FiGrid,
+  FiFilter,
+  FiX,
+  FiShoppingBag,
+  FiInfo,
+  FiTrash2,
+  FiRefreshCw,
+  FiPieChart,
+  FiTrendingUp,
+  FiList,
+  FiArrowUp,
+  FiSearch,
+  FiStar,
+  FiBarChart2,
+  FiChevronDown,
+  FiSettings,
+  FiMaximize,
+  FiMinimize,
+  FiDownload,
+  FiSun,
+  FiMoon
+} from 'react-icons/fi'
+import LastScrapedTime from '../components/LastScrapedTime'
+import NextScrapeTime from '../components/NextScrapeTime'
+import DispenserInfo from '../components/DispenserInfo'
+import ScrapeLogsConsole from '../components/ScrapeLogsConsole'
+import { useNavigate } from 'react-router-dom'
+import { clearDispenserData, forceRescrapeDispenserData, getDispenserScrapeStatus } from '../services/scrapeService'
+import { useToast } from '../context/ToastContext'
+import { useTheme } from '../context/ThemeContext'
+import { useDispenserData } from '../context/DispenserContext'
+import { 
+  SkeletonDashboardStats, 
+  SkeletonJobsList 
+} from '../components/Skeleton'
+
+// Import work order data
+import workOrderData from '../../data/scraped_content.json'
+
+// Import fuel grades list for proper ordering
+import fuelGrades from '../data/fuel_grades';
+
+// View type enum
+type ViewType = 'weekly' | 'calendar';
+
+// Store filter type
+type StoreFilter = 'all' | '7-eleven' | 'circle-k' | 'wawa' | 'other' | string;
+
+// Customer type definition
+type Customer = {
+  name: string;
+  storeNumber?: string | null;
+  rawHtml?: string;
+};
+
+// Define a Dispenser type
+type Dispenser = {
+  title: string;
+  serial?: string;
+  make?: string;
+  model?: string;
+  fields?: {[key: string]: string}; // Changed to indexed signature to handle any field name
+  html?: string;
+};
+
+// Define a WorkOrder type that includes dispensers
+type WorkOrder = {
+  id: string;
+  workOrderId?: string;
+  customer: Customer;
+  services: Array<{
+    type: string;
+    quantity: number;
+    description: string;
+    code: string;
+  }>;
+  visits: Record<string, any>;
+  instructions: string;
+  rawHtml: string;
+  dispensers?: Dispenser[];
+  // Add optional fields used elsewhere in the component
+  scheduledDate?: string;
+  nextVisitDate?: string;
+  visitDate?: string;
+  date?: string;
+};
+
+// Add a utility function to sort fuel types according to the official order
+const sortFuelTypes = (gradeString: string): string[] => {
+  if (!gradeString) return [];
+  
+  // Split by commas, semicolons, or slashes to get individual grades
+  const grades = gradeString.split(/[,;\/]+/).map(grade => grade.trim());
+  
+  // Sort according to the order in fuelGrades list
+  return [...grades].sort((a, b) => {
+    // Try exact match first for both
+    const exactMatchA = fuelGrades.findIndex(grade => 
+      grade.toLowerCase() === a.toLowerCase()
+    );
+    const exactMatchB = fuelGrades.findIndex(grade => 
+      grade.toLowerCase() === b.toLowerCase()
+    );
+    
+    // If both have exact matches, use those
+    if (exactMatchA !== -1 && exactMatchB !== -1) {
+      return exactMatchA - exactMatchB;
+    }
+    
+    // If only one has an exact match, prioritize it
+    if (exactMatchA !== -1) return -1;
+    if (exactMatchB !== -1) return 1;
+    
+    // Otherwise, find the best match by finding the shortest containing grade
+    // (This prevents "Plus" in "Ethanol-Free Gasoline Plus" from matching with "Plus")
+    const bestMatchA = fuelGrades.reduce((best, grade) => {
+      if (a.toLowerCase().includes(grade.toLowerCase()) && 
+          (best === -1 || grade.length > fuelGrades[best].length)) {
+        return fuelGrades.indexOf(grade);
+      }
+      return best;
+    }, -1);
+    
+    const bestMatchB = fuelGrades.reduce((best, grade) => {
+      if (b.toLowerCase().includes(grade.toLowerCase()) && 
+          (best === -1 || grade.length > fuelGrades[best].length)) {
+        return fuelGrades.indexOf(grade);
+      }
+      return best;
+    }, -1);
+    
+    // If not found in list, put at the end
+    if (bestMatchA === -1) return 1;
+    if (bestMatchB === -1) return -1;
+    
+    return bestMatchA - bestMatchB;
+  });
+};
+
+// Helper function to calculate work week date ranges
+// Returns standard Monday-Friday by default, or custom ranges if preferences are set
+interface WorkWeekDateRanges {
+  currentWeekStart: Date;
+  currentWeekEnd: Date;
+  nextWeekStart: Date;
+  nextWeekEnd: Date;
+}
+
+const getWorkWeekDateRanges = (
+  workWeekStart: number = 1,
+  workWeekEnd: number = 5,
+  selectedDate: Date = new Date()
+): WorkWeekDateRanges => {
+  // Use the selectedDate as the base date instead of new Date()
+  const today = selectedDate;
+  
+  // Always calculate first day of current week
+  const currentWeekStart = new Date(today);
+  const currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const currentHour = today.getHours();
+  
+  // Check if we're at the end of the work week after 5:00pm (17:00)
+  // If it's workWeekEnd day and after 5pm, we'll treat it as weekend mode
+  const isAfterWorkWeekEnd = (currentDayOfWeek === workWeekEnd && currentHour >= 17) || 
+                            currentDayOfWeek > workWeekEnd || 
+                            currentDayOfWeek < workWeekStart;
+  
+  // Calculate days to add/subtract to get to start day
+  const diffToStart = isAfterWorkWeekEnd ?
+    (workWeekStart + 7 - currentDayOfWeek) % 7 : // Next week's work start if after work week
+    (currentDayOfWeek === 0) ?
+      workWeekStart - 7 : // If today is Sunday, go back to previous week's start day
+      workWeekStart - currentDayOfWeek; // Otherwise calculate normally
+  
+  currentWeekStart.setDate(today.getDate() + diffToStart);
+  currentWeekStart.setHours(0, 0, 0, 0); // Start of day
+  
+  // Calculate end of work week (use direct workWeekEnd value)
+  const currentWeekEnd = new Date(currentWeekStart);
+  // Number of days to add = difference between end day and start day
+  // If workWeekEnd is less than workWeekStart, it means end is in the next week
+  const daysToAdd = workWeekEnd < workWeekStart ? 
+    7 - workWeekStart + workWeekEnd : // Wrap around to next week
+    workWeekEnd - workWeekStart;
+  
+  currentWeekEnd.setDate(currentWeekStart.getDate() + daysToAdd);
+  currentWeekEnd.setHours(17, 0, 0, 0); // End at 5:00pm on the end day
+  
+  // Next week's start is one week after current week start
+  const nextWeekStart = new Date(currentWeekStart);
+  nextWeekStart.setDate(currentWeekStart.getDate() + 7); // Exactly one week later
+  nextWeekStart.setHours(0, 0, 0, 0); // Start of day
+  
+  // Next week's end is the same pattern as current week
+  const nextWeekEnd = new Date(nextWeekStart);
+  nextWeekEnd.setDate(nextWeekStart.getDate() + daysToAdd);
+  nextWeekEnd.setHours(17, 0, 0, 0); // End at 5:00pm
+  
+  return {
+    currentWeekStart,
+    currentWeekEnd,
+    nextWeekStart,
+    nextWeekEnd
+  };
+};
+
+const Home: React.FC = () => {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const { theme, setTheme, isDarkMode } = useTheme();
+  const { dispenserData, loadDispenserData, isLoaded } = useDispenserData();
+  
+  // State
+  const [activeView, setActiveView] = useState<ViewType>('weekly');
+  const [activeFilter, setActiveFilter] = useState<StoreFilter>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // Calendar view state
+  const today = new Date();
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  
+  // Work orders data state
+  const [workOrdersData, setWorkOrdersData] = useState(workOrderData);
+  const { workOrders, metadata } = workOrdersData;
+  const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrder[]>(workOrders as WorkOrder[]);
+  const [loading, setLoading] = useState(true);
+  const [selectedTab, setSelectedTab] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [countsByCategory, setCountsByCategory] = useState<{[key: string]: number}>({});
+  
+  // State for modals and dispenser operations
+  const [clearingDispenserId, setClearingDispenserId] = useState<string | null>(null);
+  const [reScrapeDispenserId, setReScrapeDispenserId] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
+  const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
+  const [logConsoleType, setLogConsoleType] = useState<'workOrder' | 'dispenser'>('dispenser');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [currentDispenserInfo, setCurrentDispenserInfo] = useState<string | null>(null);
+  const [currentDispenserData, setCurrentDispenserData] = useState<any[]>([]);
+  const [hasDispenserInfo, setHasDispenserInfo] = useState<boolean>(false);
+  const [isDataRefreshing, setIsDataRefreshing] = useState<boolean>(false);
+  const [showDispenserModal, setShowDispenserModal] = useState<boolean>(false);
+  const [selectedDispensers, setSelectedDispensers] = useState<any[]>([]);
+  
+  // UI state
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [isFullscreenMode, setIsFullscreenMode] = useState(false);
+  const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertType, setAlertType] = useState<'success' | 'error' | 'info'>('info');
+
+  // Loading state (consolidating duplicate state)
+  const [isLoading, setIsLoading] = useState(true);
+  // Track if dispenser toast notification has been shown
+  const [dispenserToastShown, setDispenserToastShown] = useState(() => {
+    return sessionStorage.getItem('dispenserToastShown') === 'true';
+  });
+
+  // New work week preferences state
+  const [workWeekStart, setWorkWeekStart] = useState<number>(1); // 1 = Monday
+  const [workWeekEnd, setWorkWeekEnd] = useState<number>(5);   // 5 = Friday
+  const [showWorkWeekSettings, setShowWorkWeekSettings] = useState<boolean>(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const storedDate = localStorage.getItem('selectedDate');
+    return storedDate ? new Date(storedDate) : new Date();
+  });
+  const [refreshTimestamp, setRefreshTimestamp] = useState<number>(Date.now());
+
+  // Add a state to track which dispensers have expanded technical details
+  const [expandedTechnicalDetails, setExpandedTechnicalDetails] = useState<number[]>([]);
+
+  // Flag to prevent duplicate distribution logs
+  const [distributionLogged, setDistributionLogged] = useState<boolean>(false);
+
+  // Log data for debugging
+  useEffect(() => {
+    console.log('Loaded work orders:', workOrders);
+    console.log('Orders with dispenser data:', (workOrders as WorkOrder[]).filter(order => order.dispensers && order.dispensers.length > 0).length);
+    // Check for first work order with dispenser data
+    const orderWithDispenser = (workOrders as WorkOrder[]).find(order => order.dispensers && order.dispensers.length > 0);
+    if (orderWithDispenser) {
+      console.log('Sample dispenser data:', orderWithDispenser.dispensers);
+    } else {
+      console.warn('No orders found with dispenser data');
+    }
+  }, [workOrders]);
+
+  // The main loadData function
+  const loadData = async (forceRefreshDispenser = false) => {
+    try {
+      // Use local data instead of API call
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Using local work orders data: ${workOrders.length} items`);
+      }
+      
+      // Check if there's dispenser data from the context
+      if (dispenserData && dispenserData.dispenserData) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Merging with dispenser data from context: ${Object.keys(dispenserData.dispenserData).length} items`);
+        }
+        
+        // Debug: log some sample IDs to check matching
+        const dispenserDataIds = Object.keys(dispenserData.dispenserData);
+        console.log("Dispenser data IDs (first 5):", dispenserDataIds.slice(0, 5));
+        
+        if (workOrders.length > 0) {
+          console.log("Work order IDs sample (first 5):", workOrders.slice(0, 5).map(o => o.id));
+        }
+        
+        const mergedOrders = [...workOrders].map(order => {
+          // Get ID and remove any leading/trailing whitespace
+          const orderId = order.id?.trim();
+          // Use optional chaining to safely access workOrderId which might not exist on all orders
+          const workOrderId = (order as any)?.workOrderId?.trim() || '';
+          
+          // Try to match by multiple ID formats (with and without W- prefix)
+          let orderDispenserData = null;
+          
+          // First try direct match
+          if (orderId && dispenserData.dispenserData[orderId]) {
+            orderDispenserData = dispenserData.dispenserData[orderId];
+          } 
+          // Try with W- prefix if not found
+          else if (orderId && !orderId.startsWith('W-') && dispenserData.dispenserData[`W-${orderId}`]) {
+            orderDispenserData = dispenserData.dispenserData[`W-${orderId}`];
+          }
+          // Try without W- prefix if not found
+          else if (orderId && orderId.startsWith('W-') && dispenserData.dispenserData[orderId.substring(2)]) {
+            orderDispenserData = dispenserData.dispenserData[orderId.substring(2)];
+          }
+          // Try workOrderId as fallback
+          else if (workOrderId && dispenserData.dispenserData[workOrderId]) {
+            orderDispenserData = dispenserData.dispenserData[workOrderId];
+          }
+          // Try with W- prefix on workOrderId
+          else if (workOrderId && !workOrderId.startsWith('W-') && dispenserData.dispenserData[`W-${workOrderId}`]) {
+            orderDispenserData = dispenserData.dispenserData[`W-${workOrderId}`];
+          }
+          
+          if (orderDispenserData && orderDispenserData.dispensers && orderDispenserData.dispensers.length > 0) {
+            // Log success for debugging
+            console.log(`Found dispenser data for order ${orderId || workOrderId}`);
+            return {
+              ...order,
+              dispensers: orderDispenserData.dispensers
+            };
+          }
+          
+          return order;
+        });
+        
+        // Update work orders with merged data - use type assertion to handle the expanded properties
+        setWorkOrdersData({
+          workOrders: mergedOrders as any, // Use type assertion to avoid TypeScript errors
+          metadata: metadata
+        });
+        
+        // Also update filtered work orders to reflect the changes
+        // Use direct assignment to bypass TypeScript errors
+        const filteredWithDispensers = filteredWorkOrders.map(prevOrder => {
+          // Find matching order in mergedOrders
+          const matchingOrder = mergedOrders.find(o => o.id === prevOrder.id);
+          if (matchingOrder && (matchingOrder as any).dispensers) {
+            // Return the updated order with dispensers
+            return {
+              ...prevOrder,
+              dispensers: (matchingOrder as any).dispensers
+            };
+          }
+          return prevOrder;
+        });
+        
+        // Force cast to WorkOrder[] and set the filtered work orders
+        setFilteredWorkOrders(filteredWithDispensers as unknown as WorkOrder[]);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Loaded main data with ${mergedOrders.length} work orders`);
+          // Debug: Log count of work orders with dispensers
+          const withDispensers = mergedOrders.filter(order => 
+            (order as any).dispensers && (order as any).dispensers.length > 0
+          ).length;
+          console.log(`Work orders with dispenser data: ${withDispensers}`);
+          
+          // Log sample of merged order with dispenser data
+          const sampleWithDispenser = mergedOrders.find(order => 
+            (order as any).dispensers && (order as any).dispensers.length > 0
+          );
+          if (sampleWithDispenser) {
+            console.log('Sample of merged order with dispensers:', sampleWithDispenser);
+          }
+        }
+      } else {
+        console.warn('No dispenser data available from context');
+      }
+      
+      // Set loading state to false
+      setIsLoading(false);
+      
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setIsLoading(false);
+    }
+  };
+
+  // Call loadData on component mount only
+  useEffect(() => {
+    // First, make sure dispenser data is loaded
+    loadDispenserData(true).then(() => {
+      // Then load and merge the data
+      loadData();
+    });
+    // We're intentionally excluding other dependencies to avoid excess re-renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Update filtered work orders whenever workOrders or filters change
+  useEffect(() => {
+    // Filter work orders based on searchTerm and selectedTab
+    let filtered = [...workOrders];
+    
+    if (searchTerm) {
+      filtered = filtered.filter(order => {
+        const customerName = order.customer?.name?.toLowerCase() || '';
+        const storeNumber = order.customer?.storeNumber?.toLowerCase() || '';
+        const search = searchTerm.toLowerCase();
+        return customerName.includes(search) || storeNumber.includes(search);
+      });
+    }
+    
+    if (selectedTab !== 'all') {
+      filtered = filtered.filter(order => {
+        const storeType = getStoreTypeForFiltering(order);
+        return storeType === selectedTab;
+      });
+    }
+    
+    // Ensure filtered is properly typed as WorkOrder[]
+    const typedFiltered: WorkOrder[] = filtered as WorkOrder[];
+    setFilteredWorkOrders(typedFiltered);
+    
+  }, [workOrders, searchTerm, selectedTab]);
+
+  // Separate useEffect for toast notifications
+  useEffect(() => {
+    // Only show toast if it hasn't been shown yet during this session
+    if (!dispenserToastShown && !isLoading && filteredWorkOrders.length > 0) {
+      const ordersWithDispensers = filteredWorkOrders.filter(
+        (order) => order.dispensers && order.dispensers.length > 0
+      ).length;
+      
+      if (ordersWithDispensers > 0) {
+        addToast('success', `Loaded ${ordersWithDispensers} work orders with dispenser information`);
+      } else {
+        addToast('warning', 'No dispenser information found for any work orders');
+      }
+      
+      // Mark as shown in session storage to prevent repeated notifications
+      sessionStorage.setItem('dispenserToastShown', 'true');
+      setDispenserToastShown(true);
+    }
+  }, [isLoading, filteredWorkOrders, dispenserToastShown, addToast]);
+
+  // Auto-hide welcome message
+  useEffect(() => {
+    if (showWelcome) {
+      const timer = setTimeout(() => {
+        setShowWelcome(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showWelcome]);
+
+  // Process instructions from work order
+  const processInstructions = (instructions: string) => {
+    if (!instructions) return '';
+    
+    // Replace line breaks with spaces
+    let processedText = instructions.replace(/\n/g, ' ');
+    
+    // Remove any HTML tags
+    processedText = processedText.replace(/<[^>]*>/g, '');
+    
+    // Get the store type
+    const order = workOrders.find(o => o.instructions === instructions);
+    const customerName = order?.customer?.name?.toLowerCase() || '';
+    
+    // Rule for 7-Eleven stores
+    if (customerName.includes('7-eleven') || customerName.includes('speedway')) {
+      const newStoreMatch = processedText.match(/NEW\/REMODELED\s+STORE/i);
+      if (newStoreMatch) {
+        return newStoreMatch[0];
+      }
+    }
+    
+    // Rule for Wawa stores
+    if (customerName.includes('wawa')) {
+      // Hide "RETURN CRIND KEYS to the MANAGER"
+      processedText = processedText.replace(/RETURN\s+CRIND\s+KEYS\s+to\s+the\s+MANAGER/gi, '');
+    }
+    
+    // Rule for Circle K stores
+    if (customerName.includes('circle k')) {
+      // Only show priority level - extract just the number
+      const priorityMatch = processedText.match(/Priority:\s*(\d+)/i);
+      if (priorityMatch) {
+        // Return only "Priority: X" without any description
+        return `Priority: ${priorityMatch[1]}`;
+      }
+      
+      // Hide instructions with "Issue:" or "Issue description:"
+      if (processedText.includes('Issue:') || processedText.includes('Issue description:')) {
+        return '';
+      }
+    }
+    
+    // For all store types - process day information
+    const dayMatch = processedText.match(/(Day\s+\d+|Start\s+Day|Finish\s+Day)([^.]*)/i);
+    if (dayMatch) {
+      return dayMatch[0].trim();
+    }
+    
+    // Handle dispensers calibration for specific dispensers
+    const calibrateMatch = processedText.match(/(Calibrate\s+#\d+[^.]*)/i);
+    if (calibrateMatch) {
+      return calibrateMatch[0].trim();
+    }
+    
+    // Hide standard instructions for all store types
+    const standardPatterns = [
+      /Calibrate all dispensers and change filters.+?/i,
+      /2025 AccuMeasure - Change and date all GAS.+?filters with CimTek.+?/i,
+      /Issue: Calibration required Issue description: Calibrate and adjust.+?/i
+    ];
+    
+    for (const pattern of standardPatterns) {
+      if (pattern.test(processedText)) {
+        return '';
+      }
+    }
+    
+    // Remove common prefixes and noise
+    const prefixesToRemove = [
+      'special instructions:', 
+      'instructions:', 
+      'special notes:', 
+      'notes:', 
+      'additional notes:', 
+      'service notes:', 
+      'dispenser notes:'
+    ];
+    
+    let lowerCaseText = processedText.toLowerCase();
+    for (const prefix of prefixesToRemove) {
+      if (lowerCaseText.startsWith(prefix)) {
+        processedText = processedText.substring(prefix.length);
+        lowerCaseText = processedText.toLowerCase();
+      }
+    }
+    
+    // Trim whitespace
+    processedText = processedText.trim();
+    
+    // Trim to reasonable length
+    if (processedText.length > 150) {
+      return processedText.substring(0, 147) + '...';
+    }
+    
+    return processedText;
+  };
+
+  // The calculateStoreDistribution function for use with the weekly views
+  const calculateStoreDistribution = (orders: any[]) => {
+    // Get date ranges using the helper function
+    const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+    
+    // Use the helper function to calculate distribution
+    return calculateDistribution(
+      orders,
+      dateRanges.currentWeekStart,
+      dateRanges.currentWeekEnd,
+      dateRanges.nextWeekStart,
+      dateRanges.nextWeekEnd
+    );
+  };
+  
+  // Helper function to calculate distribution using provided date ranges
+  const calculateDistribution = (
+    orders: any[], 
+    currentWeekStart: Date, 
+    currentWeekEnd: Date, 
+    nextWeekStart: Date, 
+    nextWeekEnd: Date
+  ) => {
+    const result = {
+      currentWeek: {} as Record<string, number>,
+      nextWeek: {} as Record<string, number>,
+      total: 0
+    };
+    
+    orders.forEach(order => {
+      // Check for visits in different formats
+      const visitDate = order.visits?.nextVisit?.date || order.nextVisitDate || order.visitDate || null;
+      
+      if (!visitDate) return;
+      
+      // Make sure we have a proper Date object
+      const visitDateTime = new Date(visitDate);
+      if (isNaN(visitDateTime.getTime())) return; // Skip if invalid date
+      
+      // Determine store type
+      const storeType = getStoreTypeForFiltering(order);
+      
+      // Count in total
+      result.total++;
+      
+      // Check which week this visit falls into
+      if (visitDateTime >= currentWeekStart && visitDateTime <= currentWeekEnd) {
+        // Current week
+        if (!result.currentWeek[storeType]) {
+          result.currentWeek[storeType] = 0;
+        }
+        result.currentWeek[storeType]++;
+      } 
+      else if (visitDateTime >= nextWeekStart && visitDateTime <= nextWeekEnd) {
+        // Next week
+        if (!result.nextWeek[storeType]) {
+          result.nextWeek[storeType] = 0;
+        }
+        result.nextWeek[storeType]++;
+      }
+    });
+    
+    // Only log in development and only once
+    if (process.env.NODE_ENV === 'development' && !distributionLogged) {
+      console.log(`Current week: ${currentWeekStart.toDateString()} to ${currentWeekEnd.toDateString()}`);
+      console.log(`Next week: ${nextWeekStart.toDateString()} to ${nextWeekEnd.toDateString()}`);
+      console.log('Store distribution:', { currentWeek: result.currentWeek, nextWeek: result.nextWeek, total: result.total });
+      // Set a flag to prevent duplicate logs
+      setDistributionLogged(true);
+    }
+    
+    return result;
+  };
+
+  // Update the renderDashboardHeader to use a different visualization
+  const renderDashboardHeader = () => {
+    if (isLoading) {
+      return <SkeletonDashboardStats />;
+    }
+
+    const storeDistribution = calculateStoreDistribution(workOrders);
+    
+    const getStoreColor = (storeType: string) => {
+      switch (storeType) {
+        case '7-eleven': return { 
+          bg: 'bg-red-500', 
+          text: 'text-red-700',
+          border: 'border-red-200', 
+          dark: 'dark:border-red-800 dark:text-red-300',
+          icon: '🏪'
+        };
+        case 'circle-k': return { 
+          bg: 'bg-amber-500', 
+          text: 'text-amber-700',
+          border: 'border-amber-200',
+          dark: 'dark:border-amber-800 dark:text-amber-300',
+          icon: '⭕'
+        };
+        case 'wawa': return { 
+          bg: 'bg-indigo-500', 
+          text: 'text-indigo-700',
+          border: 'border-indigo-200',
+          dark: 'dark:border-indigo-800 dark:text-indigo-300',
+          icon: '🦆'
+        };
+        case 'other': return { 
+          bg: 'bg-blue-500', 
+          text: 'text-blue-700',
+          border: 'border-blue-200',
+          dark: 'dark:border-blue-800 dark:text-blue-300',
+          icon: '🏢'
+        };
+        default: return { 
+          bg: 'bg-gray-500', 
+          text: 'text-gray-700',
+          border: 'border-gray-200',
+          dark: 'dark:border-gray-800 dark:text-gray-300',
+          icon: '🏬'
+        };
+      }
+    };
+    
+    // Function to format date range for display
+    const formatDateRange = (start: Date, end: Date) => {
+      return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    };
+    
+    // Calculate date ranges
+    const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+    
+    const currentWeekText = formatDateRange(dateRanges.currentWeekStart, dateRanges.currentWeekEnd);
+    const nextWeekText = formatDateRange(dateRanges.nextWeekStart, dateRanges.nextWeekEnd);
+    
+    return (
+      <>
+        {showWelcome && (
+          <div className="bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500 p-4 mb-6 animate-fadeIn">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <FiInfo className="h-5 w-5 text-blue-500" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Welcome back! You have {workOrders.length} work orders and {storeDistribution.currentWeek ? Object.values(storeDistribution.currentWeek).reduce((a, b) => a + b, 0) : 0} visits this work week.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                <FiCalendar className="mr-2 text-blue-500" />
+                This Week
+              </h2>
+              <span className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
+                {currentWeekText}
+              </span>
+            </div>
+            
+            {Object.keys(storeDistribution.currentWeek).length > 0 ? (
+              <div className="grid grid-cols-3 gap-4">
+                {Object.entries(storeDistribution.currentWeek).map(([storeType, count], index) => {
+                  const storeStyle = getStoreStyles(storeType);
+                  
+                  return (
+                    <div key={storeType} className={`rounded-md p-4 ${storeStyle.boxBg} flex flex-col items-center justify-between`}>
+                      <span className="text-sm font-medium text-center text-white">
+                        {storeStyle.name}
+                      </span>
+                      <span className="text-2xl font-bold text-white mt-1">{count}</span>
+                      <span className="text-xs text-gray-300 mt-1">visits</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <FiCalendar className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                <p>No visits scheduled for this week</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                <FiCalendar className="mr-2 text-green-500" />
+                Next Week
+              </h2>
+              <span className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
+                {nextWeekText}
+              </span>
+            </div>
+            
+            {Object.keys(storeDistribution.nextWeek).length > 0 ? (
+              <div className="grid grid-cols-3 gap-4">
+                {Object.entries(storeDistribution.nextWeek).map(([storeType, count], index) => {
+                  const storeStyle = getStoreStyles(storeType);
+                  
+                  return (
+                    <div key={storeType} className={`rounded-md p-4 ${storeStyle.boxBg} flex flex-col items-center justify-between`}>
+                      <span className="text-sm font-medium text-center text-white">
+                        {storeStyle.name}
+                      </span>
+                      <span className="text-2xl font-bold text-white mt-1">{count}</span>
+                      <span className="text-xs text-gray-300 mt-1">visits</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <FiCalendar className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                <p>No visits scheduled for next week</p>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Add work week settings button */}
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={() => setShowWorkWeekSettings(!showWorkWeekSettings)}
+            className="flex items-center text-sm text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+          >
+            <FiSettings className="mr-1 h-4 w-4" />
+            <span>Work Week Settings</span>
+          </button>
+        </div>
+        
+        {/* Work Week Settings Panel */}
+        {showWorkWeekSettings && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Work Week Preferences</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Start of Work Week</label>
+                <select
+                  value={workWeekStart}
+                  onChange={(e) => setWorkWeekStart(Number(e.target.value))}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                >
+                  <option value={0}>Sunday</option>
+                  <option value={1}>Monday</option>
+                  <option value={2}>Tuesday</option>
+                  <option value={3}>Wednesday</option>
+                  <option value={4}>Thursday</option>
+                  <option value={5}>Friday</option>
+                  <option value={6}>Saturday</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">End of Work Week</label>
+                <select
+                  value={workWeekEnd}
+                  onChange={(e) => setWorkWeekEnd(Number(e.target.value))}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                >
+                  <option value={0}>Sunday</option>
+                  <option value={1}>Monday</option>
+                  <option value={2}>Tuesday</option>
+                  <option value={3}>Wednesday</option>
+                  <option value={4}>Thursday</option>
+                  <option value={5}>Friday</option>
+                  <option value={6}>Saturday</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              These settings define which days are considered part of your work week for planning purposes.
+            </p>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  // Update the renderJobRow function with improved instructions display
+  const renderJobRow = (order: any) => {
+    // Get meter calibration quantity (renamed to getDispenserQuantity for consistency)
+    const getDispenserQuantity = (order: any) => {
+      const meterCalibration = order.services.find((s: any) => s.type === "Meter Calibration");
+      return meterCalibration ? meterCalibration.quantity : 0;
+    };
+
+    // Get store type for styling
+    const getStoreType = (order: any) => {
+      const customerName = order.customer.name.toLowerCase();
+      
+      if (customerName.includes('7-eleven') || customerName.includes('speedway')) {
+        return '7-eleven';
+      } else if (customerName.includes('circle k')) {
+        return 'circle-k';
+      } else if (customerName.includes('wawa')) {
+        return 'wawa';
+      } else {
+        return 'other';
+      }
+    };
+
+    // Get store display name
+    const getDisplayName = (order: any) => {
+      if (!order || !order.customer) return 'Unknown';
+      
+      // Start with the customer name
+      let displayName = order.customer.name;
+      
+      // Add store number if available, ensuring only one # symbol
+      if (order.customer.storeNumber) {
+        const storeNumber = order.customer.storeNumber.startsWith('#') 
+          ? order.customer.storeNumber 
+          : `#${order.customer.storeNumber}`;
+        displayName += ` ${storeNumber}`;
+      }
+      
+      return displayName;
+    };
+
+    // Get work order URL
+    const getWorkOrderUrl = (order: any) => {
+      if (!order) return '#';
+      return `https://portal.forssafuel.com/app/work/${order.id}/overview`;
+    };
+
+    // Determine store type and apply appropriate styling
+    const storeType = getStoreTypeForFiltering(order);
+    const visitId = extractVisitId(order);
+    const dispenserQty = getDispenserQuantity(order);
+    const hasDispenserData = order.dispensers && order.dispensers.length > 0;
+    const hasNextVisit = order.visits && order.visits.nextVisit && order.visits.nextVisit.date;
+    const nextVisitDate = hasNextVisit ? new Date(order.visits.nextVisit.date) : null;
+    const formattedVisitDate = nextVisitDate ? nextVisitDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'No visit scheduled';
+    
+    // Process instructions safely
+    const instructions = order.instructions ? processInstructions(order.instructions) : '';
+
+    // Check if this order is a favorite
+    const isFavorite = favorites.includes(order.id.toString());
+
+    // Get card color styling based on store type
+    const getCardColorStyles = (storeType: string) => {
+      switch (storeType) {
+        case '7-eleven':
+          return 'border-l-4 border-green-500 dark:border-green-700';
+        case 'circle-k':
+          return 'border-l-4 border-orange-500 dark:border-orange-700';
+        case 'wawa':
+          return 'border-l-4 border-purple-500 dark:border-purple-700';
+        default:
+          return 'border-l-4 border-gray-500 dark:border-gray-700';
+      }
+    };
+
+    // Get store styling
+    const storeStyle = getStoreStyles(storeType);
+
+    return (
+      <div 
+        key={order.id} 
+        className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4 hover:shadow-md transition-all-300 hover-lift ${storeStyle.cardBorder}`}
+      >
+        <div className="flex flex-wrap md:flex-nowrap gap-3">
+          {/* Left Section */}
+          <div className="w-full flex-1">
+            <div className="flex items-center mb-2">
+              <button
+                onClick={(e) => toggleFavorite(order.id.toString(), e)}
+                className={`mr-2 transition-colors focus:outline-none ${
+                  isFavorite ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 dark:text-gray-600 hover:text-amber-400 dark:hover:text-amber-400'
+                }`}
+                title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+              >
+                <FiStar className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+              </button>
+              
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{getDisplayName(order)}</h3>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 items-center mb-2">
+              <div className="flex items-center text-blue-600 dark:text-blue-400 font-medium">
+                <FiFileText className="h-4 w-4 mr-1" />
+                <span>{visitId}</span>
+              </div>
+              
+              {hasNextVisit && (
+                <div className="flex items-center text-gray-600 dark:text-gray-400">
+                  <FiCalendar className="h-4 w-4 mr-1" />
+                  <span>{formattedVisitDate}</span>
+                </div>
+              )}
+              
+              {dispenserQty > 0 && (
+                <div className="flex items-center text-purple-600 dark:text-purple-400">
+                  <FiActivity className="h-4 w-4 mr-1" />
+                  <span>
+                    {dispenserQty} {dispenserQty === 1 ? 'Dispenser' : 'Dispensers'}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {/* Improved instructions display - more compact with icon */}
+            {instructions && (
+              <div className="mt-2 flex items-start space-x-2">
+                <div className="flex-shrink-0 mt-0.5">
+                  <FiInfo className="h-4 w-4 text-blue-500" />
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1 hover:line-clamp-none transition-all duration-200">
+                  {instructions}
+                </p>
+              </div>
+            )}
+          </div>
+          
+          {/* Right Section - Action Buttons */}
+          <div className="flex items-center gap-3">
+            {renderDispenserButton(order)}
+            
+            <div className="flex">
+              <button
+                className="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={(e) => handleClearDispenserData(order.id, e)}
+                disabled={!!clearingDispenserId}
+                title="Clear Dispenser Data"
+              >
+                {clearingDispenserId === order.id ? (
+                  <FiRefreshCw className="h-5 w-5 animate-spin" />
+                ) : (
+                  <FiTrash2 className="h-5 w-5" />
+                )}
+              </button>
+              
+              <button
+                className="p-2 text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={(e) => handleForceRescrapeDispenserData(order.id, e)}
+                disabled={!!reScrapeDispenserId}
+                title="Force Rescrape"
+              >
+                {reScrapeDispenserId === order.id ? (
+                  <FiRefreshCw className="h-5 w-5 animate-spin" />
+                ) : (
+                  <FiRefreshCw className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Helper function to extract visit ID
+  const extractVisitId = (order: any) => {
+    if (!order) return 'Unknown';
+    return order.workOrderId || order.id || 'Unknown';
+  };
+  
+  // Toggle favorite status for work orders
+  const toggleFavorite = (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (favorites.includes(orderId)) {
+      setFavorites(favorites.filter(id => id !== orderId));
+      addToast('info', 'Removed from favorites');
+    } else {
+      setFavorites([...favorites, orderId]);
+      addToast('success', 'Added to favorites');
+    }
+  };
+  
+  // Handler for viewing dispenser data
+  const handleViewDispenserData = (order: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    // Set the selected order ID regardless of whether there's dispenser data
+    setSelectedOrderId(order.id);
+    
+    console.log('View dispenser data for order:', order.id, 'Has dispensers:', 
+      order.dispensers && Array.isArray(order.dispensers) && order.dispensers.length > 0);
+    
+    if (order.dispensers) {
+      console.log('Dispenser data:', order.dispensers);
+    }
+    
+    // Check if there is dispenser data available
+    if (order.dispensers && Array.isArray(order.dispensers) && order.dispensers.length > 0) {
+      // Format dispenser data for the modal if needed
+      const formattedDispensers = order.dispensers.map((dispenser: any) => {
+        console.log('Processing dispenser:', dispenser);
+        
+        // Use original title without modifications - titles should be preserved exactly as in JSON
+        const formattedTitle = dispenser.title || '';
+        
+        // Create a base dispenser object with proper type handling
+        const formattedDispenser: Dispenser = {
+          title: formattedTitle,
+          serial: dispenser.serial || '',
+          make: dispenser.make || '',
+          model: dispenser.model || '',
+          html: dispenser.html || '',
+          fields: {} // Initialize fields as empty object
+        };
+
+        // Ensure fields is an object
+        const sourceFields = dispenser.fields || {};
+        
+        // Create a strongly typed fields object
+        const typedFields: {[key: string]: string} = {};
+        
+        // Copy fields from source, ensuring all values are strings
+        Object.keys(sourceFields).forEach(key => {
+          // Only add the field if the value is defined and can be converted to string
+          if (sourceFields[key] !== undefined && sourceFields[key] !== null) {
+            typedFields[key] = String(sourceFields[key]);
+          }
+        });
+        
+        // Assign the typed fields to the dispenser
+        formattedDispenser.fields = typedFields;
+        
+        // Add properties from dispenser root if they don't exist in fields
+        if (dispenser.grade && !typedFields['Grade']) {
+          typedFields['Grade'] = String(dispenser.grade);
+        }
+        
+        if (dispenser.nozzlesPerSide && !typedFields['Number of Nozzles (per side)']) {
+          typedFields['Number of Nozzles (per side)'] = String(dispenser.nozzlesPerSide);
+        }
+        
+        if (dispenser.meterType && !typedFields['Meter Type']) {
+          typedFields['Meter Type'] = String(dispenser.meterType);
+        }
+        
+        if (dispenser.standAloneCode && !typedFields['Stand Alone Code']) {
+          typedFields['Stand Alone Code'] = String(dispenser.standAloneCode);
+        }
+        
+        return formattedDispenser;
+      });
+      
+      setSelectedDispensers(formattedDispensers);
+      setShowDispenserModal(true);
+      console.log('Showing dispenser modal with data:', formattedDispensers);
+    } else {
+      // If no data, still show the modal but with the empty state
+      setSelectedDispensers([]);
+      setShowDispenserModal(true);
+      
+      // Also show an alert for better user feedback
+      setAlertMessage('No dispenser information available for this work order');
+      setAlertType('info');
+      setShowAlert(true);
+      setTimeout(() => setShowAlert(false), 3000);
+      
+      console.log('No dispenser data found for order:', order.id);
+    }
+  };
+  
+  // Handler for clearing dispenser data
+  const handleClearDispenserData = async (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setClearingDispenserId(orderId);
+      addToast('info', 'Clearing dispenser data...');
+      
+      // Call service to clear dispenser data
+      await clearDispenserData(orderId);
+      
+      // Show success notification
+      addToast('success', 'Dispenser data cleared successfully');
+      
+      // Force reload dispenser data to get fresh data from server
+      await loadDispenserData(true);
+      
+      // Refresh the filtered work orders to reflect the changes
+      setFilteredWorkOrders(prevOrders => {
+        return prevOrders.map(order => {
+          if (order.id === orderId) {
+            // Remove dispensers from this specific order
+            return {
+              ...order,
+              dispensers: []
+            };
+          }
+          return order;
+        });
+      });
+      
+      // If the modal is currently showing dispensers for this order, clear the modal data as well
+      if (selectedOrderId === orderId) {
+        setSelectedDispensers([]);
+        // Close the modal if it's open
+        if (showDispenserModal) {
+          setShowDispenserModal(false);
+        }
+      }
+      
+      setClearingDispenserId(null);
+    } catch (error) {
+      setClearingDispenserId(null);
+      console.error('Error clearing dispenser data:', error);
+      addToast('error', `Failed to clear dispenser data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+  
+  // Handler for forcing rescrape of dispenser data
+  const handleForceRescrapeDispenserData = async (orderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      setReScrapeDispenserId(orderId);
+      addToast('info', 'Starting dispenser data rescrape...');
+      
+      // Call service to rescrape dispenser data
+      await forceRescrapeDispenserData(orderId);
+      
+      // Show success notification
+      addToast('success', 'Dispenser data rescrape started successfully');
+      
+      // Set up polling to monitor the scrape status
+      let pollingInterval: NodeJS.Timeout | null = null;
+      
+      const startPolling = () => {
+        pollingInterval = setInterval(async () => {
+          try {
+            const currentStatus = await getDispenserScrapeStatus();
+            console.log('Force rescrape status update:', {
+              status: currentStatus.status,
+              progress: currentStatus.progress,
+              message: currentStatus.message
+            });
+            
+            // Check if the status indicates completion
+            if (currentStatus.progress === 100 || 
+                currentStatus.status === 'completed' || 
+                (currentStatus.message && 
+                 (currentStatus.message.includes('complete') || 
+                  currentStatus.message.includes('success') || 
+                  currentStatus.message.includes('finished')))) {
+              
+              console.log('Detected completion state:', currentStatus);
+              
+              // Stop polling
+              if (pollingInterval) {
+                console.log('Clearing polling interval');
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+              }
+              
+              // Clear the rescrape indicator
+              setReScrapeDispenserId(null);
+              
+              // Show success notification
+              addToast('success', 'Equipment data collection completed successfully!');
+              
+              // Reload the page to show new data
+              console.log('Scheduling page reload');
+              window.location.reload();
+            }
+            
+            // Check for error state
+            if (currentStatus.status === 'error') {
+              console.log('Detected error state, stopping polling');
+              
+              if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+              }
+              
+              setReScrapeDispenserId(null);
+              addToast('error', `Error during dispenser data collection: ${currentStatus.error || 'Unknown error'}`);
+            }
+          } catch (error) {
+            console.error('Error polling force rescrape status:', error);
+            
+            if (pollingInterval) {
+              clearInterval(pollingInterval);
+              pollingInterval = null;
+            }
+            
+            setReScrapeDispenserId(null);
+            addToast('error', 'Failed to get status update for dispenser rescrape');
+          }
+        }, 1000);
+      };
+      
+      // Start polling for updates
+      startPolling();
+    } catch (error) {
+      setReScrapeDispenserId(null);
+      console.error('Error rescraping dispenser data:', error);
+      addToast('error', `Failed to rescrape dispenser data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Helper function to get store type for filtering
+  const getStoreTypeForFiltering = (order: any): string => {
+    if (!order || !order.customer) return 'other';
+    
+    const customerName = order.customer.name.toLowerCase();
+    
+    if (customerName.includes('7-eleven') || customerName.includes('speedway')) {
+      return '7-eleven';
+    } else if (customerName.includes('circle k')) {
+      return 'circle-k';
+    } else if (customerName.includes('wawa')) {
+      return 'wawa';
+    } else {
+      return 'other';
+    }
+  };
+
+  // Update the render button in renderJobRow function to show a visual indicator
+  const renderDispenserButton = (order: any) => {
+    const hasDispenserData = order.dispensers && order.dispensers.length > 0;
+    
+    return (
+      <button
+        className={`px-3 py-1.5 rounded text-sm font-medium ${
+          hasDispenserData 
+            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+            : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
+        } transition-colors flex items-center gap-1`}
+        onClick={(e) => handleViewDispenserData(order, e)}
+        title={hasDispenserData ? "View dispenser information" : "No dispenser information available"}
+      >
+        <FiInfo className="h-4 w-4" />
+        <span>View Dispensers</span>
+        {!hasDispenserData && (
+          <FiX className="h-4 w-4 ml-1 text-gray-500 dark:text-gray-400" />
+        )}
+      </button>
+    );
+  };
+
+  // Function to toggle technical details visibility for a dispenser
+  const toggleTechnicalDetails = (index: number) => {
+    setExpandedTechnicalDetails(prev => 
+      prev.includes(index) 
+        ? prev.filter(i => i !== index) 
+        : [...prev, index]
+    );
+  };
+
+  // Update the filteredWorkOrders when filter changes
+  useEffect(() => {
+    if (!workOrders || workOrders.length === 0) {
+      setFilteredWorkOrders([]);
+      return;
+    }
+
+    let filtered = [...workOrders];
+    
+    // Apply store filter
+    if (activeFilter !== 'all') {
+      filtered = filtered.filter(order => {
+        const storeType = getStoreTypeForFiltering(order);
+        return storeType === activeFilter;
+      });
+    }
+    
+    // Apply search query if present
+    if (searchQuery && searchQuery.trim() !== '') {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(order => {
+        // Search in customer name
+        if (order.customer?.name && order.customer.name.toLowerCase().includes(query)) return true;
+        
+        // Search in order ID
+        if (order.id && order.id.toString().toLowerCase().includes(query)) return true;
+        
+        // Search in instructions
+        if (order.instructions && order.instructions.toLowerCase().includes(query)) return true;
+        
+        // Search in store number from customer
+        if (order.customer?.storeNumber && order.customer.storeNumber.toLowerCase().includes(query)) return true;
+        
+        return false;
+      });
+      
+      // Show toast with search results
+      if (searchQuery.trim().length > 2) {
+        if (filtered.length > 0) {
+          addToast('info', `Found ${filtered.length} work order${filtered.length !== 1 ? 's' : ''} matching "${searchQuery.trim()}"`, 3000);
+        } else {
+          addToast('warning', `No work orders found matching "${searchQuery.trim()}"`, 3000);
+        }
+      }
+    }
+    
+    // Explicitly cast to WorkOrder[] to satisfy TypeScript
+    setFilteredWorkOrders(filtered as WorkOrder[]);
+  }, [workOrders, activeFilter, searchQuery]);
+
+  // Consistent store color palette
+  const getStoreStyles = (storeType: string) => {
+    const styles = {
+      '7-eleven': {
+        name: '7-Eleven',
+        cardBorder: 'border-l-4 border-green-500 dark:border-green-700',
+        badge: 'bg-green-600 text-white',
+        headerBg: 'bg-green-700',
+        cardBg: 'bg-green-50 dark:bg-green-900/30',
+        text: 'text-green-800 dark:text-green-200',
+        boxBg: 'bg-green-900',
+        icon: '🏪'
+      },
+      'circle-k': {
+        name: 'Circle K',
+        cardBorder: 'border-l-4 border-orange-500 dark:border-orange-700',
+        badge: 'bg-orange-600 text-white',
+        headerBg: 'bg-orange-700',
+        cardBg: 'bg-orange-50 dark:bg-orange-900/30',
+        text: 'text-orange-800 dark:text-orange-200',
+        boxBg: 'bg-orange-900',
+        icon: '⭕'
+      },
+      'wawa': {
+        name: 'Wawa',
+        cardBorder: 'border-l-4 border-purple-500 dark:border-purple-700',
+        badge: 'bg-purple-600 text-white',
+        headerBg: 'bg-purple-700',
+        cardBg: 'bg-purple-50 dark:bg-purple-900/30',
+        text: 'text-purple-800 dark:text-purple-200',
+        boxBg: 'bg-purple-900',
+        icon: '🦆'
+      },
+      'other': {
+        name: 'Other',
+        cardBorder: 'border-l-4 border-blue-500 dark:border-blue-700',
+        badge: 'bg-blue-600 text-white',
+        headerBg: 'bg-blue-700',
+        cardBg: 'bg-blue-50 dark:bg-blue-900/30',
+        text: 'text-blue-800 dark:text-blue-200',
+        boxBg: 'bg-blue-900',
+        icon: '🏢'
+      }
+    };
+    
+    return styles[storeType as keyof typeof styles] || styles.other;
+  };
+
+  // Load filtered and grouped data when workOrders changes or when refreshTimestamp updates
+  useEffect(() => {
+    // Calculate date ranges using the selected date
+    const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+    
+    // Get the distribution of store types
+    const storeTypeDistribution = calculateStoreDistribution(filteredWorkOrders);
+    
+    // Fix type error - extract only the count properties that match the expected type
+    const countsByType: {[key: string]: number} = {};
+    if (storeTypeDistribution.total) {
+      countsByType.total = storeTypeDistribution.total;
+    }
+    
+    // Set the properly typed counts
+    setCountsByCategory(countsByType);
+    
+    // Apply the current filter logic here directly instead of calling applyFilters
+    // This section can be expanded with actual filtering logic if needed
+    
+  }, [workOrders, workWeekStart, workWeekEnd, activeFilter, searchQuery, refreshTimestamp, selectedDate]);
+
+  // Add a function to reset to current week
+  const goToCurrentWeek = () => {
+    const today = new Date();
+    setSelectedDate(today);
+    localStorage.setItem('selectedDate', today.toISOString());
+    setCurrentMonth(today.getMonth());
+    setCurrentYear(today.getFullYear());
+    setRefreshTimestamp(Date.now());
+    addToast('info', 'Showing current week schedule', 2000);
+  };
+
+  // Add a useEffect to handle ESC key for exiting fullscreen mode
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isFullscreenMode) {
+        setIsFullscreenMode(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscKey);
+    
+    return () => {
+      window.removeEventListener('keydown', handleEscKey);
+    };
+  }, [isFullscreenMode]);
+
+  // Check on initial render if we're already after 5:00pm on work week end day
+  useEffect(() => {
+    const now = new Date();
+    const currentDayOfWeek = now.getDay();
+    const currentHour = now.getHours();
+    
+    if (currentDayOfWeek === workWeekEnd && currentHour >= 17) {
+      // If we're loading after 5:00pm on work week end day, update the UI
+      console.log("Page loaded after 5:00pm on work week end day - using weekend mode");
+      // Force refresh the UI
+      setRefreshTimestamp(Date.now());
+    }
+  }, [workWeekEnd, setRefreshTimestamp]); // Include workWeekEnd in dependencies
+
+  // Add a timer effect to check for work week transitions at 5:00pm
+  useEffect(() => {
+    // Function to check if we're at the end of work week after 5:00pm
+    const checkForWorkWeekTransition = () => {
+      const now = new Date();
+      const currentDayOfWeek = now.getDay();
+      const currentHour = now.getHours();
+      const currentMinute = now.getMinutes();
+      
+      // Check if we're at the work week end day and it's between 5:00pm and 5:05pm
+      // The 5-minute window ensures we don't miss the transition and don't refresh too often
+      if (currentDayOfWeek === workWeekEnd && 
+          currentHour === 17 && 
+          currentMinute < 5) {
+        console.log("Work week transition detected at 5:00pm - refreshing dashboard");
+        // Force refresh the UI to update the week view
+        setRefreshTimestamp(Date.now());
+        // Optionally show a toast notification
+        addToast('info', 'Switched to weekend mode - next week is now this week', 3000);
+      }
+    };
+    
+    // Run the check immediately in case we're already at 5:00pm
+    checkForWorkWeekTransition();
+    
+    // Set up an interval to check every minute
+    const intervalId = setInterval(checkForWorkWeekTransition, 60000);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [workWeekEnd, addToast]);
+
+  return (
+    <div className="container mx-auto p-4">
+      {/* Dashboard header with stats */}
+      {renderDashboardHeader()}
+      
+      {/* Main toolbar */}
+      <div className="bg-[#1e293b] text-white rounded-lg shadow-md mb-4 flex flex-col">
+        {/* Top section - view toggles, update times and filter */}
+        <div className="flex items-center justify-between p-3">
+          <div className="flex items-center gap-2">
+            <button
+              className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+                activeView === 'weekly' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-[#2d3c55] text-gray-300 hover:bg-[#3a4a66]'
+              }`}
+              onClick={() => setActiveView('weekly')}
+            >
+              <FiList className="h-4 w-4" />
+              <span>List</span>
+            </button>
+            
+            <button
+              className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+                activeView === 'calendar' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-[#2d3c55] text-gray-300 hover:bg-[#3a4a66]'
+              }`}
+              onClick={() => setActiveView('calendar')}
+            >
+              <FiCalendar className="h-4 w-4" />
+              <span>Calendar</span>
+            </button>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center bg-[#243352] rounded-md px-4 py-2">
+              <FiClock className="h-4 w-4 mr-2 text-blue-400" />
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-400">Last Updated:</span>
+                <span className="font-medium text-blue-300"><LastScrapedTime /></span>
+              </div>
+            </div>
+            
+            <div className="flex items-center bg-[#243352] rounded-md px-4 py-2">
+              <FiRefreshCw className="h-4 w-4 mr-2 text-green-400" />
+              <div className="flex flex-col">
+                <span className="text-xs text-gray-400">Next Update:</span>
+                <span className="font-medium text-green-300"><NextScrapeTime /></span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="relative">
+            <button
+              className="px-4 py-2 bg-[#2d3c55] rounded-md text-gray-300 hover:bg-[#3a4a66] flex items-center gap-2"
+              onClick={() => document.getElementById("store-filter-dropdown")?.classList.toggle("hidden")}
+            >
+              <FiFilter className="h-4 w-4" />
+              <span>
+                {activeFilter === 'all' ? 'All Stores' : 
+                 activeFilter === '7-eleven' ? '7-Eleven' : 
+                 activeFilter === 'circle-k' ? 'Circle K' : 
+                 activeFilter === 'wawa' ? 'Wawa' : 
+                 activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1).replace('-', ' ')}
+              </span>
+              <FiChevronDown className="h-4 w-4" />
+            </button>
+            
+            {/* Store filter dropdown */}
+            <div 
+              id="store-filter-dropdown"
+              className="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700"
+            >
+              <div className="py-1">
+                <button
+                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === 'all' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                  onClick={() => {
+                    setActiveFilter('all');
+                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
+                  }}
+                >
+                  All Stores
+                </button>
+                <button
+                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === '7-eleven' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                  onClick={() => {
+                    setActiveFilter('7-eleven');
+                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
+                  }}
+                >
+                  7-Eleven
+                </button>
+                <button
+                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === 'circle-k' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                  onClick={() => {
+                    setActiveFilter('circle-k');
+                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
+                  }}
+                >
+                  Circle K
+                </button>
+                <button
+                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === 'wawa' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                  onClick={() => {
+                    setActiveFilter('wawa');
+                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
+                  }}
+                >
+                  Wawa
+                </button>
+                <button
+                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === 'other' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                  onClick={() => {
+                    setActiveFilter('other');
+                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
+                  }}
+                >
+                  Other
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Bottom section - search and action buttons */}
+        <div className="flex items-center gap-4 p-3 px-4 bg-[#273349]">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FiSearch className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 bg-[#1e293b] border border-gray-600 rounded-md text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              placeholder="Search by store name, work order ID, or instructions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          
+          <div className="flex items-center">
+            <button
+              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none"
+              title="Refresh Data"
+              onClick={() => {
+                setIsDataRefreshing(true);
+                addToast('info', 'Refreshing data...', 2000);
+                
+                // Force reload data with dispenser refresh
+                loadData(true).then(() => {
+                  setIsDataRefreshing(false);
+                  addToast('success', 'Data refreshed successfully', 3000);
+                }).catch(error => {
+                  setIsDataRefreshing(false);
+                  addToast('error', `Failed to refresh data: ${error instanceof Error ? error.message : 'Unknown error'}`, 5000);
+                });
+              }}
+            >
+              <FiRefreshCw className={`h-5 w-5 ${isDataRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            
+            <button
+              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none ml-2"
+              title="View Logs"
+              onClick={() => {
+                setShowLogsModal(true);
+                setLogConsoleType('workOrder');
+              }}
+            >
+              <FiFileText className="h-5 w-5" />
+            </button>
+            
+            <button
+              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none ml-2"
+              title={isFullscreenMode ? "Exit Fullscreen" : "Enter Fullscreen"}
+              onClick={() => setIsFullscreenMode(!isFullscreenMode)}
+            >
+              {isFullscreenMode ? <FiMinimize className="h-5 w-5" /> : <FiMaximize className="h-5 w-5" />}
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Content area */}
+      <div className={`mt-4 ${isFullscreenMode ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 p-4 overflow-auto' : ''}`}>
+        {isFullscreenMode && (
+          <div className="absolute top-2 right-2 z-50">
+            <button 
+              className="p-2 bg-gray-200 dark:bg-gray-700 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+              onClick={() => setIsFullscreenMode(false)}
+              title="Exit Fullscreen"
+            >
+              <FiMinimize className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+        {isLoading ? (
+          <div className="space-y-4">
+            <SkeletonDashboardStats />
+            <SkeletonJobsList />
+          </div>
+        ) : (
+          <>
+            {/* Weekly view */}
+            {activeView === 'weekly' && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Work Orders</h2>
+                </div>
+                
+                {/* Job list */}
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredWorkOrders.length === 0 ? (
+                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+                      No work orders found with the current filters.
+                    </div>
+                  ) : (
+                    // Group work orders by week
+                    (() => {
+                      // Get date ranges for current and next weeks
+                      const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+                      
+                      // Group orders by week: thisWeek, nextWeek, future, past
+                      const today = new Date();
+                      
+                      const grouped = {
+                        thisWeek: [] as WorkOrder[],
+                        nextWeek: [] as WorkOrder[],
+                        future: [] as WorkOrder[],
+                        past: [] as WorkOrder[],
+                        noDate: [] as WorkOrder[]
+                      };
+                      
+                      filteredWorkOrders.forEach(order => {
+                        const visitDate = order.visits?.nextVisit?.date || 
+                                          order.nextVisitDate || 
+                                          order.visitDate || 
+                                          order.date;
+                        
+                        if (!visitDate) {
+                          grouped.noDate.push(order);
+                          return;
+                        }
+                        
+                        const orderDate = new Date(visitDate);
+                        
+                        if (orderDate >= dateRanges.currentWeekStart && orderDate <= dateRanges.currentWeekEnd) {
+                          grouped.thisWeek.push(order);
+                        } else if (orderDate >= dateRanges.nextWeekStart && orderDate <= dateRanges.nextWeekEnd) {
+                          grouped.nextWeek.push(order);
+                        } else if (orderDate > dateRanges.nextWeekEnd) {
+                          grouped.future.push(order);
+                        } else {
+                          grouped.past.push(order);
+                        }
+                      });
+                      
+                      // Sort each group by date
+                      const sortByDate = (a: WorkOrder, b: WorkOrder) => {
+                        const dateA = new Date(a.visits?.nextVisit?.date || a.nextVisitDate || a.visitDate || a.date || 0);
+                        const dateB = new Date(b.visits?.nextVisit?.date || b.nextVisitDate || b.visitDate || b.date || 0);
+                        return dateA.getTime() - dateB.getTime();
+                      };
+                      
+                      grouped.thisWeek.sort(sortByDate);
+                      grouped.nextWeek.sort(sortByDate);
+                      grouped.future.sort(sortByDate);
+                      grouped.past.sort(sortByDate);
+                      
+                      // Format date range for display
+                      const formatDateRange = (start: Date, end: Date) => {
+                        return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+                      };
+                      
+                      return (
+                        <>
+                          {/* This Week Section */}
+                          {grouped.thisWeek.length > 0 && (
+                            <div>
+                              <div className="bg-blue-50 dark:bg-blue-900/30 p-3 border-b border-blue-200 dark:border-blue-800 flex items-center justify-between">
+                                <div className="flex items-center">
+                                  <h3 className="font-medium text-blue-800 dark:text-blue-200 flex items-center">
+                                    <FiCalendar className="mr-2" />
+                                    This Week ({formatDateRange(dateRanges.currentWeekStart, dateRanges.currentWeekEnd)})
+                                  </h3>
+                                  <span className="bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
+                                    {grouped.thisWeek.length} Visit{grouped.thisWeek.length !== 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <button 
+                                    className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 dark:text-blue-400"
+                                    onClick={() => {
+                                      // Navigate to previous week
+                                      const newStart = new Date(dateRanges.currentWeekStart);
+                                      newStart.setDate(newStart.getDate() - 7);
+                                      
+                                      // Update state to trigger re-render
+                                      setSelectedDate(newStart);
+                                      localStorage.setItem('selectedDate', newStart.toISOString());
+                                      setCurrentMonth(newStart.getMonth());
+                                      setCurrentYear(newStart.getFullYear());
+                                      setRefreshTimestamp(Date.now());
+                                      addToast('info', `Showing week of ${newStart.toLocaleDateString()}`, 2000);
+                                    }}
+                                    title="Previous Week"
+                                  >
+                                    <FiArrowUp className="h-5 w-5 transform -rotate-90" />
+                                  </button>
+                                  <button 
+                                    className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 dark:text-blue-400 ml-1"
+                                    onClick={() => {
+                                      // Navigate to next week
+                                      const newStart = new Date(dateRanges.currentWeekStart);
+                                      newStart.setDate(newStart.getDate() + 7);
+                                      
+                                      // Update state to trigger re-render
+                                      setSelectedDate(newStart);
+                                      localStorage.setItem('selectedDate', newStart.toISOString());
+                                      setCurrentMonth(newStart.getMonth());
+                                      setCurrentYear(newStart.getFullYear());
+                                      setRefreshTimestamp(Date.now());
+                                      addToast('info', `Showing week of ${newStart.toLocaleDateString()}`, 2000);
+                                    }}
+                                    title="Next Week"
+                                  >
+                                    <FiArrowUp className="h-5 w-5 transform rotate-90" />
+                                  </button>
+                                  <button 
+                                    className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 dark:text-blue-400 ml-1"
+                                    onClick={goToCurrentWeek}
+                                    title="Go to Current Week"
+                                  >
+                                    <FiClock className="h-5 w-5" />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                {grouped.thisWeek.map(order => renderJobRow(order))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Next Week Section */}
+                          {grouped.nextWeek.length > 0 && (
+                            <div>
+                              <div className="bg-green-50 dark:bg-green-900/30 p-3 border-b border-green-200 dark:border-green-800 flex items-center justify-between">
+                                <div className="flex items-center">
+                                  <h3 className="font-medium text-green-800 dark:text-green-200 flex items-center">
+                                    <FiCalendar className="mr-2" />
+                                    Next Week ({formatDateRange(dateRanges.nextWeekStart, dateRanges.nextWeekEnd)})
+                                  </h3>
+                                  <span className="bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
+                                    {grouped.nextWeek.length} Visit{grouped.nextWeek.length !== 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                                <div className="flex items-center">
+                                  <button 
+                                    className="p-1 rounded-full hover:bg-green-100 dark:hover:bg-green-800 text-green-600 dark:text-green-400"
+                                    onClick={() => {
+                                      // Navigate to previous week (for Next Week section)
+                                      const newStart = new Date(dateRanges.nextWeekStart);
+                                      newStart.setDate(newStart.getDate() - 7);
+                                      
+                                      // Update state to trigger re-render
+                                      setSelectedDate(newStart);
+                                      localStorage.setItem('selectedDate', newStart.toISOString());
+                                      setCurrentMonth(newStart.getMonth());
+                                      setCurrentYear(newStart.getFullYear());
+                                      setRefreshTimestamp(Date.now());
+                                      addToast('info', `Showing week of ${newStart.toLocaleDateString()}`, 2000);
+                                    }}
+                                    title="Previous Week"
+                                  >
+                                    <FiArrowUp className="h-5 w-5 transform -rotate-90" />
+                                  </button>
+                                  <button 
+                                    className="p-1 rounded-full hover:bg-green-100 dark:hover:bg-green-800 text-green-600 dark:text-green-400 ml-1"
+                                    onClick={() => {
+                                      // Navigate to next week (for Next Week section)
+                                      const newStart = new Date(dateRanges.nextWeekStart);
+                                      newStart.setDate(newStart.getDate() + 7);
+                                      
+                                      // Update state to trigger re-render
+                                      setSelectedDate(newStart);
+                                      localStorage.setItem('selectedDate', newStart.toISOString());
+                                      setCurrentMonth(newStart.getMonth());
+                                      setCurrentYear(newStart.getFullYear());
+                                      setRefreshTimestamp(Date.now());
+                                      addToast('info', `Showing week of ${newStart.toLocaleDateString()}`, 2000);
+                                    }}
+                                    title="Next Week"
+                                  >
+                                    <FiArrowUp className="h-5 w-5 transform rotate-90" />
+                                  </button>
+                                  <button 
+                                    className="p-1 rounded-full hover:bg-green-100 dark:hover:bg-green-800 text-green-600 dark:text-green-400 ml-1"
+                                    onClick={goToCurrentWeek}
+                                    title="Go to Current Week"
+                                  >
+                                    <FiClock className="h-5 w-5" />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                {grouped.nextWeek.map(order => renderJobRow(order))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Future Jobs Section */}
+                          {grouped.future.length > 0 && (
+                            <div>
+                              <div className="bg-purple-50 dark:bg-purple-900/30 p-3 border-b border-purple-200 dark:border-purple-800 flex items-center justify-between">
+                                <h3 className="font-medium text-purple-800 dark:text-purple-200 flex items-center">
+                                  <FiCalendar className="mr-2" />
+                                  Future Visits
+                                </h3>
+                                <span className="bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-full text-xs font-medium">
+                                  {grouped.future.length} Visit{grouped.future.length !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                {grouped.future.map(order => renderJobRow(order))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Past Jobs Section */}
+                          {grouped.past.length > 0 && (
+                            <div>
+                              <div className="bg-gray-50 dark:bg-gray-700 p-3 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
+                                <h3 className="font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                                  <FiCalendar className="mr-2" />
+                                  Past Visits
+                                </h3>
+                                <span className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full text-xs font-medium">
+                                  {grouped.past.length} Visit{grouped.past.length !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                {grouped.past.map(order => renderJobRow(order))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* No Date Section */}
+                          {grouped.noDate.length > 0 && (
+                            <div>
+                              <div className="bg-amber-50 dark:bg-amber-900/30 p-3 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between">
+                                <h3 className="font-medium text-amber-800 dark:text-amber-200 flex items-center">
+                                  <FiAlertCircle className="mr-2" />
+                                  Unscheduled Visits
+                                </h3>
+                                <span className="bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full text-xs font-medium">
+                                  {grouped.noDate.length} Visit{grouped.noDate.length !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                              <div className="p-4 space-y-4">
+                                {grouped.noDate.map(order => renderJobRow(order))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Calendar view */}
+            {activeView === 'calendar' && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                  <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
+                    Calendar View - {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </h2>
+                  <div className="flex space-x-2">
+                    <button 
+                      className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => {
+                        const newMonth = currentMonth - 1;
+                        if (newMonth < 0) {
+                          setCurrentMonth(11);
+                          setCurrentYear(currentYear - 1);
+                        } else {
+                          setCurrentMonth(newMonth);
+                        }
+                      }}
+                    >
+                      Previous
+                    </button>
+                    <button
+                      className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
+                      onClick={() => {
+                        const newMonth = currentMonth + 1;
+                        if (newMonth > 11) {
+                          setCurrentMonth(0);
+                          setCurrentYear(currentYear + 1);
+                        } else {
+                          setCurrentMonth(newMonth);
+                        }
+                      }}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+                
+                {/* Calendar grid */}
+                <div className="grid grid-cols-7 gap-px bg-gray-200 dark:bg-gray-700">
+                  {/* Day headers */}
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                    <div 
+                      key={day} 
+                      className={`bg-gray-100 dark:bg-gray-800 p-2 text-center font-medium ${
+                        index >= workWeekStart && index <= workWeekEnd 
+                          ? 'text-gray-900 dark:text-gray-100' 
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}
+                    >
+                      {day}
+                    </div>
+                  ))}
+                  
+                  {/* Calendar days */}
+                  {Array.from({ length: new Date(currentYear, currentMonth + 1, 0).getDate() + new Date(currentYear, currentMonth, 1).getDay() }, (_, i) => {
+                    const dayOffset = new Date(currentYear, currentMonth, 1).getDay();
+                    const dayNumber = i - dayOffset + 1;
+                    const isCurrentMonth = dayNumber > 0 && dayNumber <= new Date(currentYear, currentMonth + 1, 0).getDate();
+                    
+                    if (!isCurrentMonth) {
+                      return <div key={`empty-${i}`} className="bg-gray-50 dark:bg-gray-900 min-h-[100px]"></div>;
+                    }
+                    
+                    const currentDate = new Date(currentYear, currentMonth, dayNumber);
+                    const isToday = currentDate.toDateString() === new Date().toDateString();
+                    const dayJobs = filteredWorkOrders.filter(order => {
+                      // Try multiple date fields to find a match
+                      const orderDate = order.visits?.nextVisit?.date || 
+                                       order.scheduledDate || 
+                                       order.nextVisitDate || 
+                                       order.visitDate || 
+                                       order.date;
+                      
+                      if (!orderDate) return false;
+                      
+                      const visitDate = new Date(orderDate);
+                      return visitDate.toDateString() === currentDate.toDateString();
+                    });
+                    
+                    return (
+                      <div 
+                        key={`day-${dayNumber}`} 
+                        className={`bg-white dark:bg-gray-800 p-2 min-h-[100px] ${
+                          isToday ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+                        }`}
+                      >
+                        <div className={`text-right font-medium ${
+                          isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
+                        }`}>
+                          {dayNumber}
+                        </div>
+                        
+                        <div className="mt-1 space-y-1 overflow-y-auto max-h-[80px]">
+                          {dayJobs.map(job => {
+                            const storeType = getStoreTypeForFiltering(job);
+                            const storeStyle = getStoreStyles(storeType);
+                            
+                            return (
+                              <div 
+                                key={job.id} 
+                                className={`text-xs p-1 rounded ${storeStyle.cardBg} ${storeStyle.text} truncate cursor-pointer border-l-2 ${storeStyle.cardBorder.replace('border-l-4', 'border-l-2')}`}
+                                onClick={(e) => {
+                                  // Open job details by showing the dispenser data
+                                  handleViewDispenserData(job, e);
+                                }}
+                              >
+                                {job.customer?.name || 'Unknown'} - {job.workOrderId || job.id}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      
+      {/* Dispenser modal */}
+      {showDispenserModal && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowDispenserModal(false)} // Close modal when clicking the backdrop
+        >
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
+            </div>
+            
+            <div 
+              className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle max-w-2xl w-full"
+              onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 px-6 py-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg leading-6 font-medium text-white flex items-center">
+                    <FiTool className="h-5 w-5 mr-2" />
+                    Dispenser Data {selectedOrderId && `for Order #${selectedOrderId}`}
+                  </h3>
+                  <button
+                    className="text-white hover:text-gray-200 focus:outline-none"
+                    onClick={() => setShowDispenserModal(false)}
+                  >
+                    <FiX className="h-6 w-6" />
+                  </button>
+                </div>
+              </div>
+              
+              {/* Content */}
+              <div className="bg-white dark:bg-gray-800 p-4">
+                {selectedDispensers.length > 0 ? (
+                  <div className="space-y-3 max-h-[calc(85vh-130px)] overflow-y-auto pr-1">
+                    {selectedDispensers.map((dispenser, index) => {
+                      // Extract the dispenser number from the title with improved pattern matching
+                      let dispenserNumber = `#${index+1}`;
+                      
+                      if (dispenser.title) {
+                        // First try dual format (e.g., "1/2 - Regular...")
+                        const dualMatch = dispenser.title.match(/^(\d+\/\d+)/);
+                        if (dualMatch) {
+                          dispenserNumber = dualMatch[1];
+                        } else {
+                          // Then try single number format (e.g., "13 - Diesel...")
+                          const singleMatch = dispenser.title.match(/^(\d+)\s*-/);
+                          if (singleMatch) {
+                            dispenserNumber = singleMatch[1];
+                          }
+                        }
+                      }
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className="bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm overflow-hidden"
+                        >
+                          {/* Condensed single line layout */}
+                          <div className="p-3 flex items-center">
+                            {/* Dispenser number badge */}
+                            <div className="bg-blue-600 text-white rounded-lg min-w-[50px] px-2 py-1 text-sm font-bold shadow-sm mr-3 flex-shrink-0 text-center">
+                              {dispenserNumber}
+                            </div>
+                            
+                            {/* Fuel types - middle section */}
+                            <div className="flex-1 overflow-x-auto">
+                              {dispenser.fields && dispenser.fields.Grade ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {sortFuelTypes(dispenser.fields.Grade).map((grade: string, i: number) => {
+                                    // Define consistent colors based on fuel type
+                                    let bgClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+                                    let gradeLower = grade.toLowerCase();
+                                    
+                                    if (gradeLower.includes('regular')) {
+                                      bgClass = 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
+                                    } else if (gradeLower.includes('plus')) {
+                                      bgClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300';
+                                    } else if (gradeLower.includes('premium')) {
+                                      bgClass = 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300';
+                                    } else if (gradeLower.includes('diesel')) {
+                                      bgClass = 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300';
+                                    } else if (gradeLower.includes('e-85') || gradeLower.includes('ethanol')) {
+                                      bgClass = 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300';
+                                    } else if (gradeLower.includes('super')) {
+                                      bgClass = 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300';
+                                    }
+                                    
+                                    return (
+                                      <span
+                                        key={i}
+                                        className={`px-2 py-0.5 rounded text-xs font-medium ${bgClass}`}
+                                      >
+                                        {grade.trim()}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-500 dark:text-gray-400 italic">
+                                  No fuel data
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Details button */}
+                            <button
+                              onClick={() => toggleTechnicalDetails(index)}
+                              className="text-xs flex items-center px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 ml-2 flex-shrink-0"
+                            >
+                              {expandedTechnicalDetails.includes(index) ? (
+                                <>
+                                  <FiChevronDown className="mr-1 h-3 w-3" />
+                                  Details
+                                </>
+                              ) : (
+                                <>
+                                  <FiSettings className="mr-1 h-3 w-3" />
+                                  Details
+                                </>
+                              )}
+                            </button>
+                          </div>
+                            
+                          {/* Technical specs - ONLY SHOWN WHEN EXPANDED */}
+                          {expandedTechnicalDetails.includes(index) && (
+                            <div className="p-3 pt-0 mt-1 border-t border-gray-200 dark:border-gray-600">
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                {dispenser.make && (
+                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Make/Model</span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                                      {dispenser.make} {dispenser.model && `/ ${dispenser.model}`}
+                                    </span>
+                                  </div>
+                                )}
+                                
+                                {dispenser.fields && dispenser.fields['Number of Nozzles (per side)'] && (
+                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Nozzles per side</span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Number of Nozzles (per side)']}</span>
+                                  </div>
+                                )}
+                                
+                                {dispenser.fields && dispenser.fields['Meter Type'] && (
+                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Meter type</span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Meter Type']}</span>
+                                  </div>
+                                )}
+                                
+                                {dispenser.fields && dispenser.fields['Stand Alone Code'] && (
+                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Stand Alone Code</span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Stand Alone Code']}</span>
+                                  </div>
+                                )}
+                                
+                                {dispenser.serial && (
+                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Serial Number</span>
+                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.serial}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4">
+                      <FiInfo className="h-8 w-8 text-blue-500 dark:text-blue-400" />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">No Dispenser Information</h3>
+                    <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                      This work order does not have any dispenser information available.
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="bg-gray-50 dark:bg-gray-700 px-6 py-3 flex justify-between items-center">
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedDispensers.length > 0 ? 
+                    `${selectedDispensers.length} dispenser${selectedDispensers.length !== 1 ? 's' : ''}` : 
+                    'No dispensers available'
+                  }
+                </div>
+                <div className="flex gap-2">
+                  {selectedDispensers.length > 0 && (
+                    <button 
+                      type="button" 
+                      className="text-sm px-4 py-1.5 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+                      onClick={() => {
+                        // Toggle all technical details at once
+                        if (expandedTechnicalDetails.length === selectedDispensers.length) {
+                          setExpandedTechnicalDetails([]);
+                        } else {
+                          setExpandedTechnicalDetails([...Array(selectedDispensers.length).keys()]);
+                        }
+                      }}
+                    >
+                      {expandedTechnicalDetails.length === selectedDispensers.length ? 
+                        'Hide All Details' : 'Show All Details'}
+                    </button>
+                  )}
+                  <button 
+                    type="button" 
+                    className="text-sm px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium shadow-sm focus:outline-none"
+                    onClick={() => setShowDispenserModal(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Logs modal */}
+      {showLogsModal && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowLogsModal(false)} // Close modal when clicking the backdrop
+        >
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
+            </div>
+            
+            <div 
+              className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
+              onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
+            >
+              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
+                      Scrape Logs
+                    </h3>
+                    
+                    <div className="mt-2">
+                      <ScrapeLogsConsole 
+                        type={logConsoleType}
+                        showHeader={true}
+                        height="400px"
+                        autoScroll={true}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button 
+                  type="button" 
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  onClick={() => setShowLogsModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Floating alert */}
+      {showAlert && (
+        <div className={`fixed bottom-4 right-4 rounded-md p-4 shadow-lg ${
+          alertType === 'success' ? 'bg-green-500 text-white' :
+          alertType === 'error' ? 'bg-red-500 text-white' :
+          'bg-blue-500 text-white'
+        }`}>
+          <div className="flex items-center">
+            {alertType === 'success' && <FiCheckCircle className="h-5 w-5 mr-2" />}
+            {alertType === 'error' && <FiAlertCircle className="h-5 w-5 mr-2" />}
+            {alertType === 'info' && <FiInfo className="h-5 w-5 mr-2" />}
+            <span>{alertMessage}</span>
+            <button 
+              className="ml-4 text-white hover:text-gray-200"
+              onClick={() => setShowAlert(false)}
+            >
+              <FiX className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+      
+};
+
+export default Home; 

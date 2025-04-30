@@ -1,0 +1,40 @@
+/* Custom styles for business week calendar */
+.business-week-calendar .react-datepicker__day--highlighted-business {
+  background-color: rgba(56, 189, 248, 0.1);
+  border-radius: 0;
+}
+
+/* Highlight Mondays to make week boundaries clear */
+.business-week-calendar .monday-marker {
+  font-weight: bold;
+  border-left: 2px solid #3b82f6;
+}
+
+/* Style the current date */
+.business-week-calendar .react-datepicker__day--selected {
+  background-color: #3b82f6 !important;
+  color: white !important;
+  border-radius: 50% !important;
+}
+
+/* Style today */
+.business-week-calendar .react-datepicker__day--today {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+/* Weekends slightly muted */
+.business-week-calendar .react-datepicker__day--weekend {
+  color: #9ca3af;
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  .business-week-calendar .react-datepicker__day--highlighted-business {
+    background-color: rgba(59, 130, 246, 0.2);
+  }
+  
+  .business-week-calendar .react-datepicker__day--weekend {
+    color: #6b7280;
+  }
+} 

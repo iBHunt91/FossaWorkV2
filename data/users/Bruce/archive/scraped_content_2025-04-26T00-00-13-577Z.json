@@ -1,0 +1,929 @@
+{
+  "workOrders": [
+    {
+      "id": "W-110174",
+      "customer": {
+        "name": "Wawa",
+        "storeNumber": "#5277",
+        "address": {
+          "street": "23623 US Highway 27 US 27 & Chalet Suzanne Road Lake Wales FL 33859 Polk County",
+          "intersection": "23623 US Highway 27",
+          "cityState": "US 27 & Chalet Suzanne Road",
+          "county": "Lake Wales FL 33859"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/32959/"
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "04/28/2025",
+          "time": "anytime",
+          "url": "/app/work/110174/visits/112075/",
+          "visitId": "112075"
+        }
+      },
+      "instructions": "2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch) RETURN CRIND KEYS to the MANAGER",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-110174\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/110174/\" class=\"\">\n                    W-110174\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: Wawa 2025 AccuMeasure\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> Wawa 2025 AccuMeasure\n            </div></div> <div title=\"Created by: Bob Minissale  11/29/2024 01:04pm\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Bob Minissale • 11/29/2024 01:04pm</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11762/\" class=\"\">\n                    Wawa\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/32959/\" class=\"\">\n                    #5277\n                </a></div> <div class=\"mb-1\">\n                Wawa\n            </div> <div class=\"address-info text-sm\"><div><div>23623 US Highway 27</div> <div class=\"mt-1\">US 27 &amp; Chalet Suzanne Road</div> <div class=\"mt-1\">Lake Wales FL 33859</div> <div class=\"mt-1\">Polk County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Pete Falk <!----></div> <div>\n                    Wawa - Falk\n                </div> <div class=\"muted-dark\">\n                    Fuel Equipment\n                </div> <div class=\"muted-dark\">\n                    WAW001\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>8 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div><div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>Filter change <span class=\"muted\">(3006)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/110174/visits/112075/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    04/28/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 06/12/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch) RETURN CRIND KEYS to the MANAGER</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch)</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126867",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#42217",
+        "address": {
+          "street": "18575 US Highway 41 US 41 near Sunset Lane Lutz FL 33549 Hillsborough County",
+          "intersection": "18575 US Highway 41",
+          "cityState": "US 41 near Sunset Lane",
+          "county": "Lutz FL 33549"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/1251943/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 7,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "04/29/2025",
+          "time": "anytime",
+          "url": "/app/work/126867/visits/128856/",
+          "visitId": "128856"
+        }
+      },
+      "instructions": "*NEW/REMODELED STORE* Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126867\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126867/\" class=\"\">\n                    W-126867\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 11:40am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 11:40am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/1251943/\" class=\"\">\n                    #42217\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>18575 US Highway 41</div> <div class=\"mt-1\">US 41 near Sunset Lane</div> <div class=\"mt-1\">Lutz FL 33549</div> <div class=\"mt-1\">Hillsborough County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>7 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126867/visits/128856/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    04/29/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <!----></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">*NEW/REMODELED STORE* Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">*NEW/REMODELED STORE* Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126670",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#38578",
+        "address": {
+          "street": "316 East Memorial Boulevard Memorial Boulevard @ Lakeland Hills Boulevard Lakeland FL 33801 Polk County",
+          "intersection": "316 East Memorial Boulevard",
+          "cityState": "Memorial Boulevard @ Lakeland Hills Boulevard",
+          "county": "Lakeland FL 33801"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/46806/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "04/30/2025",
+          "time": "anytime",
+          "url": "/app/work/126670/visits/128659/",
+          "visitId": "128659"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126670\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126670/\" class=\"\">\n                    W-126670\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:53am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:53am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/46806/\" class=\"\">\n                    #38578\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>316 East Memorial Boulevard</div> <div class=\"mt-1\">Memorial Boulevard @ Lakeland Hills Boulevard</div> <div class=\"mt-1\">Lakeland FL 33801</div> <div class=\"mt-1\">Polk County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>8 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126670/visits/128659/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    04/30/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase text-orange\">\n                Due: 04/02/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-129815",
+      "customer": {
+        "name": "Circle K Stores Florida Region",
+        "storeNumber": "#2704440",
+        "address": {
+          "street": "330 APOLLO BEACH  RUSKIN FL 33572 Hillsborough County",
+          "intersection": "330 APOLLO BEACH",
+          "cityState": "RUSKIN FL 33572",
+          "county": "Hillsborough County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/126065/"
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 2,
+          "description": "Open Neck Prover - Quality",
+          "code": "3146"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/01/2025",
+          "time": "anytime",
+          "url": "/app/work/129815/visits/131815/",
+          "visitId": "131815"
+        }
+      },
+      "instructions": "Priority: 3 - Moderate priority\n\nBE SURE TO NOTE THAT BLEND RATIOS WERE CHECKED AS 70/30 WITHIN YOUR REPORT\n \nAsset: dispenser - 3&4 of 4 - 00000C2841 - Asset type: Gas/Diesel Dispenser\nManufacturer: Gilbarco Veeder-Root - Model: - Serial Number: Manufacturer label inaccessible \n\nIssue: Calibration required\nIssue description: PRM product dispensers are reporting fuel losses during selling hours. \nReported temperature corrected variation -0.98%, daily fuel loss 6 gal.\nCalibrate and adjust to 0 cubic inches PRM product dispensers. UNL, PRM dispensers 70/30 blend ratio need to be checked.\nInformation for Technician:",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-129815\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/129815/\" class=\"\">\n                    W-129815\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div><div class=\"w-4 h-1.5\" style=\"background: rgb(255, 0, 0);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Quality Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <!----> <div title=\"Created by: Garrett Brodie  04/08/2025 05:27pm\" class=\"work-creator text-xs muted ellipsis mt-1.5\">Garrett Brodie • 04/08/2025 05:27pm</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/24013/\" class=\"\">\n                    Circle K Stores Florida Region\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/126065/\" class=\"\">\n                    #2704440\n                </a></div> <div class=\"mb-1\">\n                Circle K\n            </div> <div class=\"address-info text-sm\"><div><div>330 APOLLO BEACH</div> <!----> <div class=\"mt-1\">RUSKIN FL 33572</div> <div class=\"mt-1\">Hillsborough County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Attn: Vendor #150017 Ref: CK CAL PROGRAM <!----></div> <div>\n                    Circle K Stores FL- CK CAL PROGRAM\n                </div> <!----> <div class=\"muted-dark\">\n                    QPS002\n                </div> <div class=\"muted-dark\">\n                    Net 45\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>2 x </div> <div class=\"ml-2\"><div>Open Neck Prover - Quality <span class=\"muted\">(3146)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/129815/visits/131815/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/01/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <!----></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Priority: 3 - Moderate priority\n\nBE SURE TO NOTE THAT BLEND RATIOS WERE CHECKED AS 70/30 WITHIN YOUR REPORT\n \nAsset: dispenser - 3&amp;4 of 4 - 00000C2841 - Asset type: Gas/Diesel Dispenser\nManufacturer: Gilbarco Veeder-Root - Model: - Serial Number: Manufacturer label inaccessible \n\nIssue: Calibration required\nIssue description: PRM product dispensers are reporting fuel losses during selling hours. \nReported temperature corrected variation -0.98%, daily fuel loss 6 gal.\nCalibrate and adjust to 0 cubic inches PRM product dispensers. UNL, PRM dispensers 70/30 blend ratio need to be checked.\nInformation for Technician:</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Priority: 3 - Moderate priority\n\nBE SURE TO NOTE THAT BLEND RATIOS WERE CHECKED AS 70/30 WITHIN YOUR REPORT\n \nAsset: dispenser - 3&amp;4 of 4 - 00000C2841 - Asset type:</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126676",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#32855",
+        "address": {
+          "street": "5870 US Highway 98 North  Lakeland FL 33809 Polk County",
+          "intersection": "5870 US Highway 98 North",
+          "cityState": "Lakeland FL 33809",
+          "county": "Polk County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/43713/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/01/2025",
+          "time": "anytime",
+          "url": "/app/work/126676/visits/128665/",
+          "visitId": "128665"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126676\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126676/\" class=\"\">\n                    W-126676\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:53am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:53am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/43713/\" class=\"\">\n                    #32855\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>5870 US Highway 98 North</div> <!----> <div class=\"mt-1\">Lakeland FL 33809</div> <div class=\"mt-1\">Polk County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126676/visits/128665/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/01/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase text-orange\">\n                Due: 04/05/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126866",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#41528",
+        "address": {
+          "street": "13014 Balm Riverview Road Balm Riverview Road @ Big Bend Road Riverview FL 33579 Hillsborough County",
+          "intersection": "13014 Balm Riverview Road",
+          "cityState": "Balm Riverview Road @ Big Bend Road",
+          "county": "Riverview FL 33579"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/1251950/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/02/2025",
+          "time": "anytime",
+          "url": "/app/work/126866/visits/128855/",
+          "visitId": "128855"
+        }
+      },
+      "instructions": "*NEW/REMODELED STORE* Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126866\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126866/\" class=\"\">\n                    W-126866\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 11:40am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 11:40am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/1251950/\" class=\"\">\n                    #41528\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>13014 Balm Riverview Road</div> <div class=\"mt-1\">Balm Riverview Road @ Big Bend Road</div> <div class=\"mt-1\">Riverview FL 33579</div> <div class=\"mt-1\">Hillsborough County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126866/visits/128855/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/02/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <!----></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">*NEW/REMODELED STORE* Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">*NEW/REMODELED STORE* Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-110185",
+      "customer": {
+        "name": "Wawa",
+        "storeNumber": "#5137",
+        "address": {
+          "street": "334 Havendale Blvd Havendale Blvd & Derby Ave. Auburndale FL 33823 Polk County",
+          "intersection": "334 Havendale Blvd",
+          "cityState": "Havendale Blvd & Derby Ave.",
+          "county": "Auburndale FL 33823"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/32830/"
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/05/2025",
+          "time": "anytime",
+          "url": "/app/work/110185/visits/112086/",
+          "visitId": "112086"
+        }
+      },
+      "instructions": "2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch) RETURN CRIND KEYS to the MANAGER",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-110185\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/110185/\" class=\"\">\n                    W-110185\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: Wawa 2025 AccuMeasure\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> Wawa 2025 AccuMeasure\n            </div></div> <div title=\"Created by: Bob Minissale  11/29/2024 01:04pm\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Bob Minissale • 11/29/2024 01:04pm</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11762/\" class=\"\">\n                    Wawa\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/32830/\" class=\"\">\n                    #5137\n                </a></div> <div class=\"mb-1\">\n                Wawa\n            </div> <div class=\"address-info text-sm\"><div><div>334 Havendale Blvd</div> <div class=\"mt-1\">Havendale Blvd &amp; Derby Ave.</div> <div class=\"mt-1\">Auburndale FL 33823</div> <div class=\"mt-1\">Polk County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Pete Falk <!----></div> <div>\n                    Wawa - Falk\n                </div> <div class=\"muted-dark\">\n                    Fuel Equipment\n                </div> <div class=\"muted-dark\">\n                    WAW001\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>8 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div><div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>Filter change <span class=\"muted\">(3006)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/110185/visits/112086/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/05/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 06/18/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch) RETURN CRIND KEYS to the MANAGER</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch)</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-110189",
+      "customer": {
+        "name": "Wawa",
+        "storeNumber": "#5253",
+        "address": {
+          "street": "3105 US Hwy N 98 Bartow Rd & Edgewood Dr. Lakeland FL 33803 Polk County",
+          "intersection": "3105 US Hwy N 98",
+          "cityState": "Bartow Rd & Edgewood Dr.",
+          "county": "Lakeland FL 33803"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/32939/"
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 7,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/06/2025",
+          "time": "anytime",
+          "url": "/app/work/110189/visits/112090/",
+          "visitId": "112090"
+        }
+      },
+      "instructions": "2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch) RETURN CRIND KEYS to the MANAGER",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-110189\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/110189/\" class=\"\">\n                    W-110189\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: Wawa 2025 AccuMeasure\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> Wawa 2025 AccuMeasure\n            </div></div> <div title=\"Created by: Bob Minissale  11/29/2024 01:04pm\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Bob Minissale • 11/29/2024 01:04pm</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11762/\" class=\"\">\n                    Wawa\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/32939/\" class=\"\">\n                    #5253\n                </a></div> <div class=\"mb-1\">\n                Wawa\n            </div> <div class=\"address-info text-sm\"><div><div>3105 US Hwy N 98</div> <div class=\"mt-1\">Bartow Rd &amp; Edgewood Dr.</div> <div class=\"mt-1\">Lakeland FL 33803</div> <div class=\"mt-1\">Polk County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Pete Falk <!----></div> <div>\n                    Wawa - Falk\n                </div> <div class=\"muted-dark\">\n                    Fuel Equipment\n                </div> <div class=\"muted-dark\">\n                    WAW001\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>7 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div><div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>Filter change <span class=\"muted\">(3006)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/110189/visits/112090/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/06/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 06/19/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch) RETURN CRIND KEYS to the MANAGER</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">2025 AccuMeasure - Change and date all GAS (Reg, Prem, E-15 and E-Free) filters with CimTek 450-MB 10 , Diesel filters with CimTek 450-MG 10 and E-85 with CimTek 70991 5 micron (5.5 inch)</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126753",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#33105",
+        "address": {
+          "street": "3629 East SR 60  Valrico FL 33594 Hillsborough County",
+          "intersection": "3629 East SR 60",
+          "cityState": "Valrico FL 33594",
+          "county": "Hillsborough County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/43622/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/07/2025",
+          "time": "anytime",
+          "url": "/app/work/126753/visits/128742/",
+          "visitId": "128742"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126753\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126753/\" class=\"\">\n                    W-126753\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/43622/\" class=\"\">\n                    #33105\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>3629 East SR 60</div> <!----> <div class=\"mt-1\">Valrico FL 33594</div> <div class=\"mt-1\">Hillsborough County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126753/visits/128742/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/07/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/10/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126772",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#32802",
+        "address": {
+          "street": "13411 Fish Hawk Boulevard  Lithia FL 33547 Hillsborough County",
+          "intersection": "13411 Fish Hawk Boulevard",
+          "cityState": "Lithia FL 33547",
+          "county": "Hillsborough County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/43475/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/09/2025",
+          "time": "anytime",
+          "url": "/app/work/126772/visits/128761/",
+          "visitId": "128761"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126772\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126772/\" class=\"\">\n                    W-126772\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/43475/\" class=\"\">\n                    #32802\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>13411 Fish Hawk Boulevard</div> <!----> <div class=\"mt-1\">Lithia FL 33547</div> <div class=\"mt-1\">Hillsborough County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126772/visits/128761/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/09/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/21/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126705",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#40350",
+        "address": {
+          "street": "5790 34th Street North  St Petersburg FL 33714 Pinellas County",
+          "intersection": "5790 34th Street North",
+          "cityState": "St Petersburg FL 33714",
+          "county": "Pinellas County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/45589/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/12/2025",
+          "time": "anytime",
+          "url": "/app/work/126705/visits/128694/",
+          "visitId": "128694"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126705\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126705/\" class=\"\">\n                    W-126705\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/45589/\" class=\"\">\n                    #40350\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>5790 34th Street North</div> <!----> <div class=\"mt-1\">St Petersburg FL 33714</div> <div class=\"mt-1\">Pinellas County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126705/visits/128694/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/12/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase text-orange\">\n                Due: 04/22/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126761",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#32685",
+        "address": {
+          "street": "5151 Park Boulevard  Pinellas Park FL 33781 Pinellas County",
+          "intersection": "5151 Park Boulevard",
+          "cityState": "Pinellas Park FL 33781",
+          "county": "Pinellas County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/43686/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/13/2025",
+          "time": "anytime",
+          "url": "/app/work/126761/visits/128750/",
+          "visitId": "128750"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126761\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126761/\" class=\"\">\n                    W-126761\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/43686/\" class=\"\">\n                    #32685\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>5151 Park Boulevard</div> <!----> <div class=\"mt-1\">Pinellas Park FL 33781</div> <div class=\"mt-1\">Pinellas County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>8 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126761/visits/128750/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/13/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/15/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126694",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#38123",
+        "address": {
+          "street": "10820 Gandy Boulevard North  St Petersburg FL 33702 Pinellas County",
+          "intersection": "10820 Gandy Boulevard North",
+          "cityState": "St Petersburg FL 33702",
+          "county": "Pinellas County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/46636/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/14/2025",
+          "time": "anytime",
+          "url": "/app/work/126694/visits/128683/",
+          "visitId": "128683"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126694\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126694/\" class=\"\">\n                    W-126694\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/46636/\" class=\"\">\n                    #38123\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>10820 Gandy Boulevard North</div> <!----> <div class=\"mt-1\">St Petersburg FL 33702</div> <div class=\"mt-1\">Pinellas County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126694/visits/128683/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/14/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase text-orange\">\n                Due: 04/16/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126729",
+      "customer": {
+        "name": "Speedway LLC",
+        "storeNumber": "#43339/6448",
+        "address": {
+          "street": "33600 US 19N  Palm Harbor FL 34684 Pinellas County",
+          "intersection": "33600 US 19N",
+          "cityState": "Palm Harbor FL 34684",
+          "county": "Pinellas County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/98112/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 7,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/15/2025",
+          "time": "anytime",
+          "url": "/app/work/126729/visits/128718/",
+          "visitId": "128718"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126729\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126729/\" class=\"\">\n                    W-126729\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11807/\" class=\"\">\n                    Speedway LLC\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/98112/\" class=\"\">\n                    #43339/6448\n                </a></div> <div class=\"mb-1\">\n                Speedway\n            </div> <div class=\"address-info text-sm\"><div><div>33600 US 19N</div> <!----> <div class=\"mt-1\">Palm Harbor FL 34684</div> <div class=\"mt-1\">Pinellas County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <!----> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>7 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126729/visits/128718/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/15/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 04/30/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126770",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#33272",
+        "address": {
+          "street": "1531 East Brandon Boulevard  Brandon FL 33511 Hillsborough County",
+          "intersection": "1531 East Brandon Boulevard",
+          "cityState": "Brandon FL 33511",
+          "county": "Hillsborough County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/43503/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/16/2025",
+          "time": "anytime",
+          "url": "/app/work/126770/visits/128759/",
+          "visitId": "128759"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126770\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126770/\" class=\"\">\n                    W-126770\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/43503/\" class=\"\">\n                    #33272\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>1531 East Brandon Boulevard</div> <!----> <div class=\"mt-1\">Brandon FL 33511</div> <div class=\"mt-1\">Hillsborough County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126770/visits/128759/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/16/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/20/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126723",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#34284",
+        "address": {
+          "street": "1324 US-19 1324 U.S. Highway 19 Holiday FL 34691 Pasco County",
+          "intersection": "1324 US-19",
+          "cityState": "1324 U.S. Highway 19",
+          "county": "Holiday FL 34691"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/43473/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/19/2025",
+          "time": "anytime",
+          "url": "/app/work/126723/visits/128712/",
+          "visitId": "128712"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126723\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126723/\" class=\"\">\n                    W-126723\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/43473/\" class=\"\">\n                    #34284\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>1324 US-19</div> <div class=\"mt-1\">1324 U.S. Highway 19</div> <div class=\"mt-1\">Holiday FL 34691</div> <div class=\"mt-1\">Pasco County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126723/visits/128712/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/19/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 04/29/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126758",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#38576",
+        "address": {
+          "street": "4230 Land O' Lakes Boulevard  Land O' Lakes FL 34639 Pasco County",
+          "intersection": "4230 Land O' Lakes Boulevard",
+          "cityState": "Land O' Lakes FL 34639",
+          "county": "Pasco County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/47431/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/20/2025",
+          "time": "anytime",
+          "url": "/app/work/126758/visits/128747/",
+          "visitId": "128747"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126758\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126758/\" class=\"\">\n                    W-126758\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/47431/\" class=\"\">\n                    #38576\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>4230 Land O' Lakes Boulevard</div> <!----> <div class=\"mt-1\">Land O' Lakes FL 34639</div> <div class=\"mt-1\">Pasco County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>8 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126758/visits/128747/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/20/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/14/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126750",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#37677",
+        "address": {
+          "street": "27741 SR 54 27741 Wesley Chapel Boulevard Wesley Chapel FL 33544 Pasco County",
+          "intersection": "27741 SR 54",
+          "cityState": "27741 Wesley Chapel Boulevard",
+          "county": "Wesley Chapel FL 33544"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/45336/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/21/2025",
+          "time": "anytime",
+          "url": "/app/work/126750/visits/128739/",
+          "visitId": "128739"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126750\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126750/\" class=\"\">\n                    W-126750\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/45336/\" class=\"\">\n                    #37677\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>27741 SR 54</div> <div class=\"mt-1\">27741 Wesley Chapel Boulevard</div> <div class=\"mt-1\">Wesley Chapel FL 33544</div> <div class=\"mt-1\">Pasco County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>8 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126750/visits/128739/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/21/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/09/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126666",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#38118",
+        "address": {
+          "street": "2580 Kathleen Road Kathleen Road @ Mall Hill Drive Lakeland FL 33810 Polk County",
+          "intersection": "2580 Kathleen Road",
+          "cityState": "Kathleen Road @ Mall Hill Drive",
+          "county": "Lakeland FL 33810"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/46619/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/22/2025",
+          "time": "anytime",
+          "url": "/app/work/126666/visits/128655/",
+          "visitId": "128655"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126666\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126666/\" class=\"\">\n                    W-126666\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:53am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:53am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/46619/\" class=\"\">\n                    #38118\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>2580 Kathleen Road</div> <div class=\"mt-1\">Kathleen Road @ Mall Hill Drive</div> <div class=\"mt-1\">Lakeland FL 33810</div> <div class=\"mt-1\">Polk County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126666/visits/128655/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/22/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase text-orange\">\n                Due: 04/01/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126675",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#35052",
+        "address": {
+          "street": "851 South Florida Avenue  Lakeland FL 33801 Polk County",
+          "intersection": "851 South Florida Avenue",
+          "cityState": "Lakeland FL 33801",
+          "county": "Polk County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/44727/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 4,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/23/2025",
+          "time": "anytime",
+          "url": "/app/work/126675/visits/128664/",
+          "visitId": "128664"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126675\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126675/\" class=\"\">\n                    W-126675\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:53am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:53am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/44727/\" class=\"\">\n                    #35052\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>851 South Florida Avenue</div> <!----> <div class=\"mt-1\">Lakeland FL 33801</div> <div class=\"mt-1\">Polk County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>4 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126675/visits/128664/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/23/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase text-orange\">\n                Due: 04/04/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126680",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#32689",
+        "address": {
+          "street": "4975 South Florida Drive  Lakeland FL 338132130 Polk County",
+          "intersection": "4975 South Florida Drive",
+          "cityState": "Lakeland FL 338132130",
+          "county": "Polk County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/43676/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/27/2025",
+          "time": "anytime",
+          "url": "/app/work/126680/visits/128669/",
+          "visitId": "128669"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126680\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126680/\" class=\"\">\n                    W-126680\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:53am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:53am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/43676/\" class=\"\">\n                    #32689\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>4975 South Florida Drive</div> <!----> <div class=\"mt-1\">Lakeland FL 338132130</div> <div class=\"mt-1\">Polk County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>6 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126680/visits/128669/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/27/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase text-orange\">\n                Due: 04/08/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126748",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#37745",
+        "address": {
+          "street": "7600 Gall Boulevard 301@Pretty Pond Road Zephyrhills FL 33541 Pasco County",
+          "intersection": "7600 Gall Boulevard",
+          "cityState": "301@Pretty Pond Road",
+          "county": "Zephyrhills FL 33541"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/45468/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/28/2025",
+          "time": "anytime",
+          "url": "/app/work/126748/visits/128737/",
+          "visitId": "128737"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126748\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126748/\" class=\"\">\n                    W-126748\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/45468/\" class=\"\">\n                    #37745\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>7600 Gall Boulevard</div> <div class=\"mt-1\">301@Pretty Pond Road</div> <div class=\"mt-1\">Zephyrhills FL 33541</div> <div class=\"mt-1\">Pasco County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>8 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126748/visits/128737/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/28/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/08/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-121101",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#41949",
+        "address": {
+          "street": "810 East Brandon Boulevard  Brandon FL 33511 Hillsborough County",
+          "intersection": "810 East Brandon Boulevard",
+          "cityState": "Brandon FL 33511",
+          "county": "Hillsborough County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/47252/"
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 2,
+          "description": "Specific Dispenser(s) - See Notes",
+          "code": "2862"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/28/2025",
+          "time": "anytime",
+          "url": "/app/work/121101/visits/123056/",
+          "visitId": "123056"
+        }
+      },
+      "instructions": "Calibrate Dispensers:\n#3/4 all grades and change filters\n#19/20 all grades and change filters\n\nSecurity system should be able to be disabled with the keys in the store.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-121101\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/121101/\" class=\"\">\n                    W-121101\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div><div class=\"w-4 h-1.5\" style=\"background: rgb(100, 181, 246);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            AccuMeasure Clean-Up\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Chris Hewitt  01/30/2025 09:39am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Chris Hewitt • 01/30/2025 09:39am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/47252/\" class=\"\">\n                    #41949\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>810 East Brandon Boulevard</div> <!----> <div class=\"mt-1\">Brandon FL 33511</div> <div class=\"mt-1\">Hillsborough County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>2 x </div> <div class=\"ml-2\"><div>Specific Dispenser(s) - See Notes <span class=\"muted\">(2862)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/121101/visits/123056/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/28/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <!----></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate Dispensers:\n#3/4 all grades and change filters\n#19/20 all grades and change filters\n\nSecurity system should be able to be disabled with the keys in the store.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate Dispensers:\n#3/4 all grades and change filters\n#19/20 all grades and change filters\n\nSecurity system should be able to be disabled with the keys in the store.</span> <a href=\"#\" class=\"ml-1 text-xs\" style=\"display: none;\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126766",
+      "customer": {
+        "name": "Speedway LLC",
+        "storeNumber": "#43441/6858",
+        "address": {
+          "street": "7317 Gall Boulevard Route 30 & Sunnyside Drive Zephyrhills FL 33541 Pasco County",
+          "intersection": "7317 Gall Boulevard",
+          "cityState": "Route 30 & Sunnyside Drive",
+          "county": "Zephyrhills FL 33541"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/98108/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 9,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/29/2025",
+          "time": "anytime",
+          "url": "/app/work/126766/visits/128755/",
+          "visitId": "128755"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126766\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126766/\" class=\"\">\n                    W-126766\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11807/\" class=\"\">\n                    Speedway LLC\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/98108/\" class=\"\">\n                    #43441/6858\n                </a></div> <div class=\"mb-1\">\n                Speedway\n            </div> <div class=\"address-info text-sm\"><div><div>7317 Gall Boulevard</div> <div class=\"mt-1\">Route 30 &amp; Sunnyside Drive</div> <div class=\"mt-1\">Zephyrhills FL 33541</div> <div class=\"mt-1\">Pasco County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <!----> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>9 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126766/visits/128755/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/29/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/16/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    },
+    {
+      "id": "W-126745",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#40364",
+        "address": {
+          "street": "36445 West SR 54 Highway  Zephyrhills FL 33541 Pasco County",
+          "intersection": "36445 West SR 54 Highway",
+          "cityState": "Zephyrhills FL 33541",
+          "county": "Pasco County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/45600/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 5,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/30/2025",
+          "time": "anytime",
+          "url": "/app/work/126745/visits/128734/",
+          "visitId": "128734"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.",
+      "rawHtml": "<div data-v-a381df7b=\"\" class=\"row py-2 work-list-item w-126745\"><div class=\"sm-6 med-3 mb-2\"><div class=\"flex align-center wrap\"><label class=\"ks-checkbox mb-1 mr-2\"><input type=\"checkbox\" value=\"true\"> <div class=\"ks-checkbox-input-wrapper\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 20 20\" xmlns=\"http://www.w3.org/2000/svg\" style=\"display: none;\"><title>checkmark</title><path d=\"M0 11l2-2 5 5L18 3l2 2L7 18z\" fill=\"#000\" fill-rule=\"evenodd\"></path></svg></div> <div class=\"ks-checkbox-label-wrapper\"><a href=\"/app/work/126745/\" class=\"\">\n                    W-126745\n                </a></div></label> <!----> <!----> <div class=\"wo-category-show mb-1 mr-2\"><div class=\"flex\"><div class=\"w-4 h-1.5\" style=\"background: rgb(128, 0, 255);\"><div class=\"ks-tooltip show-arrow\" style=\"display: none;\"><div class=\"ks-tooltip-arrow\"></div> \n            Meter Calibration\n        </div></div></div> <!----> <!----></div></div> <div class=\"work-status-badge mb-1 mt-0.5\" title=\"\"><div class=\"inline-block text-xs py-0.5 px-2 outline work-status-open\">\n        Work Created\n    </div> </div> <div class=\"text-sm mb-1\"><span class=\"muted\">Reason:</span> AccuMeasure\n        </div> <div><!----> <div title=\"Project: 7-11 Calibrations 2025\" class=\"text-sm mb-1\"><span class=\"muted\">Project:</span> 7-11 Calibrations 2025\n            </div></div> <div title=\"Created by: Aaron Koehler  03/14/2025 07:54am\" class=\"work-creator text-xs muted ellipsis mt-2.5\">Aaron Koehler • 03/14/2025 07:54am</div> <!----></div> <div class=\"sm-6 med-4 mb-2\"><div class=\"address flex align-start text-sm\"><div class=\"icon w-5 mr-2 text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"location-dot\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 384 512\" class=\"svg-inline--fa fa-location-dot\"><path fill=\"currentColor\" d=\"M215.7 499.2C267 435 384 279.4 384 192C384 86 298 0 192 0S0 86 0 192c0 87.4 117 243 168.3 307.2c12.3 15.3 35.1 15.3 47.4 0zM192 128a64 64 0 1 1 0 128 64 64 0 1 1 0-128z\" class=\"\"></path></svg></div> <div><div class=\"mb-1\"><a href=\"/app/customers/11811/\" class=\"\">\n                    7-Eleven Stores, Inc\n                </a></div> <div class=\"mb-1\"><a href=\"/app/customers/locations/45600/\" class=\"\">\n                    #40364\n                </a></div> <div class=\"mb-1\">\n                7-Eleven\n            </div> <div class=\"address-info text-sm\"><div><div>36445 West SR 54 Highway</div> <!----> <div class=\"mt-1\">Zephyrhills FL 33541</div> <div class=\"mt-1\">Pasco County</div> <!----></div> <!----></div></div></div> <div class=\"contact-info-block mt-1.5 text-sm\"><div class=\"flex align-start\"><div class=\"icon w-5 mr-2 text-sm text-center text-blue-800 tab-hide-down\"><svg aria-hidden=\"true\" focusable=\"false\" data-prefix=\"fas\" data-icon=\"user\" role=\"img\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 448 512\" class=\"svg-inline--fa fa-user\"><path fill=\"currentColor\" d=\"M224 256A128 128 0 1 0 224 0a128 128 0 1 0 0 256zm-45.7 48C79.8 304 0 383.8 0 482.3C0 498.7 13.3 512 29.7 512l388.6 0c16.4 0 29.7-13.3 29.7-29.7C448 383.8 368.2 304 269.7 304l-91.4 0z\" class=\"\"></path></svg></div> <div> <div class=\"contact-name text-sm\"><!----> <div>Charlene Worley <!----></div> <div>\n                    7-Eleven Stores, Inc\n                </div> <!----> <div class=\"muted-dark\">\n                    7-E012\n                </div> <div class=\"muted-dark\">\n                    Net 30\n                </div></div></div></div> <!----></div></div> <div class=\"sm-12 med-5\"><div class=\"row row-collapse\"><div class=\"sm-6 med-7\"><div class=\"text-xs mb-2\"><div>Combo</div> <div class=\"flex align-center\"><div>1 x </div> <div class=\"ml-2\"><div>7-11 Calibration Services <span class=\"muted\">(CAL-SERV)</span></div></div></div></div><div class=\"text-xs mb-2\"><div>Meter Calibration</div> <div class=\"flex align-center\"><div>5 x </div> <div class=\"ml-2\"><div>All Dispensers <span class=\"muted\">(2861)</span></div></div></div></div> <!----> <!----></div> <div class=\"sm-6 med-5\"><div title=\"0 / 1\" class=\"text-sm muted\"><span class=\"\">\n            0 / 1\n            <span class=\"text-xs uppercase\">visits</span></span> <!----></div> <!----> <!----> <div class=\"mt-2\"><a href=\"/app/work/126745/visits/128734/\" class=\"\" title=\"Next Visit\"><div class=\"text-xs muted uppercase\">Next Visit</div> <div class=\"mt-0.5\">\n                    05/30/2025\n                </div> <div class=\"text-sm\">\n                        (anytime)\n                    </div> <div class=\"mt-1 text-sm uppercase muted\">\n                Due: 05/07/2025\n            </div></a></div></div></div></div> <div class=\"sm-12 med-10 text-sm mt-2\"><div class=\"ks-tooltip text-sm shadow-lg p-3\" style=\"z-index: 9; display: none;\"><span class=\"pre-wrap\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault.</span> <a href=\"#\" class=\"block t-right text-xs\">Close</a></div> <div><span class=\"text-sm pre-wrap\" style=\"overflow: hidden; text-overflow: ellipsis; white-space: pre-wrap;\">Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples,</span> <a href=\"#\" class=\"ml-1 text-xs\">more...</a></div></div></div>"
+    }
+  ],
+  "metadata": {
+    "extractedAt": "2025-04-26T00:00:13.573Z",
+    "count": 25,
+    "userId": "7bea3bdb7e8e303eacaba442bd824004"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "firemind-scripts",
+  "version": "1.0.0",
+  "description": "Utility scripts for Firemind",
+  "type": "module",
+  "main": "convert-user-archives.js"
+} 

@@ -1,0 +1,52 @@
+{
+  "workOrders": [
+    {
+      "id": "W-110173",
+      "customer": {
+        "storeNumber": "12345",
+        "name": "Test Store 1",
+        "address": {
+          "cityState": "Anytown CA"
+        }
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 2
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "2023-10-17",
+          "visitId": "V-123"
+        }
+      }
+    },
+    {
+      "id": "W-110175",
+      "customer": {
+        "storeNumber": "34567",
+        "name": "Test Store 3",
+        "address": {
+          "cityState": "Newtown TX"
+        }
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 4
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "2023-10-18",
+          "visitId": "V-125"
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "extractedAt": "2025-04-25T17:26:33.668Z",
+    "count": 2
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "workOrders": [
+    {
+      "id": "12345",
+      "customer": {
+        "name": "Sample Store",
+        "storeNumber": "12345",
+        "address": {
+          "street": "123 Main St",
+          "intersection": "Main St & Oak St",
+          "cityState": "Anytown, CA",
+          "county": "Sample County"
+        }
+      },
+      "services": [
+        {
+          "type": "Service",
+          "quantity": 2,
+          "description": "Sample Service",
+          "code": "SS123"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "visitId": "V12345",
+          "date": "2023-11-15",
+          "time": "09:00 AM",
+          "url": "https://example.com/visit/12345"
+        }
+      },
+      "dispensers": [
+        {
+          "title": "Sample Dispenser",
+          "serial": "D12345",
+          "make": "Sample Make",
+          "model": "Sample Model",
+          "fields": {
+            "field1": "value1",
+            "field2": "value2"
+          }
+        }
+      ]
+    }
+  ]
+} 

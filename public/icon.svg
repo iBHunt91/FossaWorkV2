@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <circle cx="128" cy="128" r="120" fill="#3498db" />
+  <circle cx="128" cy="128" r="100" fill="#2980b9" />
+  
+  <!-- Stylized F for Fossa -->
+  <path d="M85 75 H170 V100 H115 V120 H160 V145 H115 V185 H85 Z" fill="white" />
+  
+  <!-- Monitor/Screen representation -->
+  <rect x="130" y="120" width="50" height="40" rx="5" fill="white" />
+  <rect x="135" y="125" width="40" height="30" rx="2" fill="#3498db" />
+  
+  <!-- Magnifying glass for monitoring/search -->
+  <circle cx="150" cy="140" r="8" stroke="white" stroke-width="4" fill="none" />
+  <line x1="156" y1="146" x2="165" y2="155" stroke="white" stroke-width="4" stroke-linecap="round" />
+</svg> 

@@ -1,0 +1,446 @@
+[
+  {
+    "timestamp": "2025-04-29T23:00:12.367Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110246",
+          "visitId": "112147",
+          "store": "#5348",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "West, Palm",
+          "date": "06/23/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-110273",
+          "visitId": "112174",
+          "store": "#5365",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "Loxahatchee, Groves",
+          "date": "06/24/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132326",
+          "visitId": "134351",
+          "store": "#41265",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Westlake, FL",
+          "date": "06/25/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132291",
+          "visitId": "134316",
+          "store": "#33002",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Loxahatchee, FL",
+          "date": "06/26/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132289",
+          "visitId": "134314",
+          "store": "#40366",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 5,
+          "location": "West, Palm",
+          "date": "06/27/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-131384",
+          "visitId": "133406",
+          "store": "#32645",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "Saint, Cloud",
+          "date": "06/30/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-131483",
+          "visitId": "133505",
+          "store": "#33007",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "Kissimmee, FL",
+          "date": "06/30/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-123631",
+          "visitId": "125602",
+          "store": "#34163",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "Kissimmee, FL",
+          "date": "06/30/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-121336",
+          "visitId": "123292",
+          "store": "#34851",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "Longwood, FL",
+          "date": "07/01/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-117211",
+          "visitId": "119140",
+          "store": "#41318",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "SEC, Clarcona",
+          "date": "07/01/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126876",
+          "visitId": "128865",
+          "store": "#25967",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "Orlando, FL",
+          "date": "07/01/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-122338",
+          "visitId": "124296",
+          "store": "#27426",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "Winter, Garden",
+          "date": "07/01/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-129693",
+          "visitId": "131692",
+          "store": "#36681",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "Port, Orange",
+          "date": "07/02/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-129577",
+          "visitId": "131576",
+          "store": "#43426",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "St., Augustine",
+          "date": "07/02/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-128156",
+          "visitId": "130150",
+          "store": "#16120",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "New, Smyrna",
+          "date": "07/02/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-124633",
+          "visitId": "126608",
+          "store": "#40328",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 4,
+          "location": "Cocoa, FL",
+          "date": "07/03/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-124551",
+          "visitId": "126525",
+          "store": "#38082",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 1,
+          "location": "Dowden, @",
+          "date": "07/03/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 17,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-29T22:00:12.648Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-132351",
+          "visitId": "134376",
+          "store": "#34855",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Stuart, FL",
+          "date": "06/16/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132372",
+          "visitId": "134397",
+          "store": "#32801",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Port, Saint",
+          "date": "06/17/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132308",
+          "visitId": "134333",
+          "store": "#37297",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 5,
+          "location": "US1, @",
+          "date": "06/18/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132359",
+          "visitId": "134384",
+          "store": "#32624",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Port, Saint",
+          "date": "06/19/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132293",
+          "visitId": "134318",
+          "store": "#40336",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Melbourne, FL",
+          "date": "06/20/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 5,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-29T21:00:12.156Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-132219",
+          "visitId": "134244",
+          "store": "#42317",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Saint, Johns",
+          "date": "06/09/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132224",
+          "visitId": "134249",
+          "store": "#42326",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Saint, Johns",
+          "date": "06/10/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-118537",
+          "visitId": "120477",
+          "store": "#43317",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 4,
+          "location": "Fernandina, Beach",
+          "date": "06/11/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-118638",
+          "visitId": "120578",
+          "store": "#35890",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Jacksonville, FL",
+          "date": "06/12/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-132237",
+          "visitId": "134262",
+          "store": "#27445",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 3,
+          "location": "Holly, Hill",
+          "date": "06/13/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 5,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-29T20:00:14.752Z",
+    "changes": {
+      "critical": [
+        {
+          "type": "removed",
+          "jobId": "W-126687",
+          "store": "#38317",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "9401, Turkey",
+          "date": "04/29/2025"
+        }
+      ],
+      "high": [],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 1,
+        "added": 0,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-28T18:00:13.024Z",
+    "changes": {
+      "critical": [
+        {
+          "type": "removed",
+          "jobId": "W-126683",
+          "store": "#29775",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 3,
+          "location": "Orlando, FL",
+          "date": "04/28/2025"
+        }
+      ],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-126725",
+          "visitId": "128714",
+          "store": "#41860",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Vero, Beach",
+          "date": "06/02/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126713",
+          "visitId": "128702",
+          "store": "#43309",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 7,
+          "location": "Vero, Beach",
+          "date": "06/03/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-129619",
+          "visitId": "131618",
+          "store": "#32251",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Palm, City",
+          "date": "06/04/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-129642",
+          "visitId": "131641",
+          "store": "#40358",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Palm, City",
+          "date": "06/05/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126718",
+          "visitId": "128707",
+          "store": "#37926",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "McCullock@Lockwood, undefined",
+          "date": "06/06/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 1,
+        "added": 5,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-28T14:00:12.781Z",
+    "changes": {
+      "critical": [
+        {
+          "type": "removed",
+          "jobId": "W-126662",
+          "store": "#24607",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 2,
+          "location": "I-4, undefined",
+          "date": "04/28/2025"
+        }
+      ],
+      "high": [],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 1,
+        "added": 0,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  }
+]

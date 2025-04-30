@@ -1,0 +1,1090 @@
+[
+  {
+    "timestamp": "2025-04-30T00:49:36.927Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-126670",
+          "visitId": "128659",
+          "store": "#38578",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Memorial, Boulevard",
+          "date": "04/30/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-30T00:44:07.869Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-126670",
+          "visitId": "128659",
+          "store": "#38578",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Memorial, Boulevard",
+          "date": "04/30/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-30T00:24:55.245Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-126670",
+          "visitId": "128659",
+          "store": "#38578",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Memorial, Boulevard",
+          "date": "04/30/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-29T20:00:14.766Z",
+    "changes": {
+      "critical": [
+        {
+          "type": "added",
+          "jobId": "W-132222",
+          "visitId": "134247",
+          "store": "#42331",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "near, Waterset",
+          "date": "06/19/2025"
+        },
+        {
+          "type": "removed",
+          "jobId": "W-129651",
+          "store": "#38437",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Tampa, FL",
+          "date": "06/19/2025"
+        }
+      ],
+      "high": [],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 1,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-29T18:00:13.290Z",
+    "changes": {
+      "critical": [
+        {
+          "type": "removed",
+          "jobId": "W-126867",
+          "store": "#42217",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 7,
+          "location": "US, 41",
+          "date": "04/29/2025"
+        }
+      ],
+      "high": [],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 1,
+        "added": 0,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-28T19:00:13.504Z",
+    "changes": {
+      "critical": [
+        {
+          "type": "removed",
+          "jobId": "W-110174",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-129685",
+          "visitId": "131684",
+          "store": "#32782",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "27219, Wesley",
+          "date": "06/05/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126772",
+          "visitId": "128761",
+          "store": "#32802",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Lithia, FL",
+          "date": "06/16/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126765",
+          "visitId": "128754",
+          "store": "#32984",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Riverview, FL",
+          "date": "06/17/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126767",
+          "visitId": "128756",
+          "store": "#32854",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Riverview, FL",
+          "date": "06/18/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-129651",
+          "visitId": "131650",
+          "store": "#38437",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Tampa, FL",
+          "date": "06/19/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126736",
+          "visitId": "128725",
+          "store": "#37667",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Tampa, FL",
+          "date": "06/20/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-110272",
+          "visitId": "112173",
+          "store": "#5122",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "North, Dale",
+          "date": "06/23/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-110234",
+          "visitId": "112135",
+          "store": "#5183",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "Hillsborough, Ave.",
+          "date": "06/24/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-110306",
+          "visitId": "112207",
+          "store": "#5319",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "E., Busch",
+          "date": "06/25/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-110266",
+          "visitId": "112167",
+          "store": "#5107",
+          "storeName": "Wawa",
+          "dispensers": 6,
+          "location": "Tampa, FL",
+          "date": "06/26/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-94641",
+          "visitId": "96475",
+          "store": "#43334",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Tampa, FL",
+          "date": "06/27/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-131156",
+          "visitId": "133176",
+          "store": "#5415",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "Tampa, FL",
+          "date": "06/30/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-110295",
+          "visitId": "112196",
+          "store": "#5126",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 17",
+          "date": "07/01/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-110288",
+          "visitId": "112189",
+          "store": "#5106",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 98",
+          "date": "07/02/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126730",
+          "visitId": "128719",
+          "store": "#32792",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Tampa, FL",
+          "date": "07/03/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-126748",
+          "store": "#37745",
+          "storeName": "7-Eleven Stores, Inc",
+          "oldDate": "05/25/2025",
+          "newDate": "06/03/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-126766",
+          "store": "#43441/6858",
+          "storeName": "Speedway LLC",
+          "oldDate": "05/25/2025",
+          "newDate": "06/04/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-126680",
+          "store": "#32689",
+          "storeName": "7-Eleven Stores, Inc",
+          "oldDate": "05/25/2025",
+          "newDate": "06/06/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 1,
+        "added": 15,
+        "modified": 3,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-28T18:00:24.809Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "date_changed",
+          "jobId": "W-126745",
+          "store": "#40364",
+          "storeName": "7-Eleven Stores, Inc",
+          "oldDate": "05/25/2025",
+          "newDate": "06/02/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-121101",
+          "store": "#41949",
+          "storeName": "7-Eleven Stores, Inc",
+          "oldDate": "05/25/2025",
+          "newDate": "06/02/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 0,
+        "modified": 2,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-28T18:00:13.179Z",
+    "changes": {
+      "critical": [
+        {
+          "type": "added",
+          "jobId": "W-110154",
+          "visitId": "112055",
+          "store": "#5299",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "Osceola, Polk",
+          "date": "05/27/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-129660",
+          "visitId": "131659",
+          "store": "#41788",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Davenport, FL",
+          "date": "05/28/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-110193",
+          "visitId": "112094",
+          "store": "#5230",
+          "storeName": "Wawa",
+          "dispensers": 10,
+          "location": "I-4, &",
+          "date": "05/29/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126803",
+          "visitId": "128792",
+          "store": "#5230",
+          "storeName": "Wawa",
+          "dispensers": 0,
+          "location": "I-4, &",
+          "date": "05/30/2025"
+        }
+      ],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-126764",
+          "visitId": "128753",
+          "store": "#38845",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "19th, Avenue",
+          "date": "06/09/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-129643",
+          "visitId": "131642",
+          "store": "#41178",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Wimauma, FL",
+          "date": "06/10/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126781",
+          "visitId": "128770",
+          "store": "#35618",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Riverview, FL",
+          "date": "06/11/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126774",
+          "visitId": "128763",
+          "store": "#38247",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "US, 301",
+          "date": "06/12/2025"
+        },
+        {
+          "type": "added",
+          "jobId": "W-126785",
+          "visitId": "128774",
+          "store": "#38720",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "78th, Street",
+          "date": "06/13/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-121101",
+          "store": "#41949",
+          "storeName": "7-Eleven Stores, Inc",
+          "oldDate": "05/28/2025",
+          "newDate": "05/25/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-126766",
+          "store": "#43441/6858",
+          "storeName": "Speedway LLC",
+          "oldDate": "05/29/2025",
+          "newDate": "05/25/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-126748",
+          "store": "#37745",
+          "storeName": "7-Eleven Stores, Inc",
+          "oldDate": "05/28/2025",
+          "newDate": "05/25/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-126745",
+          "store": "#40364",
+          "storeName": "7-Eleven Stores, Inc",
+          "oldDate": "05/30/2025",
+          "newDate": "05/25/2025"
+        },
+        {
+          "type": "date_changed",
+          "jobId": "W-126680",
+          "store": "#32689",
+          "storeName": "7-Eleven Stores, Inc",
+          "oldDate": "05/27/2025",
+          "newDate": "05/25/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 9,
+        "modified": 5,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-28T16:00:23.767Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-126686",
+          "visitId": "128675",
+          "store": "#38193",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Ronald, Reagan",
+          "date": "05/08/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-28T16:00:13.274Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "swap",
+          "job1Id": "W-131308",
+          "job2Id": "W-126866",
+          "job1Store": "#2707558",
+          "job2Store": "#41528",
+          "job1Dispensers": 7,
+          "job2Dispensers": 6,
+          "oldDate1": "05/09/2025",
+          "newDate1": "05/02/2025",
+          "oldDate2": "05/02/2025",
+          "newDate2": "05/09/2025"
+        },
+        {
+          "type": "swap",
+          "job1Id": "W-126866",
+          "job2Id": "W-131308",
+          "job1Store": "#41528",
+          "job2Store": "#2707558",
+          "job1Dispensers": 6,
+          "job2Dispensers": 7,
+          "oldDate1": "05/02/2025",
+          "newDate1": "05/09/2025",
+          "oldDate2": "05/09/2025",
+          "newDate2": "05/02/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 0,
+        "modified": 0,
+        "swapped": 2
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-28T15:00:12.365Z",
+    "changes": {
+      "critical": [
+        {
+          "type": "added",
+          "jobId": "W-131308",
+          "visitId": "133330",
+          "store": "#2707558",
+          "storeName": "Circle K Stores Florida Region",
+          "dispensers": 7,
+          "location": "PLANT, CITY",
+          "date": "05/09/2025"
+        },
+        {
+          "type": "removed",
+          "jobId": "W-126772",
+          "store": "#32802",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Lithia, FL",
+          "date": "05/09/2025"
+        }
+      ],
+      "high": [],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 1,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-27T03:17:09.038Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:39:00.648Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:30:48.699Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:18:17.161Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:16:00.659Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:12:31.025Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:07:55.024Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:06:14.591Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:04:22.488Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:02:49.915Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T18:00:44.805Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T17:58:56.649Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T17:57:12.395Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T17:55:59.293Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T17:54:58.914Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T17:52:41.148Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T17:51:00.222Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-04-25T17:49:15.941Z",
+    "changes": {
+      "critical": [],
+      "high": [
+        {
+          "type": "added",
+          "jobId": "W-110174",
+          "visitId": "112075",
+          "store": "#5277",
+          "storeName": "Wawa",
+          "dispensers": 8,
+          "location": "US, 27",
+          "date": "04/28/2025"
+        }
+      ],
+      "medium": [],
+      "low": [],
+      "summary": {
+        "removed": 0,
+        "added": 1,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  }
+]

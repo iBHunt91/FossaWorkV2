@@ -1,0 +1,66 @@
+{
+  "timestamp": "2025-04-29T21:00:12.156Z",
+  "changes": {
+    "critical": [],
+    "high": [
+      {
+        "type": "added",
+        "jobId": "W-132219",
+        "visitId": "134244",
+        "store": "#42317",
+        "storeName": "7-Eleven Stores, Inc",
+        "dispensers": 6,
+        "location": "Saint, Johns",
+        "date": "06/09/2025"
+      },
+      {
+        "type": "added",
+        "jobId": "W-132224",
+        "visitId": "134249",
+        "store": "#42326",
+        "storeName": "7-Eleven Stores, Inc",
+        "dispensers": 8,
+        "location": "Saint, Johns",
+        "date": "06/10/2025"
+      },
+      {
+        "type": "added",
+        "jobId": "W-118537",
+        "visitId": "120477",
+        "store": "#43317",
+        "storeName": "7-Eleven Stores, Inc",
+        "dispensers": 4,
+        "location": "Fernandina, Beach",
+        "date": "06/11/2025"
+      },
+      {
+        "type": "added",
+        "jobId": "W-118638",
+        "visitId": "120578",
+        "store": "#35890",
+        "storeName": "7-Eleven Stores, Inc",
+        "dispensers": 6,
+        "location": "Jacksonville, FL",
+        "date": "06/12/2025"
+      },
+      {
+        "type": "added",
+        "jobId": "W-132237",
+        "visitId": "134262",
+        "store": "#27445",
+        "storeName": "7-Eleven Stores, Inc",
+        "dispensers": 3,
+        "location": "Holly, Hill",
+        "date": "06/13/2025"
+      }
+    ],
+    "medium": [],
+    "low": [],
+    "summary": {
+      "removed": 0,
+      "added": 5,
+      "modified": 0,
+      "swapped": 0
+    }
+  }
+}
