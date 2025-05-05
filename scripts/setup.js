@@ -98,6 +98,81 @@ async function setupEmailConfig() {
 }
 
 /**
+ * Setup FOSSA credentials
+ */
+async function setupFossaCredentials() {
+  console.log('\n===== FOSSA Credentials =====');
+  
+  const envPath = path.join(rootDir, '.env');
+  
+  if (fs.existsSync(envPath)) {
+    const useExisting = await askQuestion('Environment file already exists. Configure FOSSA credentials? (y/N): ');
+    if (useExisting.toLowerCase() !== 'y') {
+      console.log('Using existing environment configuration.');
+      return;
+    }
+  }
+  
+  console.log('Please configure your FOSSA credentials:');
+  
+  const email = await askQuestion('FOSSA Email: ');
+  const password = await askQuestion('FOSSA Password: ');
+  
+  const envContent = `FOSSA_EMAIL=${email}
+FOSSA_PASSWORD=${password}
+RUNNING_ELECTRON_DEV=true`;
+  
+  fs.writeFileSync(envPath, envContent);
+  console.log('FOSSA credentials saved to .env file.');
+}
+
+/**
+ * Setup default user
+ */
+async function setupDefaultUser() {
+  console.log('\n===== Default User Setup =====');
+  
+  const createUser = await askQuestion('Would you like to create a default user? (Y/n): ');
+  if (createUser.toLowerCase() === 'n') {
+    console.log('Skipping default user creation.');
+    return;
+  }
+  
+  const username = await askQuestion('Username: ');
+  const email = await askQuestion('Email for notifications: ');
+  
+  if (!username || !username.trim()) {
+    console.log('Invalid username, skipping user creation.');
+    return;
+  }
+  
+  const userDir = path.join(usersDir, username);
+  ensureDirectoryExists(userDir);
+  ensureDirectoryExists(path.join(userDir, 'archive'));
+  ensureDirectoryExists(path.join(userDir, 'archives'));
+  ensureDirectoryExists(path.join(userDir, 'data'));
+  
+  // Create empty files from templates
+  const emailSettingsPath = path.join(userDir, 'email_settings.json');
+  if (!fs.existsSync(emailSettingsPath)) {
+    const template = JSON.parse(fs.readFileSync(path.join(templateDir, 'user-email-settings.template.json'), 'utf8'));
+    template.recipientEmail = email;
+    fs.writeFileSync(emailSettingsPath, JSON.stringify(template, null, 2));
+  }
+  
+  // Create empty change_history.json
+  copyTemplateIfNeeded('change_history.template.json', path.join(userDir, 'change_history.json'));
+  
+  // Create empty metadata.json
+  copyTemplateIfNeeded('metadata.template.json', path.join(userDir, 'metadata.json'));
+  
+  // Create empty scraped_content.json
+  fs.writeFileSync(path.join(userDir, 'scraped_content.json'), JSON.stringify({ jobs: [] }));
+  
+  console.log(`Default user '${username}' created successfully.`);
+}
+
+/**
  * Main setup function
  */
 async function setup() {
@@ -110,15 +185,14 @@ async function setup() {
   ensureDirectoryExists(usersDir);
   ensureDirectoryExists(path.join(rootDir, 'logs'));
   
-  // Check if we need to do first-time setup
-  const needsSetup = !fs.existsSync(path.join(dataDir, 'email-settings.json'));
+  // Set up email configuration
+  await setupEmailConfig();
   
-  if (needsSetup) {
-    console.log('First-time setup required.');
-    await setupEmailConfig();
-  } else {
-    console.log('Configuration files already exist.');
-  }
+  // Set up FOSSA credentials
+  await setupFossaCredentials();
+  
+  // Set up default user
+  await setupDefaultUser();
   
   // Install dependencies if needed
   if (!fs.existsSync(path.join(rootDir, 'node_modules'))) {

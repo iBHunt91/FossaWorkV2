@@ -1,27 +1,107 @@
 # Fossa Monitor
 
-A monitoring application for tracking and managing schedule changes and notifications.
+An application for monitoring FOSSA job schedules and sending notifications about changes.
 
-## Getting Started
+## Quick Start
 
-### Prerequisites
-- Node.js
-- npm
+1. **Clone the repository**
+   ```
+   git clone https://github.com/your-repo/fossa-monitor.git
+   cd fossa-monitor
+   ```
 
-### Installation
-```bash
-# Clone the repository
-git clone https://github.com/iBHunt91/Fossa_Monitor.git
+2. **Run the setup script**
+   ```
+   npm run setup
+   ```
+   This will:
+   - Install dependencies
+   - Create necessary directories
+   - Guide you through email configuration
+   - Set up FOSSA credentials
+   - Create a default user (optional)
 
-# Navigate to the project directory
-cd Fossa_Monitor
+3. **Start the application**
+   ```
+   npm run electron:dev:start
+   ```
 
-# Install dependencies
-npm install
+## What's Included
 
-# Start the application
-npm run electron:dev:start
-```
+The setup process will create:
+
+- Email configuration for sending notifications
+- FOSSA credentials for authentication
+- User directories and settings
+- Default empty data structures
+
+All required configuration files will be created from templates with guidance from the setup script.
+
+## Manual Setup
+
+If you prefer to set up the application manually:
+
+1. **Install dependencies**
+   ```
+   npm install
+   ```
+
+2. **Create required directories**
+   - Ensure the following directories exist:
+     - `data`
+     - `data/users`
+     - `logs`
+
+3. **Configure email settings**
+   - Create `data/email-settings.json` with:
+   ```json
+   {
+     "senderName": "Fossa Monitor",
+     "senderEmail": "your-email@example.com",
+     "smtpServer": "smtp.gmail.com",
+     "smtpPort": 587,
+     "useSSL": false,
+     "username": "your-email@example.com",
+     "password": "your-app-password-here"
+   }
+   ```
+
+4. **Set up environment variables**
+   - Create `.env` file in the root directory:
+   ```
+   FOSSA_EMAIL=your_email@example.com
+   FOSSA_PASSWORD=your_password
+   RUNNING_ELECTRON_DEV=true
+   ```
+
+5. **Start the application**
+   ```
+   npm run electron:dev:start
+   ```
+
+## Configuration
+
+### Email Settings
+
+The application uses SMTP to send email notifications. You can configure these settings in `data/email-settings.json`.
+
+### User Settings
+
+User-specific settings are stored in `data/users/{username}/email_settings.json` and manage notification preferences.
+
+### Environment Variables
+
+See [Environment Setup Documentation](docs/env-setup.md) for details on all available environment variables.
+
+## Development
+
+- Start development server: `npm run dev`
+- Start Electron app: `npm run electron:dev:start`
+- Build application: `npm run electron:build`
+
+## License
+
+[Your License Here]
 
 ## Development Guidelines
 
