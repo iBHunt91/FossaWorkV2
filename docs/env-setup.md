@@ -7,31 +7,35 @@ This document explains how to set up environment variables for the Fossa Monitor
 Create a file named `.env` in the root directory of the project with the following variables:
 
 ```bash
-# Fossa credentials for authentication
-FOSSA_EMAIL=your_email@example.com
-FOSSA_PASSWORD=your_password
-
 # Application mode
 RUNNING_ELECTRON_DEV=true
 ```
 
 ## Environment Variables Explanation
 
-- `FOSSA_EMAIL`: Your Fossa account email address
-- `FOSSA_PASSWORD`: Your Fossa account password
 - `RUNNING_ELECTRON_DEV`: Set to `true` when running in development mode
 
-## Optional Environment Variables
+## About User Authentication
 
-These variables are optional and will use defaults if not specified:
+FOSSA credentials are managed at the user level through the application's user management system. Each user will configure their own credentials when they are set up in the application. This supports multiple users each with their own FOSSA account.
+
+## Email Configuration
+
+The application uses a central email account to send notifications to users:
 
 ```bash
-# Email configuration (optional - can use email-settings.json instead)
-EMAIL_USERNAME=your_email@example.com
-EMAIL_PASSWORD=your_app_password
-RECIPIENT_EMAIL=recipient@example.com
+# FossaMonitor sender email (comes configured with the application)
+EMAIL_USERNAME=fossamonitor@gmail.com
+EMAIL_PASSWORD=app_password_here
+```
 
-# Server configuration (optional)
+Each user configures their own recipient email address through the application interface.
+
+## Server Configuration
+
+Server configuration is pre-configured in the application. These settings should not need to be changed by end users:
+
+```bash
 PORT=3000
 NODE_ENV=development
 ```
@@ -48,5 +52,5 @@ NODE_ENV=production
 ## Notes
 
 - The application will look for these variables in the `.env` file
-- For email functionality, you can use either environment variables or the `email-settings.json` file
+- Email functionality is configured in `data/email-settings.json`
 - User-specific settings are stored in the `data/users/{username}/` directory 

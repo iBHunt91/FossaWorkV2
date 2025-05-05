@@ -64,10 +64,12 @@ function copyTemplateIfNeeded(templateName, destPath) {
 }
 
 /**
- * Setup email configuration
+ * Setup central email configuration for sending notifications
  */
 async function setupEmailConfig() {
-  console.log('\n===== Email Configuration =====');
+  console.log('\n===== Central Email Configuration =====');
+  console.log('This configures the email account used to SEND notifications.');
+  console.log('(Each user will configure their own recipient email later)');
   
   const emailSettingsPath = path.join(dataDir, 'email-settings.json');
   
@@ -79,7 +81,7 @@ async function setupEmailConfig() {
     }
   }
   
-  console.log('Please configure your email settings:');
+  console.log('\nPlease configure the central notification email settings:');
   const emailConfig = {};
   
   emailConfig.senderName = await askQuestion('Sender Name (e.g., Fossa Monitor): ');
@@ -94,36 +96,26 @@ async function setupEmailConfig() {
   emailConfig.password = await askQuestion('SMTP Password: ');
   
   fs.writeFileSync(emailSettingsPath, JSON.stringify(emailConfig, null, 2));
-  console.log('Email settings saved successfully.');
+  console.log('Central email settings saved successfully.');
 }
 
 /**
- * Setup FOSSA credentials
+ * Setup basic environment
  */
-async function setupFossaCredentials() {
-  console.log('\n===== FOSSA Credentials =====');
+async function setupEnvironment() {
+  console.log('\n===== Environment Configuration =====');
   
   const envPath = path.join(rootDir, '.env');
   
   if (fs.existsSync(envPath)) {
-    const useExisting = await askQuestion('Environment file already exists. Configure FOSSA credentials? (y/N): ');
-    if (useExisting.toLowerCase() !== 'y') {
-      console.log('Using existing environment configuration.');
-      return;
-    }
+    console.log('Environment file already exists. Using existing configuration.');
+    return;
   }
   
-  console.log('Please configure your FOSSA credentials:');
-  
-  const email = await askQuestion('FOSSA Email: ');
-  const password = await askQuestion('FOSSA Password: ');
-  
-  const envContent = `FOSSA_EMAIL=${email}
-FOSSA_PASSWORD=${password}
-RUNNING_ELECTRON_DEV=true`;
-  
+  // Create basic environment file with dev mode enabled
+  const envContent = `RUNNING_ELECTRON_DEV=true`;
   fs.writeFileSync(envPath, envContent);
-  console.log('FOSSA credentials saved to .env file.');
+  console.log('Created basic environment configuration.');
 }
 
 /**
@@ -170,6 +162,8 @@ async function setupDefaultUser() {
   fs.writeFileSync(path.join(userDir, 'scraped_content.json'), JSON.stringify({ jobs: [] }));
   
   console.log(`Default user '${username}' created successfully.`);
+  console.log('\nNote: FOSSA credentials are configured at the user level through the application.');
+  console.log('Each user will need to enter their FOSSA credentials when they first use the application.');
 }
 
 /**
@@ -185,11 +179,11 @@ async function setup() {
   ensureDirectoryExists(usersDir);
   ensureDirectoryExists(path.join(rootDir, 'logs'));
   
-  // Set up email configuration
+  // Set up central email configuration
   await setupEmailConfig();
   
-  // Set up FOSSA credentials
-  await setupFossaCredentials();
+  // Set up basic environment
+  await setupEnvironment();
   
   // Set up default user
   await setupDefaultUser();
