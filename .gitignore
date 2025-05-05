@@ -47,3 +47,14 @@ coverage/
 
 # Electron specific
 .electron-symbols/
+
+# User data and archive files
+data/users/*/archive/
+data/users/*/archives/
+data/backups/
+data/users/*/batch_history.json
+data/users/*/completed_jobs.json
+data/users/*/last_notification.json
+data/users/*/last_pushover_notification.json
+circle_k_web/
+scripts/*backup*.json
