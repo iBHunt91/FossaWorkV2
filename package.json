@@ -13,6 +13,7 @@
     "server:restart": "node scripts/restart-server.js",
     "cleanup": "node scripts/cleanup-processes.js",
     "start": "npm run cleanup && concurrently \"npm run dev\" \"npm run server\"",
+    "setup": "node scripts/setup.js",
     "electron:dev": "concurrently \"npm run server\" \"vite\" \"electron .\"",
     "electron:dev:start": "node scripts/run-electron-dev.js",
     "electron:hidden": "concurrently \"npm run server:restart\" \"electron .\"",
