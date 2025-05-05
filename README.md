@@ -32,8 +32,19 @@ An application for monitoring FOSSA job schedules and sending notifications abou
 3. **Install dependencies**
    ```
    npm install
-   npm install --save-dev tailwindcss postcss autoprefixer
+   npm install --save-dev tailwindcss @tailwindcss/postcss autoprefixer
    npx tailwindcss init -p
+   ```
+
+   After running `npx tailwindcss init -p`, update the PostCSS configuration:
+   ```js
+   // postcss.config.js or postcss.config.mjs
+   export default {
+     plugins: {
+       '@tailwindcss/postcss': {},
+       autoprefixer: {},
+     },
+   }
    ```
 
 4. **Start the application**
@@ -81,10 +92,21 @@ If a fresh installation shows a blank/white screen:
    npm run init-data
    ```
 
-4. If you get TailwindCSS errors, install it:
+4. If you get TailwindCSS errors, install it with the correct PostCSS plugin:
    ```
-   npm install --save-dev tailwindcss postcss autoprefixer
+   npm install --save-dev tailwindcss @tailwindcss/postcss autoprefixer
    npx tailwindcss init -p
+   ```
+
+   Then update the PostCSS configuration:
+   ```js
+   // postcss.config.js or postcss.config.mjs
+   export default {
+     plugins: {
+       '@tailwindcss/postcss': {},
+       autoprefixer: {},
+     },
+   }
    ```
 
 ## Email Notification Configuration
