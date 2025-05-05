@@ -1,0 +1,9 @@
+{
+  "senderName": "Fossa Monitor",
+  "senderEmail": "your-email@example.com",
+  "smtpServer": "smtp.gmail.com",
+  "smtpPort": 587,
+  "useSSL": false,
+  "username": "your-email@example.com",
+  "password": "your-app-password-here"
+} 
