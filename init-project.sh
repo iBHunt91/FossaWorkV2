@@ -22,7 +22,7 @@ fi
 
 # Run the initialization from templates
 echo "Running initialization from templates..."
-node -e "require('./scripts/init-data.js').initializeDataFromTemplates()"
+node --input-type=module -e "import { initializeDataFromTemplates } from './scripts/init-data.js'; initializeDataFromTemplates();"
 
 echo ""
 echo "Setup complete!"

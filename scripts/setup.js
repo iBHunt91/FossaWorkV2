@@ -4,11 +4,16 @@
  * This script helps set up the initial configuration for Fossa Monitor.
  */
 
-const fs = require('fs');
-const path = require('path');
-const readline = require('readline');
-const crypto = require('crypto');
-const { initializeDataFromTemplates } = require('./init-data');
+import fs from 'fs';
+import path from 'path';
+import readline from 'readline';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
+import { initializeDataFromTemplates } from './init-data.js';
+
+// Get directory paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Define paths
 const projectRoot = path.resolve(__dirname, '..');

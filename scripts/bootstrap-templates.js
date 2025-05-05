@@ -5,8 +5,13 @@
  * to create a working bootstrap for new installations.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get directory paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Define paths
 const projectRoot = path.resolve(__dirname, '..');
@@ -55,10 +60,7 @@ filesToTemplate.forEach(file => {
   }
 });
 
-// Update the initialization scripts to use these templates
-console.log('Updating initialization script content...');
-
-// Create the init-data.js module
+// Create the init-data.js module as ESM
 const initDataScriptPath = path.join(__dirname, 'init-data.js');
 const initDataScript = `/**
  * Data Initialization Module
@@ -66,13 +68,18 @@ const initDataScript = `/**
  * This module contains functions to initialize data files from templates.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get directory paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Initialize data files from templates
  */
-function initializeDataFromTemplates() {
+export function initializeDataFromTemplates() {
   const projectRoot = path.resolve(__dirname, '..');
   const templatesDir = path.join(projectRoot, 'data', 'templates');
   const dataDir = path.join(projectRoot, 'data');
@@ -103,10 +110,6 @@ function initializeDataFromTemplates() {
     }
   });
 }
-
-module.exports = {
-  initializeDataFromTemplates
-};
 `;
 
 fs.writeFileSync(initDataScriptPath, initDataScript);

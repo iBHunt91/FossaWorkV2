@@ -4,13 +4,18 @@
  * This module contains functions to initialize data files from templates.
  */
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Get directory paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Initialize data files from templates
  */
-function initializeDataFromTemplates() {
+export function initializeDataFromTemplates() {
   const projectRoot = path.resolve(__dirname, '..');
   const templatesDir = path.join(projectRoot, 'data', 'templates');
   const dataDir = path.join(projectRoot, 'data');
@@ -40,8 +45,4 @@ function initializeDataFromTemplates() {
       }
     }
   });
-}
-
-module.exports = {
-  initializeDataFromTemplates
-}; 
+} 
