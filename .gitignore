@@ -23,7 +23,8 @@ release/
 .env.development.local
 .env.test.local
 .env.production.local
-.env.template
+# Keep environment templates
+!.env.template
 
 # Cache and temporary files
 .npm
@@ -60,6 +61,7 @@ data/users/*/last_pushover_notification.json
 data/users/*/change_history.json
 data/users/*/metadata.json
 data/users/*/scraped_content.json
+data/users/*/scraped_content.previous.json
 data/users/*/email-settings.json
 data/users/*/data/
 data/notification_cache.json
