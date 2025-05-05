@@ -47,6 +47,25 @@ An application for monitoring FOSSA job schedules and sending notifications abou
    }
    ```
 
+   Also make sure your tailwind.config.js includes all file types:
+   ```js
+   /** @type {import('tailwindcss').Config} */
+   export default {
+     content: [
+       "./index.html",
+       "./src/**/*.{js,ts,jsx,tsx,css}",
+     ],
+     // rest of your config...
+   }
+   ```
+
+   If the file `src/tailwind.css` doesn't exist, create it with:
+   ```css
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
+   ```
+
 4. **Start the application**
    ```
    npm run electron:dev:start
@@ -92,7 +111,7 @@ If a fresh installation shows a blank/white screen:
    npm run init-data
    ```
 
-4. If you get TailwindCSS errors, install it with the correct PostCSS plugin:
+4. If you get TailwindCSS errors, ensure complete setup:
    ```
    npm install --save-dev tailwindcss @tailwindcss/postcss autoprefixer
    npx tailwindcss init -p
@@ -107,6 +126,25 @@ If a fresh installation shows a blank/white screen:
        autoprefixer: {},
      },
    }
+   ```
+
+   Also update tailwind.config.js:
+   ```js
+   /** @type {import('tailwindcss').Config} */
+   export default {
+     content: [
+       "./index.html",
+       "./src/**/*.{js,ts,jsx,tsx,css}",
+     ],
+     // rest of your config...
+   }
+   ```
+
+   And create src/tailwind.css:
+   ```css
+   @tailwind base;
+   @tailwind components;
+   @tailwind utilities;
    ```
 
 ## Email Notification Configuration
