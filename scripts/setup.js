@@ -68,35 +68,19 @@ function copyTemplateIfNeeded(templateName, destPath) {
  */
 async function setupEmailConfig() {
   console.log('\n===== Central Email Configuration =====');
-  console.log('This configures the email account used to SEND notifications.');
-  console.log('(Each user will configure their own recipient email later)');
   
   const emailSettingsPath = path.join(dataDir, 'email-settings.json');
   
   if (fs.existsSync(emailSettingsPath)) {
-    const useExisting = await askQuestion('Email settings already exist. Use existing settings? (Y/n): ');
-    if (useExisting.toLowerCase() !== 'n') {
-      console.log('Using existing email settings.');
-      return;
-    }
+    console.log('Email settings already exist. Using existing settings.');
+    return;
   }
   
-  console.log('\nPlease configure the central notification email settings:');
-  const emailConfig = {};
-  
-  emailConfig.senderName = await askQuestion('Sender Name (e.g., Fossa Monitor): ');
-  emailConfig.senderEmail = await askQuestion('Sender Email: ');
-  emailConfig.smtpServer = await askQuestion('SMTP Server (e.g., smtp.gmail.com): ');
-  emailConfig.smtpPort = parseInt(await askQuestion('SMTP Port (e.g., 587): '));
-  
-  const useSSLInput = await askQuestion('Use SSL? (y/N): ');
-  emailConfig.useSSL = useSSLInput.toLowerCase() === 'y';
-  
-  emailConfig.username = await askQuestion('SMTP Username: ');
-  emailConfig.password = await askQuestion('SMTP Password: ');
-  
-  fs.writeFileSync(emailSettingsPath, JSON.stringify(emailConfig, null, 2));
-  console.log('Central email settings saved successfully.');
+  // Copy the template directly, which already contains the FossaMonitor credentials
+  copyTemplateIfNeeded('email-settings.template.json', emailSettingsPath);
+  console.log('Central email settings configured with FossaMonitor account.');
+  console.log('Email: fossamonitor@gmail.com');
+  console.log('(This account is used to send notifications to users)');
 }
 
 /**

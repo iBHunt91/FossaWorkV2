@@ -21,13 +21,15 @@ FOSSA credentials are managed at the user level through the application's user m
 
 ## Email Configuration
 
-The application uses a central email account to send notifications to users:
+The application comes with a pre-configured central email account to send notifications to users:
 
-```bash
-# FossaMonitor sender email (comes configured with the application)
-EMAIL_USERNAME=fossamonitor@gmail.com
-EMAIL_PASSWORD=app_password_here
 ```
+FossaMonitor Email: fossamonitor@gmail.com
+App Password: febc emgq dvky yafs
+SMTP: smtp.gmail.com:587
+```
+
+This account is already configured in the system and ready to use. You don't need to modify these settings.
 
 Each user configures their own recipient email address through the application interface.
 
@@ -52,5 +54,5 @@ NODE_ENV=production
 ## Notes
 
 - The application will look for these variables in the `.env` file
-- Email functionality is configured in `data/email-settings.json`
+- Email functionality is pre-configured in `data/email-settings.json`
 - User-specific settings are stored in the `data/users/{username}/` directory 

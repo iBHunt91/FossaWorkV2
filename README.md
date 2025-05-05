@@ -17,7 +17,7 @@ An application for monitoring FOSSA job schedules and sending notifications abou
    This will:
    - Install dependencies
    - Create necessary directories
-   - Set up central email configuration for sending notifications
+   - Set up central email configuration with pre-configured FossaMonitor account
    - Create a default user (optional)
 
 3. **Start the application**
@@ -29,7 +29,7 @@ An application for monitoring FOSSA job schedules and sending notifications abou
 
 The setup process will create:
 
-- Central email configuration for sending notifications
+- Central email configuration with pre-configured FossaMonitor email account
 - User directories and settings
 - Default empty data structures
 
@@ -53,7 +53,7 @@ If you prefer to set up the application manually:
      - `logs`
 
 3. **Configure central email settings**
-   - Create `data/email-settings.json` with:
+   - Create `data/email-settings.json` with the pre-configured FossaMonitor account:
    ```json
    {
      "senderName": "Fossa Monitor",
@@ -62,7 +62,7 @@ If you prefer to set up the application manually:
      "smtpPort": 587,
      "useSSL": false,
      "username": "fossamonitor@gmail.com",
-     "password": "app_password_here"
+     "password": "febc emgq dvky yafs"
    }
    ```
 
@@ -81,7 +81,7 @@ If you prefer to set up the application manually:
 
 ### Email Settings
 
-The application uses a central SMTP account to send email notifications to users. This is configured in `data/email-settings.json`.
+The application comes with a pre-configured central SMTP account (fossamonitor@gmail.com) to send email notifications to users. You don't need to change these settings.
 
 ### User Settings
 
