@@ -2,28 +2,58 @@
 
 An application for monitoring FOSSA job schedules and sending notifications about changes.
 
-## Quick Start
+## Quick Start for New Users
 
 1. **Clone the repository**
    ```
-   git clone https://github.com/your-repo/fossa-monitor.git
-   cd fossa-monitor
+   git clone https://github.com/iBHunt91/Fossa_Monitor.git
+   cd Fossa_Monitor
    ```
 
-2. **Run the setup script**
+2. **Initialize the project**
+   
+   For Windows:
    ```
-   npm run setup
+   .\init-project.cmd
    ```
+   
+   For Mac/Linux:
+   ```
+   chmod +x init-project.sh
+   ./init-project.sh
+   ```
+   
    This will:
-   - Install dependencies
-   - Create necessary directories
-   - Set up central email configuration with pre-configured FossaMonitor account
-   - Create a default user (optional)
+   - Create necessary directories (data, logs)
+   - Set up a basic environment (.env file)
+   - Create initial data files
 
-3. **Start the application**
+3. **Install dependencies**
+   ```
+   npm install
+   ```
+
+4. **Start the application**
    ```
    npm run electron:dev:start
    ```
+
+5. **Create a user through the application UI**
+   - Once the application starts, you can create a new user
+   - Enter your FOSSA credentials through the UI
+
+## Advanced Setup Options
+
+If you prefer a comprehensive setup with default users:
+
+```
+npm run setup
+```
+
+This will:
+- Run the interactive setup process
+- Allow creation of a default user
+- Configure all settings interactively
 
 ## What's Included
 
@@ -49,28 +79,15 @@ If you prefer to set up the application manually:
 2. **Create required directories**
    - Ensure the following directories exist:
      - `data`
-     - `data/users`
      - `logs`
 
-3. **Configure central email settings**
-   - Create `data/email-settings.json` with the pre-configured FossaMonitor account:
-   ```json
-   {
-     "senderName": "Fossa Monitor",
-     "senderEmail": "fossamonitor@gmail.com",
-     "smtpServer": "smtp.gmail.com",
-     "smtpPort": 587,
-     "useSSL": false,
-     "username": "fossamonitor@gmail.com",
-     "password": "febc emgq dvky yafs"
-   }
+3. **Create minimal data file**
+   ```
+   echo {"jobs":[],"lastUpdated":"2025-05-05T00:00:00.000Z"} > data\scraped_content.json
    ```
 
 4. **Set up environment variables**
-   - Create `.env` file in the root directory:
-   ```
-   RUNNING_ELECTRON_DEV=true
-   ```
+   - Copy `.env.template` to `.env` in the root directory
 
 5. **Start the application**
    ```
@@ -93,6 +110,13 @@ User-specific settings are stored in `data/users/{username}/email_settings.json`
 ### Environment Variables
 
 See [Environment Setup Documentation](docs/env-setup.md) for details on available environment variables.
+
+## Version Verification
+
+You can verify you have the correct version of the code by:
+- Version in package.json: 1.0.0
+- Latest commit should include the setup and init scripts
+- Repository URL: https://github.com/iBHunt91/Fossa_Monitor.git
 
 ## Development
 
