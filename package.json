@@ -14,6 +14,8 @@
     "cleanup": "node scripts/cleanup-processes.js",
     "start": "npm run cleanup && concurrently \"npm run dev\" \"npm run server\"",
     "setup": "node scripts/setup.js",
+    "bootstrap-templates": "node scripts/bootstrap-templates.js",
+    "init-data": "node -e \"require('./scripts/init-data.js').initializeDataFromTemplates()\"",
     "electron:dev": "concurrently \"npm run server\" \"vite\" \"electron .\"",
     "electron:dev:start": "node scripts/run-electron-dev.js",
     "electron:hidden": "concurrently \"npm run server:restart\" \"electron .\"",

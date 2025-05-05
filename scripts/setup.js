@@ -1,25 +1,21 @@
 /**
- * First-time setup script for Fossa Monitor
+ * Setup Script for Fossa Monitor
  * 
- * This script will:
- * 1. Create necessary directories
- * 2. Copy template files to their proper locations if they don't exist
- * 3. Guide the user through initial configuration
+ * This script helps set up the initial configuration for Fossa Monitor.
  */
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import readline from 'readline';
-import { execSync } from 'child_process';
+const fs = require('fs');
+const path = require('path');
+const readline = require('readline');
+const crypto = require('crypto');
+const { initializeDataFromTemplates } = require('./init-data');
 
-// Get directory paths
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const rootDir = path.resolve(__dirname, '..');
-const dataDir = path.join(rootDir, 'data');
-const templateDir = path.join(dataDir, 'templates');
+// Define paths
+const projectRoot = path.resolve(__dirname, '..');
+const dataDir = path.join(projectRoot, 'data');
 const usersDir = path.join(dataDir, 'users');
+const templatesDir = path.join(dataDir, 'templates');
+const logsDir = path.join(projectRoot, 'logs');
 
 // Create readline interface
 const rl = readline.createInterface({
@@ -27,170 +23,135 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
-/**
- * Ask a question and get user input
- */
+// Main setup function
+async function setup() {
+  console.log('=== Fossa Monitor Setup ===');
+  
+  // Create necessary directories
+  createDirectories();
+  
+  // Initialize data files from templates
+  initializeDataFromTemplates();
+  
+  // Ask if user wants to create a default user
+  rl.question('Do you want to create a default user? (y/n): ', async (answer) => {
+    if (answer.toLowerCase() === 'y') {
+      await createDefaultUser();
+    } else {
+      console.log('Skipping user creation...');
+      console.log('You can create users through the application UI.');
+      finish();
+    }
+  });
+}
+
+// Create necessary directories
+function createDirectories() {
+  console.log('Creating necessary directories...');
+  
+  [dataDir, usersDir, logsDir, templatesDir].forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`Created ${dir}`);
+    }
+  });
+}
+
+// Create a default user
+async function createDefaultUser() {
+  const username = await askQuestion('Enter username: ');
+  const email = await askQuestion('Enter email: ');
+  
+  // Generate a user ID (MD5 hash of username)
+  const userId = crypto.createHash('md5').update(username).digest("hex");
+  const userDir = path.join(usersDir, userId);
+  
+  // Create user directory
+  if (!fs.existsSync(userDir)) {
+    fs.mkdirSync(userDir, { recursive: true });
+  }
+  
+  // Create archive directory
+  const archiveDir = path.join(userDir, 'archive');
+  if (!fs.existsSync(archiveDir)) {
+    fs.mkdirSync(archiveDir, { recursive: true });
+  }
+  
+  // Create user metadata
+  const metadata = {
+    id: userId,
+    username: username,
+    email: email,
+    created: new Date().toISOString(),
+    lastLogin: new Date().toISOString()
+  };
+  
+  fs.writeFileSync(path.join(userDir, 'metadata.json'), JSON.stringify(metadata, null, 2));
+  
+  // Create email settings
+  const emailSettings = {
+    enabled: true,
+    email: email,
+    notifyOnChanges: true,
+    notifyOnFailures: true
+  };
+  
+  fs.writeFileSync(path.join(userDir, 'email_settings.json'), JSON.stringify(emailSettings, null, 2));
+  
+  // Create empty change history
+  const changeHistory = {
+    changes: []
+  };
+  
+  fs.writeFileSync(path.join(userDir, 'change_history.json'), JSON.stringify(changeHistory, null, 2));
+  
+  // Create empty scraped content
+  const scrapedContent = {
+    jobs: [],
+    lastUpdated: new Date().toISOString()
+  };
+  
+  fs.writeFileSync(path.join(userDir, 'scraped_content.json'), JSON.stringify(scrapedContent, null, 2));
+  
+  // Update users.json
+  let users = { users: [] };
+  const usersFile = path.join(dataDir, 'users.json');
+  
+  if (fs.existsSync(usersFile)) {
+    try {
+      users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+    } catch (error) {
+      console.error('Error reading users.json:', error);
+    }
+  }
+  
+  users.users.push({
+    id: userId,
+    username: username,
+    email: email
+  });
+  
+  fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+  
+  console.log(`User "${username}" created successfully!`);
+  finish();
+}
+
+// Ask a question and return the answer
 function askQuestion(question) {
-  return new Promise(resolve => {
-    rl.question(question, answer => {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
       resolve(answer);
     });
   });
 }
 
-/**
- * Create directory if it doesn't exist
- */
-function ensureDirectoryExists(dir) {
-  if (!fs.existsSync(dir)) {
-    console.log(`Creating directory: ${dir}`);
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
-/**
- * Copy template file to destination if destination doesn't exist
- */
-function copyTemplateIfNeeded(templateName, destPath) {
-  const templatePath = path.join(templateDir, templateName);
-  
-  if (!fs.existsSync(destPath) && fs.existsSync(templatePath)) {
-    console.log(`Creating ${destPath} from template`);
-    fs.copyFileSync(templatePath, destPath);
-    return true;
-  }
-  
-  return false;
-}
-
-/**
- * Setup central email configuration for sending notifications
- */
-async function setupEmailConfig() {
-  console.log('\n===== Central Email Configuration =====');
-  
-  const emailSettingsPath = path.join(dataDir, 'email-settings.json');
-  
-  if (fs.existsSync(emailSettingsPath)) {
-    console.log('Email settings already exist. Using existing settings.');
-    return;
-  }
-  
-  // Copy the template directly, which already contains the FossaMonitor credentials
-  copyTemplateIfNeeded('email-settings.template.json', emailSettingsPath);
-  console.log('Central email settings configured with FossaMonitor account.');
-  console.log('Email: fossamonitor@gmail.com');
-  console.log('(This account is used to send notifications to users)');
-}
-
-/**
- * Setup basic environment
- */
-async function setupEnvironment() {
-  console.log('\n===== Environment Configuration =====');
-  
-  const envPath = path.join(rootDir, '.env');
-  
-  if (fs.existsSync(envPath)) {
-    console.log('Environment file already exists. Using existing configuration.');
-    return;
-  }
-  
-  // Create basic environment file with dev mode enabled
-  const envContent = `RUNNING_ELECTRON_DEV=true`;
-  fs.writeFileSync(envPath, envContent);
-  console.log('Created basic environment configuration.');
-}
-
-/**
- * Setup default user
- */
-async function setupDefaultUser() {
-  console.log('\n===== Default User Setup =====');
-  
-  const createUser = await askQuestion('Would you like to create a default user? (Y/n): ');
-  if (createUser.toLowerCase() === 'n') {
-    console.log('Skipping default user creation.');
-    return;
-  }
-  
-  const username = await askQuestion('Username: ');
-  const email = await askQuestion('Email for notifications: ');
-  
-  if (!username || !username.trim()) {
-    console.log('Invalid username, skipping user creation.');
-    return;
-  }
-  
-  const userDir = path.join(usersDir, username);
-  ensureDirectoryExists(userDir);
-  ensureDirectoryExists(path.join(userDir, 'archive'));
-  ensureDirectoryExists(path.join(userDir, 'archives'));
-  ensureDirectoryExists(path.join(userDir, 'data'));
-  
-  // Create empty files from templates
-  const emailSettingsPath = path.join(userDir, 'email_settings.json');
-  if (!fs.existsSync(emailSettingsPath)) {
-    const template = JSON.parse(fs.readFileSync(path.join(templateDir, 'user-email-settings.template.json'), 'utf8'));
-    template.recipientEmail = email;
-    fs.writeFileSync(emailSettingsPath, JSON.stringify(template, null, 2));
-  }
-  
-  // Create empty change_history.json
-  copyTemplateIfNeeded('change_history.template.json', path.join(userDir, 'change_history.json'));
-  
-  // Create empty metadata.json
-  copyTemplateIfNeeded('metadata.template.json', path.join(userDir, 'metadata.json'));
-  
-  // Create empty scraped_content.json
-  fs.writeFileSync(path.join(userDir, 'scraped_content.json'), JSON.stringify({ jobs: [] }));
-  
-  console.log(`Default user '${username}' created successfully.`);
-  console.log('\nNote: FOSSA credentials are configured at the user level through the application.');
-  console.log('Each user will need to enter their FOSSA credentials when they first use the application.');
-}
-
-/**
- * Main setup function
- */
-async function setup() {
-  console.log('===== Fossa Monitor Setup =====');
-  console.log('Setting up directories and configuration files...\n');
-
-  // Create necessary directories
-  ensureDirectoryExists(dataDir);
-  ensureDirectoryExists(templateDir);
-  ensureDirectoryExists(usersDir);
-  ensureDirectoryExists(path.join(rootDir, 'logs'));
-  
-  // Set up central email configuration
-  await setupEmailConfig();
-  
-  // Set up basic environment
-  await setupEnvironment();
-  
-  // Set up default user
-  await setupDefaultUser();
-  
-  // Install dependencies if needed
-  if (!fs.existsSync(path.join(rootDir, 'node_modules'))) {
-    console.log('\nInstalling dependencies...');
-    try {
-      execSync('npm install', { stdio: 'inherit', cwd: rootDir });
-      console.log('Dependencies installed successfully.');
-    } catch (error) {
-      console.error('Error installing dependencies:', error.message);
-    }
-  }
-  
-  console.log('\nSetup complete! You can now start the application:');
-  console.log('  npm run electron:dev:start');
-  
+// Finish setup
+function finish() {
+  console.log('\nSetup completed successfully!');
+  console.log('You can now start the application with: npm run electron:dev:start');
   rl.close();
 }
 
 // Run setup
-setup().catch(error => {
-  console.error('Setup error:', error);
-  rl.close();
-}); 
+setup(); 

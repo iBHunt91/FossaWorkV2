@@ -26,7 +26,8 @@ An application for monitoring FOSSA job schedules and sending notifications abou
    This will:
    - Create necessary directories (data, logs)
    - Set up a basic environment (.env file)
-   - Create initial data files
+   - Generate template files from a working configuration
+   - Initialize required data files from templates
 
 3. **Install dependencies**
    ```
@@ -40,7 +41,67 @@ An application for monitoring FOSSA job schedules and sending notifications abou
 
 5. **Create a user through the application UI**
    - Once the application starts, you can create a new user
-   - Enter your FOSSA credentials through the UI
+   - Provide your FOSSA credentials for that user
+
+## For Existing Users and Maintainers
+
+### Backing Up Your Configuration
+
+If you have a working setup and want to create templates for future installations:
+
+```
+npm run bootstrap-templates
+```
+
+This will:
+- Copy your current working configuration files to template files
+- These template files will be used when initializing new installations
+
+### Troubleshooting New Installations
+
+If a fresh installation shows a blank/white screen:
+
+1. Make sure you've run the initialization script:
+   ```
+   .\init-project.cmd   # Windows
+   ./init-project.sh    # Mac/Linux
+   ```
+
+2. Check if data files were created properly:
+   ```
+   dir data             # Windows
+   ls -la data          # Mac/Linux
+   ```
+
+3. If needed, run the initialization commands manually:
+   ```
+   npm run bootstrap-templates
+   npm run init-data
+   ```
+
+## Email Notification Configuration
+
+The application is pre-configured with a central email account:
+- Email: fossamonitor@gmail.com
+- App Password: febc emgq dvky yafs
+
+This account is used to send notifications to users. Individual users can configure their notification preferences in the UI.
+
+## Development
+
+To build the application:
+```
+npm run build
+```
+
+To run the server only:
+```
+npm run server
+```
+
+## License
+
+This project is proprietary software.
 
 ## Advanced Setup Options
 
@@ -117,16 +178,6 @@ You can verify you have the correct version of the code by:
 - Version in package.json: 1.0.0
 - Latest commit should include the setup and init scripts
 - Repository URL: https://github.com/iBHunt91/Fossa_Monitor.git
-
-## Development
-
-- Start development server: `npm run dev`
-- Start Electron app: `npm run electron:dev:start`
-- Build application: `npm run electron:build`
-
-## License
-
-[Your License Here]
 
 ## Development Guidelines
 

@@ -8,30 +8,21 @@ mkdir -p logs
 mkdir -p data/users
 mkdir -p data/templates
 
-# Create basic scraped_content.json file
-echo '{"jobs":[],"lastUpdated":"2025-05-05T00:00:00.000Z","workOrders":[],"dispensers":[{"id":1,"name":"Main Dispenser","status":"active"}]}' > data/scraped_content.json
-
-# Create basic users.json file
-echo '{"users":[]}' > data/users.json
-
-# Create basic dispenser_store.json (seems required)
-echo '{"dispensers":[{"id":1,"name":"Main Dispenser","status":"active"}],"lastUpdated":"2025-05-05T00:00:00.000Z"}' > data/dispenser_store.json
-
-# Create basic metadata.json
-echo '{"version":"1.0.0","initialized":true,"setupCompleted":true}' > data/metadata.json
-
-# Create settings.json
-echo '{"notifications":{"email":true,"pushover":false},"ui":{"theme":"light","refreshInterval":60000}}' > data/settings.json
-
-# Create basic email-settings if not exist
-if [ ! -f data/email-settings.json ]; then
-  echo '{"senderName":"Fossa Monitor","senderEmail":"fossamonitor@gmail.com","smtpServer":"smtp.gmail.com","smtpPort":587,"useSSL":false,"username":"fossamonitor@gmail.com","password":"febc emgq dvky yafs"}' > data/email-settings.json
-  echo "Created email-settings.json with default FossaMonitor account"
-fi
-
 # Create/Update .env file
 echo "RUNNING_ELECTRON_DEV=true" > .env
 echo "Created/updated .env with RUNNING_ELECTRON_DEV=true"
+
+# Generate the bootstrap templates if they don't exist yet
+if [ ! -f data/templates/dispenser_store.template.json ]; then
+  echo "Running bootstrap templates generation script..."
+  node scripts/bootstrap-templates.js
+else
+  echo "Template files already exist, skipping bootstrap."
+fi
+
+# Run the initialization from templates
+echo "Running initialization from templates..."
+node -e "require('./scripts/init-data.js').initializeDataFromTemplates()"
 
 echo ""
 echo "Setup complete!"
