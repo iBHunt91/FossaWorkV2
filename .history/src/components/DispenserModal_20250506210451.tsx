@@ -321,7 +321,7 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
           </div>
         </div>
       </div>
-      <style>{`
+      <style jsx>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 8px;
           height: 8px;
