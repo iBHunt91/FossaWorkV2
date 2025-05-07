@@ -4,7 +4,8 @@ import {
   FiChevronDown, 
   FiSettings, 
   FiInfo,
-  FiHash
+  FiHash,
+  FiEye
 } from 'react-icons/fi';
 import { GiGasPump } from 'react-icons/gi';
 
@@ -52,6 +53,72 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
     };
   }, [isOpen]);
 
+  // Add custom scrollbar styles
+  useEffect(() => {
+    // Create a style element
+    const styleElement = document.createElement('style');
+    
+    // Add the scrollbar styling CSS
+    styleElement.textContent = `
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.25);
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+      
+      .custom-scrollbar-x::-webkit-scrollbar {
+        height: 6px;
+      }
+      .custom-scrollbar-x::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 6px;
+      }
+      .custom-scrollbar-x::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+      }
+      .custom-scrollbar-x::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.25);
+      }
+      .dark .custom-scrollbar-x::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .dark .custom-scrollbar-x::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+      }
+      .dark .custom-scrollbar-x::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
+      }
+    `;
+    
+    // Append the style element to the head
+    document.head.appendChild(styleElement);
+    
+    // Clean up function to remove the style when component unmounts
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []); // Empty dependency array means this runs once on mount
+
   // Default implementation for sortFuelTypes
   const defaultSortFuelTypes = (gradeString: string): string[] => {
     return gradeString ? gradeString.split(',').map(type => type.trim()).filter(Boolean) : [];
@@ -73,7 +140,7 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
   return (
     <div 
       className={`fixed inset-0 z-50 overflow-y-auto backdrop-blur-sm transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
-      onClick={onClose} // Close modal when clicking the backdrop
+      onClick={onClose}
       aria-labelledby="dispenser-modal-title"
       role="dialog"
       aria-modal="true"
@@ -84,29 +151,29 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
         </div>
         
         <div 
-          className={`inline-block align-bottom bg-white dark:bg-gray-800 rounded-xl text-left overflow-hidden shadow-2xl transform transition-all duration-300 sm:my-8 sm:align-middle max-w-2xl w-full border border-gray-200 dark:border-gray-700 ${isOpen ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95 opacity-0'}`}
-          onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
+          className={`inline-block align-bottom bg-white dark:bg-gray-800 rounded-xl text-left overflow-hidden shadow-2xl transform transition-all duration-300 sm:my-8 sm:align-middle max-w-3xl w-full border border-gray-200 dark:border-gray-700 ${isOpen ? 'translate-y-0 scale-100' : 'translate-y-4 scale-95 opacity-0'}`}
+          onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-800 dark:from-blue-800 dark:to-blue-950 px-6 py-4">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-800 dark:from-blue-800 dark:to-blue-900 px-6 py-4">
             <div className="flex justify-between items-center">
               <h3 
                 className="text-lg leading-6 font-medium text-white flex items-center"
                 id="dispenser-modal-title"
               >
-                <div className="bg-blue-500/30 p-1.5 rounded-lg mr-3">
+                <div className="bg-blue-500/40 p-1.5 rounded-lg mr-3 shadow-inner">
                   <GiGasPump className="text-white" size={22} />
                 </div>
                 <span>Dispenser Data</span> 
                 {orderId && (
-                  <span className="ml-2 font-normal text-blue-100/90 flex items-center bg-blue-700/30 px-2 py-0.5 rounded-md text-sm">
-                    <FiHash className="mr-1 opacity-70" size={14} />
+                  <span className="ml-2 font-normal text-blue-100 flex items-center bg-blue-700/40 px-2 py-0.5 rounded-md text-sm">
+                    <FiHash className="mr-1 opacity-80" size={14} />
                     <span className="font-semibold">{orderId}</span>
                   </span>
                 )}
               </h3>
               <button
-                className="text-white hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-white/30 transition-colors p-1.5 rounded-full hover:bg-blue-700 dark:hover:bg-blue-900"
+                className="text-white hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-white/30 transition-colors p-1.5 rounded-full hover:bg-blue-700/50 dark:hover:bg-blue-800/70"
                 onClick={onClose}
                 aria-label="Close"
               >
@@ -143,36 +210,38 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
                   return (
                     <div 
                       key={index} 
-                      className={`bg-gray-50 dark:bg-gray-700 rounded-lg border ${isExpanded ? 'border-blue-200 dark:border-blue-800/50' : 'border-gray-200 dark:border-gray-600'} shadow-sm overflow-hidden hover:shadow-md transition-all duration-200`}
+                      className={`bg-gray-50 dark:bg-gray-700 rounded-lg border ${isExpanded ? 'border-blue-300 dark:border-blue-600/80' : 'border-gray-200 dark:border-gray-600'} shadow-sm overflow-hidden hover:shadow-md transition-all duration-200`}
                     >
-                      {/* Condensed single line layout */}
-                      <div className={`p-4 flex items-center ${isExpanded ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+                      {/* Dispenser card header */}
+                      <div 
+                        className={`flex items-center ${isExpanded ? 'bg-blue-50 dark:bg-blue-900/20 p-4' : 'p-4'}`}
+                      >
                         {/* Dispenser number badge */}
-                        <div className="bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 text-white rounded-lg min-w-[52px] px-2 py-1.5 text-sm font-bold shadow-sm mr-4 flex-shrink-0 text-center">
+                        <div className="bg-gradient-to-br from-blue-500 to-blue-700 dark:from-blue-600 dark:to-blue-800 text-white rounded-lg min-w-[64px] px-3 py-2 text-base font-bold shadow-md mr-4 flex-shrink-0 text-center">
                           {dispenserNumber}
                         </div>
                         
                         {/* Fuel types - middle section */}
                         <div className="flex-1 overflow-x-auto custom-scrollbar-x">
                           {dispenser.fields && dispenser.fields.Grade ? (
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-2.5">
                               {sortFuelTypesImpl(dispenser.fields.Grade).map((grade: string, i: number) => {
                                 // Define consistent colors based on fuel type
                                 let bgClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
                                 let gradeLower = grade.toLowerCase();
                                 
                                 if (gradeLower.includes('regular')) {
-                                  bgClass = 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-800/30';
+                                  bgClass = 'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-200 border border-green-200 dark:border-green-700/40';
                                 } else if (gradeLower.includes('plus')) {
-                                  bgClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800/30';
+                                  bgClass = 'bg-blue-100 text-blue-800 dark:bg-blue-800/30 dark:text-blue-200 border border-blue-200 dark:border-blue-700/40';
                                 } else if (gradeLower.includes('premium')) {
-                                  bgClass = 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800/30';
+                                  bgClass = 'bg-purple-100 text-purple-800 dark:bg-purple-800/30 dark:text-purple-200 border border-purple-200 dark:border-purple-700/40';
                                 } else if (gradeLower.includes('diesel')) {
-                                  bgClass = 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/30';
+                                  bgClass = 'bg-amber-100 text-amber-800 dark:bg-amber-800/30 dark:text-amber-200 border border-amber-200 dark:border-amber-700/40';
                                 } else if (gradeLower.includes('e-85') || gradeLower.includes('ethanol')) {
-                                  bgClass = 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300 border border-pink-200 dark:border-pink-800/30';
+                                  bgClass = 'bg-pink-100 text-pink-800 dark:bg-pink-800/30 dark:text-pink-200 border border-pink-200 dark:border-pink-700/40';
                                 } else if (gradeLower.includes('super')) {
-                                  bgClass = 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/30';
+                                  bgClass = 'bg-indigo-100 text-indigo-800 dark:bg-indigo-800/30 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-700/40';
                                 } else {
                                   bgClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600/50';
                                 }
@@ -180,7 +249,7 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
                                 return (
                                   <span
                                     key={i}
-                                    className={`px-2.5 py-1 rounded-md text-xs font-medium ${bgClass} shadow-sm`}
+                                    className={`px-3 py-1.5 rounded-lg text-sm font-medium ${bgClass} shadow-sm flex items-center justify-center`}
                                   >
                                     {grade.trim()}
                                   </span>
@@ -189,7 +258,7 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
                             </div>
                           ) : (
                             <div className="text-sm text-gray-500 dark:text-gray-400 italic">
-                              No fuel data
+                              No fuel data available
                             </div>
                           )}
                         </div>
@@ -197,19 +266,23 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
                         {/* Details button */}
                         <button
                           onClick={() => toggleTechnicalDetails(index)}
-                          className={`text-xs flex items-center px-3 py-1.5 rounded-md ${isExpanded ? 'bg-blue-200 text-blue-800 hover:bg-blue-300 dark:bg-blue-700/40 dark:text-blue-200 dark:hover:bg-blue-700/60 border-blue-300 dark:border-blue-700' : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600'} ml-3 flex-shrink-0 transition-colors duration-150 border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 dark:focus:ring-blue-500/20`}
+                          className={`ml-3 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors duration-200 shadow-sm ${
+                            isExpanded 
+                              ? 'bg-blue-200 text-blue-800 dark:bg-blue-700 dark:text-blue-100 hover:bg-blue-300 dark:hover:bg-blue-600' 
+                              : 'bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-500'
+                          }`}
                           aria-expanded={isExpanded}
                           aria-controls={`dispenser-details-${index}`}
                         >
                           {isExpanded ? (
                             <>
-                              <FiChevronDown className="mr-1.5 h-3 w-3" />
-                              Details
+                              <FiChevronDown className="h-4 w-4" />
+                              <span>Details</span>
                             </>
                           ) : (
                             <>
-                              <FiSettings className="mr-1.5 h-3 w-3" />
-                              Details
+                              <FiEye className="h-4 w-4" />
+                              <span>Details</span>
                             </>
                           )}
                         </button>
@@ -218,7 +291,7 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
                       {/* Technical specs - ONLY SHOWN WHEN EXPANDED */}
                       {isExpanded && (
                         <div 
-                          className="p-4 pt-1 mt-1 border-t border-blue-200 dark:border-blue-800/30 bg-gray-50/50 dark:bg-gray-700/50"
+                          className="p-4 pt-1 mt-1 border-t border-blue-200 dark:border-blue-700/30 bg-gray-50/50 dark:bg-gray-700/50"
                           id={`dispenser-details-${index}`}
                         >
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -266,54 +339,38 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
                 })}
               </div>
             ) : (
-              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-8 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4 shadow-inner">
-                  <FiInfo className="h-8 w-8 text-blue-500 dark:text-blue-400" />
+              <div className="py-8 text-center text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div className="flex justify-center mb-3">
+                  <div className="p-2 bg-gray-100 dark:bg-gray-600 rounded-full">
+                    <GiGasPump className="h-6 w-6 text-gray-400 dark:text-gray-300" />
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">No Dispenser Information</h3>
-                <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                  This work order does not have any dispenser information available.
-                </p>
+                <p>No dispenser data available</p>
               </div>
             )}
           </div>
           
           {/* Footer */}
-          <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-between items-center border-t border-gray-200 dark:border-gray-600">
-            <div className="text-sm text-gray-500 dark:text-gray-400 font-medium flex items-center">
-              {dispensers.length > 0 ? (
-                <>
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 mr-2 text-xs font-semibold">
-                    {dispensers.length}
-                  </span>
-                  <span>{dispensers.length !== 1 ? 'dispensers' : 'dispenser'}</span>
-                </>
-              ) : (
-                'No dispensers available'
-              )}
+          <div className="bg-gray-50 dark:bg-gray-700 px-6 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-600">
+            <div className="text-sm text-gray-600 dark:text-gray-300 font-medium flex items-center">
+              <GiGasPump className="mr-2 text-gray-500 dark:text-gray-400" size={16} />
+              <span>{dispensers.length} dispensers</span>
             </div>
-            <div className="flex gap-3">
-              {dispensers.length > 0 && (
-                <button 
-                  type="button" 
-                  className="text-sm px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md font-medium hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-blue-500/30"
-                  onClick={() => {
-                    // Toggle all technical details at once
-                    if (expandedTechnicalDetails.length === dispensers.length) {
-                      setExpandedTechnicalDetails([]);
-                    } else {
-                      setExpandedTechnicalDetails([...Array(dispensers.length).keys()]);
-                    }
-                  }}
-                >
-                  {expandedTechnicalDetails.length === dispensers.length ? 
-                    'Hide All Details' : 'Show All Details'}
-                </button>
-              )}
-              <button 
-                type="button" 
-                className="text-sm px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors duration-150"
+            
+            <div className="flex space-x-2">
+              <button
+                onClick={() => expandedTechnicalDetails.length === dispensers.length 
+                  ? setExpandedTechnicalDetails([])
+                  : setExpandedTechnicalDetails([...Array(dispensers.length).keys()])}
+                className="px-4 py-2 bg-blue-50 dark:bg-blue-800/30 text-blue-700 dark:text-blue-200 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-700/40 transition-colors duration-200 flex items-center shadow-sm"
+              >
+                <FiEye className="mr-1.5 h-4 w-4" />
+                {expandedTechnicalDetails.length === dispensers.length ? 'Collapse All' : 'Show All Details'}
+              </button>
+              
+              <button
                 onClick={onClose}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors duration-200 shadow-sm"
               >
                 Close
               </button>
@@ -321,56 +378,6 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
           </div>
         </div>
       </div>
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.05);
-          border-radius: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.15);
-          border-radius: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(0, 0, 0, 0.25);
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.05);
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.15);
-        }
-        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.25);
-        }
-        
-        .custom-scrollbar-x::-webkit-scrollbar {
-          height: 6px;
-        }
-        .custom-scrollbar-x::-webkit-scrollbar-track {
-          background: rgba(0, 0, 0, 0.05);
-          border-radius: 6px;
-        }
-        .custom-scrollbar-x::-webkit-scrollbar-thumb {
-          background: rgba(0, 0, 0, 0.15);
-          border-radius: 6px;
-        }
-        .custom-scrollbar-x::-webkit-scrollbar-thumb:hover {
-          background: rgba(0, 0, 0, 0.25);
-        }
-        .dark .custom-scrollbar-x::-webkit-scrollbar-track {
-          background: rgba(255, 255, 255, 0.05);
-        }
-        .dark .custom-scrollbar-x::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.15);
-        }
-        .dark .custom-scrollbar-x::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.25);
-        }
-      `}</style>
     </div>
   );
 };
