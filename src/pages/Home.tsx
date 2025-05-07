@@ -33,14 +33,18 @@ import {
   FiSun,
   FiMoon,
   FiHash,
-  FiClipboard
+  FiClipboard,
+  FiDroplet,
+  FiGlobe,
+  FiDatabase  // Add FiDatabase icon for our new button
 } from 'react-icons/fi'
+import { GiGasPump } from 'react-icons/gi'
 import LastScrapedTime from '../components/LastScrapedTime'
 import NextScrapeTime from '../components/NextScrapeTime'
-import DispenserInfo from '../components/DispenserInfo'
 import ScrapeLogsConsole from '../components/ScrapeLogsConsole'
+import DispenserModal from '../components/DispenserModal' // Reverted: Explicitly adding .tsx extension is not allowed by tsconfig
 import { useNavigate } from 'react-router-dom'
-import { clearDispenserData, forceRescrapeDispenserData, getDispenserScrapeStatus, getWorkOrders } from '../services/scrapeService'
+import { clearDispenserData, forceRescrapeDispenserData, getDispenserScrapeStatus, getWorkOrders, startScrapeJob, getScrapeStatus, startDispenserScrapeJob } from '../services/scrapeService'
 import { useToast } from '../context/ToastContext'
 import { useTheme } from '../context/ThemeContext'
 import { useDispenserData } from '../context/DispenserContext'
@@ -166,24 +170,49 @@ const getWorkWeekDateRanges = (
   // Ensure selectedDate is a proper Date object
   const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
   
-  // Rest of the function remains the same but uses dateObj
+  // Use the selectedDate as the base date
   const today = dateObj;
+  
+  // Get current day of week and hour
+  const currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const currentHour = today.getHours();
+  
+  // Check if we're at the end of the work week after 5:00pm (17:00)
+  // If it's workWeekEnd day and after 5pm, we'll treat it as weekend mode
+  const isAfterWorkWeekEnd = (currentDayOfWeek === workWeekEnd && currentHour >= 17) || 
+                           currentDayOfWeek > workWeekEnd || 
+                           currentDayOfWeek < workWeekStart;
   
   // Always calculate first day of current week
   const currentWeekStart = new Date(today);
-  const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday, etc.
   
-  // Adjust to the start of the work week (e.g., Monday)
-  const daysToSubtract = (dayOfWeek + 7 - workWeekStart) % 7;
-  currentWeekStart.setDate(today.getDate() - daysToSubtract);
+  // Calculate days to add/subtract to get to start day
+  let diffToStart;
+  
+  if (isAfterWorkWeekEnd) {
+    // If in weekend mode, current week becomes next week
+    diffToStart = (workWeekStart + 7 - currentDayOfWeek) % 7;
+    if (diffToStart === 0) diffToStart = 7; // If today is the start day of next week, we need to move forward a full week
+  } else {
+    // Normal mode - calculate days to subtract to get to current week's start
+    diffToStart = ((currentDayOfWeek - workWeekStart) + 7) % 7;
+    currentWeekStart.setDate(today.getDate() - diffToStart);
+  }
+  
+  // Apply the calculated difference
+  currentWeekStart.setDate(today.getDate() + (isAfterWorkWeekEnd ? diffToStart : -diffToStart));
   
   // Set time to start of day
   currentWeekStart.setHours(0, 0, 0, 0);
   
-  // Calculate end of current week (e.g., Friday)
+  // Calculate end of current week
   const currentWeekEnd = new Date(currentWeekStart);
-  currentWeekEnd.setDate(currentWeekStart.getDate() + (workWeekEnd - workWeekStart));
-  currentWeekEnd.setHours(23, 59, 59, 999);
+  const daysToAdd = workWeekEnd < workWeekStart ? 
+    (7 - workWeekStart + workWeekEnd) : // Wrap around to next week if end day is before start day
+    (workWeekEnd - workWeekStart);     // Otherwise calculate normally
+  
+  currentWeekEnd.setDate(currentWeekStart.getDate() + daysToAdd);
+  currentWeekEnd.setHours(17, 0, 0, 0); // End at 5:00pm on the end day
   
   // Calculate next week (start of next week)
   const nextWeekStart = new Date(currentWeekStart);
@@ -203,6 +232,30 @@ const getWorkWeekDateRanges = (
 
 import PersistentView, { usePersistentViewContext } from '../components/PersistentView';
 
+// Add a custom hook for persisting scraper status
+const usePersistentScrapeStatus = (key: string, initialStatus: {
+  status: string;
+  progress: number;
+  message: string;
+}) => {
+  // Initialize state from sessionStorage or use the initialStatus
+  const [status, setStatus] = useState<{
+    status: string;
+    progress: number;
+    message: string;
+  }>(() => {
+    const storedStatus = sessionStorage.getItem(`scrape-status-${key}`);
+    return storedStatus ? JSON.parse(storedStatus) : initialStatus;
+  });
+
+  // Update sessionStorage when status changes
+  useEffect(() => {
+    sessionStorage.setItem(`scrape-status-${key}`, JSON.stringify(status));
+  }, [status, key]);
+
+  return [status, setStatus] as const;
+};
+
 // Simplified Home component to just render PersistentView wrapper
 const Home: React.FC = () => {
   return (
@@ -215,7 +268,7 @@ const Home: React.FC = () => {
 export default Home;
 
 // HomeContent component uses the persistence context
-const HomeContent: React.FC = () => {
+const HomeContent = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { isDarkMode } = useTheme();
@@ -253,7 +306,7 @@ const HomeContent: React.FC = () => {
   const [reScrapeDispenserId, setReScrapeDispenserId] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
-  const [logConsoleType, setLogConsoleType] = useState<'workOrder' | 'dispenser'>('dispenser');
+  const [logConsoleType, setLogConsoleType] = useState<'workOrder' | 'dispenser' | 'server'>('workOrder');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [currentDispenserInfo, setCurrentDispenserInfo] = useState<string | null>(null);
   const [currentDispenserData, setCurrentDispenserData] = useState<any[]>([]);
@@ -281,15 +334,52 @@ const HomeContent: React.FC = () => {
   const [workWeekStart, setWorkWeekStart] = createState<number>('workWeekStart', 1); // 1 = Monday
   const [workWeekEnd, setWorkWeekEnd] = createState<number>('workWeekEnd', 5);   // 5 = Friday
   const [showWorkWeekSettings, setShowWorkWeekSettings] = useState<boolean>(false);
+  const [recentScrapedOrders, setRecentScrapedOrders] = useState<string[]>([]);
+  
+  // Sort order references
+  const [sortOrder, setSortOrder] = createState<'asc' | 'desc'>('sortOrder', 'asc');
+  const [sortField, setSortField] = createState<'date' | 'customer'>('sortField', 'date');
+  
+  // Expandable panel state
+  const [expandedPanels, setExpandedPanels] = createState<Record<string, boolean>>('expandedPanels', {});
+  
+  // Work orders state
+  const [selectedMarketArea, setSelectedMarketArea] = createState<string>('selectedMarketArea', 'all');
+  const [storeFilter, setStoreFilter] = createState<StoreFilter>('storeFilter', 'all');
+  
+  // Date calculation state
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [workWeekDateRanges, setWorkWeekDateRanges] = useState<WorkWeekDateRanges>(() => 
+    getWorkWeekDateRanges(workWeekStart, workWeekEnd)
+  );
+
   // Use the date-specific hook for better date handling
   const [selectedDate, setSelectedDate] = createDateState('selectedDate', new Date());
+  const [previousDate, setPreviousDate] = createDateState('previousDate', new Date());
   const [refreshTimestamp, setRefreshTimestamp] = useState<number>(Date.now());
 
   // Add a state to track which dispensers have expanded technical details
   const [expandedTechnicalDetails, setExpandedTechnicalDetails] = createState<number[]>('expandedTechnicalDetails', []);
-
+  
   // Flag to prevent duplicate distribution logs
   const [distributionLogged, setDistributionLogged] = useState<boolean>(false);
+
+  // Add a state to track if the 5pm transition has been processed for the current window
+  const [transitionProcessed, setTransitionProcessed] = useState<boolean>(false);
+  // Add a state to track whether the initial weekend mode has been shown
+  const [initialWeekendModeShown, setInitialWeekendModeShown] = useState<boolean>(() => {
+    // Check if we've already shown this notification today
+    const today = new Date().toDateString();
+    const lastShownDay = localStorage.getItem('weekendModeNotificationDate');
+    return lastShownDay === today;
+  });
+
+  // Helper function to mark the weekend mode notification as shown
+  const markWeekendModeAsShown = () => {
+    const today = new Date().toDateString();
+    localStorage.setItem('weekendModeNotificationDate', today);
+    setInitialWeekendModeShown(true);
+  };
 
   // Log data for debugging
   useEffect(() => {
@@ -829,35 +919,40 @@ const HomeContent: React.FC = () => {
           text: 'text-red-700',
           border: 'border-red-200', 
           dark: 'dark:border-red-800 dark:text-red-300',
-          icon: '🏪'
+          icon: '🏪',
+          gradient: 'from-green-500 to-green-700'
         };
         case 'circle-k': return { 
           bg: 'bg-amber-500', 
           text: 'text-amber-700',
           border: 'border-amber-200',
           dark: 'dark:border-amber-800 dark:text-amber-300',
-          icon: '⭕'
+          icon: '⭕',
+          gradient: 'from-orange-500 to-orange-700'
         };
         case 'wawa': return { 
           bg: 'bg-indigo-500', 
           text: 'text-indigo-700',
           border: 'border-indigo-200',
           dark: 'dark:border-indigo-800 dark:text-indigo-300',
-          icon: '🦆'
+          icon: '🦆',
+          gradient: 'from-purple-500 to-purple-700'
         };
         case 'other': return { 
           bg: 'bg-blue-500', 
           text: 'text-blue-700',
           border: 'border-blue-200',
           dark: 'dark:border-blue-800 dark:text-blue-300',
-          icon: '🏢'
+          icon: '🏢',
+          gradient: 'from-blue-500 to-blue-700'
         };
         default: return { 
           bg: 'bg-gray-500', 
           text: 'text-gray-700',
           border: 'border-gray-200',
           dark: 'dark:border-gray-800 dark:text-gray-300',
-          icon: '🏬'
+          icon: '🏬',
+          gradient: 'from-gray-500 to-gray-700'
         };
       }
     };
@@ -873,197 +968,392 @@ const HomeContent: React.FC = () => {
     const currentWeekText = formatDateRange(dateRanges.currentWeekStart, dateRanges.currentWeekEnd);
     const nextWeekText = formatDateRange(dateRanges.nextWeekStart, dateRanges.nextWeekEnd);
     
-    return (
-      <>
-        {showWelcome && (
-          <div className="bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500 p-4 mb-6 animate-fadeIn">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <FiInfo className="h-5 w-5 text-blue-500" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Welcome back! You have {workOrders.length} work orders and {storeDistribution.currentWeek ? Object.values(storeDistribution.currentWeek).reduce((a, b) => a + b, 0) : 0} visits this work week.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+    // Calculate totals for this week and next week
+    const thisWeekTotal = Object.values(storeDistribution.currentWeek).reduce((a, b) => a + b, 0);
+    const nextWeekTotal = Object.values(storeDistribution.nextWeek).reduce((a, b) => a + b, 0);
+    
+    // Calculate current and next week totals
+    const currentDistribution = {
+      current: thisWeekTotal,
+      next: nextWeekTotal
+    };
+    
+    // Convert store distribution to array for mapping
+    const storeDistributionArray = Object.entries(storeDistribution.currentWeek)
+      .map(([type, count]) => ({
+        type,
+        name: type === 'circle-k' ? 'Circle K' : 
+              type === '7-eleven' ? '7-Eleven' : 
+              type === 'wawa' ? 'Wawa' : 'Other',
+        count
+      }));
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                <FiCalendar className="mr-2 text-blue-500" />
-                This Week
-              </h2>
-              <span className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-                {currentWeekText}
-              </span>
+    return (
+      <div className="mb-6 animate-fadeIn">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {/* Overview card */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-32 h-32 -mt-8 -mr-8 bg-gradient-to-br from-primary-400/20 to-primary-600/10 rounded-full blur-xl"></div>
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+              <FiPieChart className="text-primary-600 dark:text-primary-400" /> Dashboard Overview
+            </h2>
+            <div className="flex flex-col space-y-3 z-10 relative">
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                  <FiActivity className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Current Week</span>
+                  <div className="font-semibold text-gray-800 dark:text-white">{currentDistribution.current} Jobs</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-lg bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+                  <FiTrendingUp className="text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Next Week</span>
+                  <div className="font-semibold text-gray-800 dark:text-white">{currentDistribution.next} Jobs</div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <div className="h-10 w-10 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
+                  <FiList className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Total Jobs</span>
+                  <div className="font-semibold text-gray-800 dark:text-white">{filteredWorkOrders.length} Jobs Total</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Store distribution */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+              <FiBarChart2 className="text-primary-600 dark:text-primary-400" /> Store Distribution
+            </h2>
+            <div className="flex flex-wrap gap-3 mt-3">
+              {storeDistributionArray.map((store) => {
+                // Determine responsive sizing based on number of badges
+                const badgeSize = storeDistributionArray.length <= 2 
+                  ? "py-3 px-5 text-lg" 
+                  : storeDistributionArray.length <= 3 
+                    ? "py-2.5 px-4 text-base" 
+                    : "py-2 px-4";
+                
+                return (
+                  <div 
+                    key={store.type} 
+                    onClick={() => setStoreFilter(store.type)}
+                    className={`relative group flex-grow flex items-center gap-2 rounded-xl py-2.5 px-5 cursor-pointer transition-all duration-200 ${
+                      storeFilter === store.type || storeFilter === 'all' 
+                        ? getStoreStyles(store.type).bg 
+                        : 'bg-gray-100 dark:bg-gray-700'
+                    } ${badgeSize}`}
+                  >
+                    <span className={`
+                      inline-block rounded-full h-4 w-4 
+                      ${getStoreStyles(store.type).dot}
+                    `}></span>
+                    <span className={`
+                      font-medium
+                      ${storeFilter === store.type || storeFilter === 'all' 
+                        ? getStoreStyles(store.type).text 
+                        : 'text-gray-600 dark:text-gray-300'}
+                    `}>
+                      {store.name}
+                    </span>
+                    <span className={`
+                      ml-2 px-3 py-1 rounded-full 
+                      ${storeFilter === store.type || storeFilter === 'all' 
+                        ? getStoreStyles(store.type).count 
+                        : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'}
+                    `}>
+                      {store.count}
+                    </span>
+                    
+                    {/* Hover effect for filter badges */}
+                    <span className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-pulse-slow rounded-xl"></span>
+                  </div>
+                );
+              })}
+              
+              {storeFilter !== 'all' && (
+                <button 
+                  onClick={() => setStoreFilter('all')} 
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 flex items-center gap-1 ml-1"
+                >
+                  <FiX className="h-3 w-3" /> Clear filter
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Date range navigation */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300">
+            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+              <FiCalendar className="text-primary-600 dark:text-primary-400" /> Date Range
+            </h2>
+            
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Current Week</span>
+                <span className="font-medium text-gray-800 dark:text-white">
+                  {formatDateRange(workWeekDates.currentWeekStart, workWeekDates.currentWeekEnd)}
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm text-gray-500 dark:text-gray-400">Next Week</span>
+                <span className="font-medium text-gray-800 dark:text-white">
+                  {formatDateRange(workWeekDates.nextWeekStart, workWeekDates.nextWeekEnd)}
+                </span>
+              </div>
             </div>
             
-            {Object.keys(storeDistribution.currentWeek).length > 0 ? (
-              <div className="grid grid-cols-3 gap-4">
-                {Object.entries(storeDistribution.currentWeek).map(([storeType, count], index) => {
-                  const storeStyle = getStoreStyles(storeType);
-                  
-                  return (
-                    <div key={storeType} className={`rounded-md p-4 ${storeStyle.boxBg} flex flex-col items-center justify-between`}>
-                      <span className="text-sm font-medium text-center text-white">
-                        {storeStyle.name}
-                      </span>
-                      <span className="text-2xl font-bold text-white mt-1">{count}</span>
-                      <span className="text-xs text-gray-300 mt-1">visits</span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <FiCalendar className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p>No visits scheduled for this week</p>
-              </div>
-            )}
+            <div className="flex justify-between mt-4 gap-2">
+              <button
+                onClick={() => {
+                  // Get current week's start date and subtract 7 days
+                  const newDate = new Date(workWeekDates.currentWeekStart);
+                  newDate.setDate(newDate.getDate() - 7);
+                  setSelectedDate(newDate);
+                  setRefreshTimestamp(Date.now());
+                }}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors duration-200 flex items-center justify-center gap-1"
+              >
+                <FiArrowUp className="transform rotate-270" /> Previous
+              </button>
+              
+              <button
+                onClick={goToCurrentWeek}
+                className="flex-1 bg-primary-50 hover:bg-primary-100 dark:bg-primary-900/30 dark:hover:bg-primary-800/40 text-primary-700 dark:text-primary-300 font-medium py-2 px-3 rounded-lg transition-colors duration-200 flex items-center justify-center gap-1"
+              >
+                <FiClock /> Today
+              </button>
+              
+              <button
+                onClick={() => {
+                  // Get current week's start date and add 7 days
+                  const newDate = new Date(workWeekDates.currentWeekStart);
+                  newDate.setDate(newDate.getDate() + 7);
+                  setSelectedDate(newDate);
+                  setRefreshTimestamp(Date.now());
+                }}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-3 rounded-lg transition-colors duration-200 flex items-center justify-center gap-1"
+              >
+                Next <FiArrowUp className="transform rotate-90" />
+              </button>
+            </div>
           </div>
+        </div>
+        
+        {/* Data Tools Section */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-5 mb-6 transition-all duration-300 hover:shadow-xl">
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+            <FiDatabase className="text-primary-600 dark:text-primary-400" /> Data Tools
+          </h2>
           
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
-                <FiCalendar className="mr-2 text-green-500" />
-                Next Week
-              </h2>
-              <span className="text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-                {nextWeekText}
-              </span>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Data Timestamps */}
+            <div className="flex flex-col space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+                  <FiClock className="text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Last Updated</span>
+                  <div className="font-medium text-gray-800 dark:text-white">
+                    <LastScrapedTime />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
+                  <FiCalendar className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Next Update</span>
+                  <div className="font-medium text-gray-800 dark:text-white">
+                    <NextScrapeTime />
+                  </div>
+                </div>
+              </div>
             </div>
             
-            {Object.keys(storeDistribution.nextWeek).length > 0 ? (
-              <div className="grid grid-cols-3 gap-4">
-                {Object.entries(storeDistribution.nextWeek).map(([storeType, count], index) => {
-                  const storeStyle = getStoreStyles(storeType);
+            {/* Work Order Scraping */}
+            <div className="flex flex-col space-y-3">
+              <h3 className="text-base font-medium text-gray-800 dark:text-white flex items-center gap-1.5">
+                <FiFileText className="text-primary-500" /> Work Orders
+              </h3>
+              
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex-1">
+                  <div className="flex items-center mb-1">
+                    {isWorkOrderScraping ? (
+                      <>
+                        <div className="h-2.5 w-2.5 bg-blue-500 rounded-full animate-pulse mr-2"></div>
+                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Scraping in progress</span>
+                      </>
+                    ) : (
+                      workOrderStatus.status === 'completed' ? (
+                        <>
+                          <div className="h-2.5 w-2.5 bg-green-500 rounded-full mr-2"></div>
+                          <span className="text-sm font-medium text-green-600 dark:text-green-400">Ready</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="h-2.5 w-2.5 bg-gray-400 rounded-full mr-2"></div>
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Idle</span>
+                        </>
+                      )
+                    )}
+                  </div>
                   
-                  return (
-                    <div key={storeType} className={`rounded-md p-4 ${storeStyle.boxBg} flex flex-col items-center justify-between`}>
-                      <span className="text-sm font-medium text-center text-white">
-                        {storeStyle.name}
-                      </span>
-                      <span className="text-2xl font-bold text-white mt-1">{count}</span>
-                      <span className="text-xs text-gray-300 mt-1">visits</span>
+                  {isWorkOrderScraping && (
+                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5 mb-1">
+                      <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${workOrderStatus.progress}%` }}></div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <FiCalendar className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p>No visits scheduled for next week</p>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {/* Add work week settings button */}
-        <div className="flex justify-end mb-3">
-          <button
-            onClick={() => setShowWorkWeekSettings(!showWorkWeekSettings)}
-            className="flex items-center text-sm text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
-          >
-            <FiSettings className="mr-1 h-4 w-4" />
-            <span>Work Week Settings</span>
-          </button>
-        </div>
-        
-        {/* Work Week Settings Panel */}
-        {showWorkWeekSettings && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Work Week Preferences</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Start of Work Week</label>
-                <select
-                  value={workWeekStart}
-                  onChange={(e) => setWorkWeekStart(Number(e.target.value))}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                  )}
+                  
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {workOrderStatus.message || "Click the button to update work order data"}
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handleScrapeWorkOrders}
+                  disabled={isWorkOrderScraping || isDispenserScraping}
+                  className={`ml-4 py-2 px-4 rounded-lg text-sm font-medium flex items-center gap-1.5 whitespace-nowrap
+                    ${isWorkOrderScraping || isDispenserScraping 
+                      ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed' 
+                      : 'bg-primary-600 text-white hover:bg-primary-700 dark:bg-primary-700 dark:hover:bg-primary-600 transition-colors'
+                    }`}
                 >
-                  <option value={0}>Sunday</option>
-                  <option value={1}>Monday</option>
-                  <option value={2}>Tuesday</option>
-                  <option value={3}>Wednesday</option>
-                  <option value={4}>Thursday</option>
-                  <option value={5}>Friday</option>
-                  <option value={6}>Saturday</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">End of Work Week</label>
-                <select
-                  value={workWeekEnd}
-                  onChange={(e) => setWorkWeekEnd(Number(e.target.value))}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                >
-                  <option value={0}>Sunday</option>
-                  <option value={1}>Monday</option>
-                  <option value={2}>Tuesday</option>
-                  <option value={3}>Wednesday</option>
-                  <option value={4}>Thursday</option>
-                  <option value={5}>Friday</option>
-                  <option value={6}>Saturday</option>
-                </select>
+                  {isWorkOrderScraping 
+                    ? <><FiRefreshCw className="animate-spin" /> Scraping...</>
+                    : <><FiRefreshCw /> Update Data</>
+                  }
+                </button>
               </div>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              These settings define which days are considered part of your work week for planning purposes.
-            </p>
+            
+            {/* Dispenser Scraping */}
+            <div className="flex flex-col space-y-3">
+              <h3 className="text-base font-medium text-gray-800 dark:text-white flex items-center gap-1.5">
+                <GiGasPump className="text-primary-500" /> Dispensers
+              </h3>
+              
+              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex-1">
+                  <div className="flex items-center mb-1">
+                    {isDispenserScraping ? (
+                      <>
+                        <div className="h-2.5 w-2.5 bg-amber-500 rounded-full animate-pulse mr-2"></div>
+                        <span className="text-sm font-medium text-amber-600 dark:text-amber-400">Scraping in progress</span>
+                      </>
+                    ) : (
+                      dispenserStatus.status === 'completed' ? (
+                        <>
+                          <div className="h-2.5 w-2.5 bg-green-500 rounded-full mr-2"></div>
+                          <span className="text-sm font-medium text-green-600 dark:text-green-400">Ready</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="h-2.5 w-2.5 bg-gray-400 rounded-full mr-2"></div>
+                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Idle</span>
+                        </>
+                      )
+                    )}
+                  </div>
+                  
+                  {isDispenserScraping && (
+                    <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-1.5 mb-1">
+                      <div className="bg-amber-500 h-1.5 rounded-full" style={{ width: `${dispenserStatus.progress}%` }}></div>
+                    </div>
+                  )}
+                  
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {dispenserStatus.message || "Click the button to update dispenser data"}
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handleScrapeDispenserData}
+                  disabled={isWorkOrderScraping || isDispenserScraping}
+                  className={`ml-4 py-2 px-4 rounded-lg text-sm font-medium flex items-center gap-1.5 whitespace-nowrap
+                    ${isWorkOrderScraping || isDispenserScraping 
+                      ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed' 
+                      : 'bg-amber-600 text-white hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-600 transition-colors'
+                    }`}
+                >
+                  {isDispenserScraping 
+                    ? <><FiRefreshCw className="animate-spin" /> Scraping...</>
+                    : <><FiRefreshCw /> Update Data</>
+                  }
+                </button>
+              </div>
+            </div>
           </div>
-        )}
-      </>
+        </div>
+      </div>
     );
   };
 
+  // Add a new function to organize work orders by date within each time period
+  const organizeWorkOrdersByDate = (orders: WorkOrder[]) => {
+    // Group orders by their date
+    const byDate: Record<string, WorkOrder[]> = {};
+    
+    orders.forEach(order => {
+      const visitDate = order.visits?.nextVisit?.date ||
+                        order.nextVisitDate ||
+                        order.visitDate ||
+                        order.date;
+      
+      if (!visitDate) return;
+      
+      // Format the date as a string key
+      const dateKey = new Date(visitDate).toLocaleDateString();
+      
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = [];
+      }
+      
+      byDate[dateKey].push(order);
+    });
+    
+    // Convert to array of date groups, sorted by date
+    return Object.entries(byDate)
+      .sort(([dateKeyA], [dateKeyB]) => {
+        return new Date(dateKeyA).getTime() - new Date(dateKeyB).getTime();
+      })
+      .map(([dateKey, orders]) => ({
+        date: dateKey,
+        orders
+      }));
+  };
+
   // Update the renderJobRow function with improved instructions display
-  const renderJobRow = (order: any) => {
+  const renderJobRow = (order: any, dateGroupClass?: string) => {
     // Get meter calibration quantity (renamed to getDispenserQuantity for consistency)
     const getDispenserQuantity = (order: any) => {
       const meterCalibration = order.services.find((s: any) => s.type === "Meter Calibration");
       return meterCalibration ? meterCalibration.quantity : 0;
     };
 
-    // Get store type for styling
-    const getStoreType = (order: any) => {
-      const customerName = order.customer.name.toLowerCase();
-      
-      if (customerName.includes('7-eleven') || customerName.includes('speedway')) {
-        return '7-eleven';
-      } else if (customerName.includes('circle k')) {
-        return 'circle-k';
-      } else if (customerName.includes('wawa')) {
-        return 'wawa';
-      } else {
-        return 'other';
-      }
-    };
-
     // Get store display name
     const getDisplayName = (order: any) => {
       if (!order || !order.customer) return 'Unknown';
-      
-      // Start with the customer name
       let displayName = order.customer.name;
-      
-      // Add store number if available, ensuring only one # symbol
       if (order.customer.storeNumber) {
-        // Remove any existing # symbol and add just one
         const storeNumberClean = order.customer.storeNumber.replace(/#/g, '');
         displayName += ` #${storeNumberClean}`;
       }
-      
       return displayName;
-    };
-
-    // Get work order URL
-    const getWorkOrderUrl = (order: any) => {
-      if (!order) return '#';
-      return `https://portal.forssafuel.com/app/work/${order.id}/overview`;
     };
 
     // Determine store type and apply appropriate styling
@@ -1074,100 +1364,130 @@ const HomeContent: React.FC = () => {
     const hasNextVisit = order.visits && order.visits.nextVisit && order.visits.nextVisit.date;
     const nextVisitDate = hasNextVisit ? new Date(order.visits.nextVisit.date) : null;
     const formattedVisitDate = nextVisitDate ? nextVisitDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'No visit scheduled';
-    
+
     // Process instructions safely
     const instructions = order.instructions ? processInstructions(order.instructions) : '';
 
     // Check if this order is a favorite
     const isFavorite = favorites.includes(order.id.toString());
 
-    // Get card color styling based on store type
-    const getCardColorStyles = (storeType: string) => {
-      switch (storeType) {
-        case '7-eleven':
-          return 'border-l-4 border-green-500 dark:border-green-700';
-        case 'circle-k':
-          return 'border-l-4 border-orange-500 dark:border-orange-700';
-        case 'wawa':
-          return 'border-l-4 border-purple-500 dark:border-purple-700';
-        default:
-          return 'border-l-4 border-gray-500 dark:border-gray-700';
-      }
-    };
-
     // Get store styling
     const storeStyle = getStoreStyles(storeType);
 
     return (
-      <div 
-        key={order.id} 
-        className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4 hover:shadow-md transition-all-300 hover-lift ${storeStyle.cardBorder}`}
+      <div
+        key={order.id}
+        className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border ${storeStyle.cardBorder} hover:shadow-md transition-all duration-200 ${dateGroupClass ? 'date-grouped-card' : ''}`}
       >
-        <div className="flex flex-wrap md:flex-nowrap gap-3">
-          {/* Left Section */}
-          <div className="w-full flex-1">
-            <div className="flex items-center mb-2">
-              <button
-                onClick={(e) => toggleFavorite(order.id.toString(), e)}
-                className={`mr-2 transition-colors focus:outline-none ${
-                  isFavorite ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 dark:text-gray-600 hover:text-amber-400 dark:hover:text-amber-400'
-                }`}
-                title={isFavorite ? "Remove from favorites" : "Add to favorites"}
-              >
-                <FiStar className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
-              </button>
-              
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{getDisplayName(order)}</h3>
+        <div className={`flex justify-between items-center px-4 py-3 ${storeStyle.headerBg} border-b border-gray-200 dark:border-gray-700`}>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={(e) => toggleFavorite(order.id.toString(), e)}
+              className={`transition-colors focus:outline-none ${
+                isFavorite ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 dark:text-gray-600 hover:text-amber-400 dark:hover:text-amber-400'
+              }`}
+              title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              <FiStar className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+            </button>
+
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-xs">
+              {getDisplayName(order)}
+            </h3>
+          </div>
+
+          <div className="flex items-center space-x-1">
+            <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+              {visitId}
             </div>
-            
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 items-center mb-2">
-              <div className="flex items-center text-blue-600 dark:text-blue-400 font-medium">
-                <FiFileText className="h-4 w-4 mr-1" />
-                <span>{visitId}</span>
-              </div>
-              
-              <div className="flex items-center text-green-600 dark:text-green-400 font-medium">
-                <FiClipboard className="h-4 w-4 mr-1" />
-                <span>Visit #{extractVisitNumber(order)}</span>
-              </div>
-              
-              {hasNextVisit && (
-                <div className="flex items-center text-gray-600 dark:text-gray-400">
-                  <FiCalendar className="h-4 w-4 mr-1" />
-                  <span>{formattedVisitDate}</span>
+            <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+              #{extractVisitNumber(order)}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+            {hasNextVisit && (
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mt-0.5 mr-2">
+                  <FiCalendar className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 </div>
-              )}
-              
-              {dispenserQty > 0 && (
-                <div className="flex items-center text-purple-600 dark:text-purple-400">
-                  <FiActivity className="h-4 w-4 mr-1" />
-                  <span>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Visit Date</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">{formattedVisitDate}</div>
+                </div>
+              </div>
+            )}
+
+            {dispenserQty > 0 && (
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mt-0.5 mr-2">
+                  <GiGasPump className={`h-4 w-4 ${storeStyle.text}`} />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Equipment</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
                     {dispenserQty} {dispenserQty === 1 ? 'Dispenser' : 'Dispensers'}
-                  </span>
+                  </div>
                 </div>
-              )}
-            </div>
-            
-            {/* Improved instructions display - more compact with icon */}
-            {instructions && (
-              <div className="mt-2 flex items-start space-x-2">
-                <div className="flex-shrink-0 mt-0.5">
-                  <FiInfo className="h-4 w-4 text-blue-500" />
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1 hover:line-clamp-none transition-all duration-200">
-                  {instructions}
-                </p>
               </div>
             )}
           </div>
-          
-          {/* Right Section - Action Buttons */}
-          <div className="flex items-center gap-3">
-            {renderDispenserButton(order)}
+
+          {/* Instructions with improved visibility */}
+          {instructions && (
+            <div className={`mt-2 rounded p-3 border ${storeStyle.cardBg} border-gray-200 dark:border-gray-700`}>
+              <div className="flex items-start space-x-2">
+                <div className="flex-shrink-0 mt-0.5">
+                  <FiInfo className={`h-4 w-4 ${storeStyle.text}`} />
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 hover:line-clamp-none transition-all duration-200">
+                  {instructions}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons - Grouped on the right */}
+          <div className="mt-4 flex items-center justify-end"> 
+            {/* Group View, Clear, Rescrape buttons together */}
+            <div className="flex items-center space-x-2"> 
+              {/* Open Visit URL Button */}
+              {order.visits?.nextVisit?.url && (
+                <button
+                  className="p-2 text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-green-500 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Construct the full URL if it's relative
+                    const url = order.visits.nextVisit.url;
+                    const fullUrl = url.startsWith('http') ? url : `https://app.workfossa.com${url}`;
+                    // Open the URL with auto-login
+                    openWorkFossaWithLogin(fullUrl);
+                  }}
+                  title="Open Visit URL"
+                >
+                  <FiExternalLink className="h-5 w-5" />
+                </button>
+              )}
             
-            <div className="flex">
+              {/* View Dispensers Icon Button */}
               <button
-                className="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500 transition-colors ${
+                  hasDispenserData
+                    ? storeStyle.text + ' hover:' + storeStyle.text
+                    : 'text-gray-400 dark:text-gray-500 cursor-not-allowed' // Indicate no data
+                }`}
+                onClick={(e) => hasDispenserData && handleViewDispenserData(order, e)} // Only clickable if data exists
+                disabled={!hasDispenserData}
+                title={hasDispenserData ? "View dispenser information" : "No dispenser information available"}
+              >
+                <GiGasPump className="h-5 w-5" />
+              </button>
+
+              {/* Clear Data Icon Button */}
+              <button
+                className="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-red-500 transition-colors"
                 onClick={(e) => handleClearDispenserData(order.id, e)}
                 disabled={!!clearingDispenserId}
                 title="Clear Dispenser Data"
@@ -1178,9 +1498,10 @@ const HomeContent: React.FC = () => {
                   <FiTrash2 className="h-5 w-5" />
                 )}
               </button>
-              
+
+              {/* Force Rescrape Icon Button */}
               <button
-                className="p-2 text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="p-2 text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500 transition-colors"
                 onClick={(e) => handleForceRescrapeDispenserData(order.id, e)}
                 disabled={!!reScrapeDispenserId}
                 title="Force Rescrape"
@@ -1466,29 +1787,6 @@ const HomeContent: React.FC = () => {
     }
   };
 
-  // Update the render button in renderJobRow function to show a visual indicator
-  const renderDispenserButton = (order: any) => {
-    const hasDispenserData = order.dispensers && order.dispensers.length > 0;
-    
-    return (
-      <button
-        className={`px-3 py-1.5 rounded text-sm font-medium ${
-          hasDispenserData 
-            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-            : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
-        } transition-colors flex items-center gap-1`}
-        onClick={(e) => handleViewDispenserData(order, e)}
-        title={hasDispenserData ? "View dispenser information" : "No dispenser information available"}
-      >
-        <FiInfo className="h-4 w-4" />
-        <span>View Dispensers</span>
-        {!hasDispenserData && (
-          <FiX className="h-4 w-4 ml-1 text-gray-500 dark:text-gray-400" />
-        )}
-      </button>
-    );
-  };
-
   // Function to toggle technical details visibility for a dispenser
   const toggleTechnicalDetails = (index: number) => {
     setExpandedTechnicalDetails(prev => 
@@ -1550,50 +1848,64 @@ const HomeContent: React.FC = () => {
 
   // Consistent store color palette
   const getStoreStyles = (storeType: string) => {
-    const styles = {
-      '7-eleven': {
-        name: '7-Eleven',
-        cardBorder: 'border-l-4 border-green-500 dark:border-green-700',
-        badge: 'bg-green-600 text-white',
-        headerBg: 'bg-green-700',
-        cardBg: 'bg-green-50 dark:bg-green-900/30',
-        text: 'text-green-800 dark:text-green-200',
-        boxBg: 'bg-green-900',
-        icon: '🏪'
-      },
-      'circle-k': {
-        name: 'Circle K',
-        cardBorder: 'border-l-4 border-orange-500 dark:border-orange-700',
-        badge: 'bg-orange-600 text-white',
-        headerBg: 'bg-orange-700',
-        cardBg: 'bg-orange-50 dark:bg-orange-900/30',
-        text: 'text-orange-800 dark:text-orange-200',
-        boxBg: 'bg-orange-900',
-        icon: '⭕'
-      },
-      'wawa': {
-        name: 'Wawa',
-        cardBorder: 'border-l-4 border-purple-500 dark:border-purple-700',
-        badge: 'bg-purple-600 text-white',
-        headerBg: 'bg-purple-700',
-        cardBg: 'bg-purple-50 dark:bg-purple-900/30',
-        text: 'text-purple-800 dark:text-purple-200',
-        boxBg: 'bg-purple-900',
-        icon: '🦆'
-      },
-      'other': {
-        name: 'Other',
-        cardBorder: 'border-l-4 border-blue-500 dark:border-blue-700',
-        badge: 'bg-blue-600 text-white',
-        headerBg: 'bg-blue-700',
-        cardBg: 'bg-blue-50 dark:bg-blue-900/30',
-        text: 'text-blue-800 dark:text-blue-200',
-        boxBg: 'bg-blue-900',
-        icon: '🏢'
-      }
-    };
-    
-    return styles[storeType as keyof typeof styles] || styles.other;
+    switch (storeType.toLowerCase()) {
+      case 'circle-k':
+        return {
+          name: 'Circle K',
+          cardBorder: 'border-l-4 border-red-500',
+          badge: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+          headerBg: 'bg-red-50 dark:bg-red-900/20',
+          cardBg: 'bg-red-50 dark:bg-red-900/20',
+          text: 'text-red-700 dark:text-red-300',
+          boxBg: 'bg-red-100 dark:bg-red-800/40',
+          icon: '🏪',
+          bg: 'bg-red-100 dark:bg-red-900/30',
+          dot: 'bg-red-500 dark:bg-red-400',
+          count: 'bg-red-200 dark:bg-red-800/50 text-red-800 dark:text-red-300'
+        };
+      case '7-eleven':
+        return {
+          name: '7-Eleven',
+          cardBorder: 'border-l-4 border-green-500',
+          badge: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+          headerBg: 'bg-green-50 dark:bg-green-900/20',
+          cardBg: 'bg-green-50 dark:bg-green-900/20',
+          text: 'text-green-700 dark:text-green-300',
+          boxBg: 'bg-green-100 dark:bg-green-800/40',
+          icon: '🏪',
+          bg: 'bg-green-100 dark:bg-green-900/30', 
+          dot: 'bg-green-500 dark:bg-green-400',
+          count: 'bg-green-200 dark:bg-green-800/50 text-green-800 dark:text-green-300'
+        };
+      case 'wawa':
+        return {
+          name: 'Wawa',
+          cardBorder: 'border-l-4 border-amber-500',
+          badge: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+          headerBg: 'bg-amber-50 dark:bg-amber-900/20',
+          cardBg: 'bg-amber-50 dark:bg-amber-900/20',
+          text: 'text-amber-700 dark:text-amber-300',
+          boxBg: 'bg-amber-100 dark:bg-amber-800/40',
+          icon: '🏪',
+          bg: 'bg-amber-100 dark:bg-amber-900/30',
+          dot: 'bg-amber-500 dark:bg-amber-400',
+          count: 'bg-amber-200 dark:bg-amber-800/50 text-amber-800 dark:text-amber-300'
+        };
+      default:
+        return {
+          name: 'Other',
+          cardBorder: 'border-l-4 border-blue-500',
+          badge: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+          headerBg: 'bg-blue-50 dark:bg-blue-900/20',
+          cardBg: 'bg-blue-50 dark:bg-blue-900/20', 
+          text: 'text-blue-700 dark:text-blue-300',
+          boxBg: 'bg-blue-100 dark:bg-blue-800/40',
+          icon: '🏪',
+          bg: 'bg-blue-100 dark:bg-blue-900/30',
+          dot: 'bg-blue-500 dark:bg-blue-400',
+          count: 'bg-blue-200 dark:bg-blue-800/50 text-blue-800 dark:text-blue-300'
+        };
+    }
   };
 
   // Load filtered and grouped data when workOrders changes or when refreshTimestamp updates
@@ -1628,6 +1940,11 @@ const HomeContent: React.FC = () => {
     addToast('info', 'Showing current week schedule', 2000);
   };
 
+  // Function to format date range for display
+  const formatDateRange = (start: Date, end: Date) => {
+    return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  };
+  
   // Add a useEffect to handle ESC key for exiting fullscreen mode
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
@@ -1649,13 +1966,20 @@ const HomeContent: React.FC = () => {
     const currentDayOfWeek = now.getDay();
     const currentHour = now.getHours();
     
-    if (currentDayOfWeek === workWeekEnd && currentHour >= 17) {
+    if (currentDayOfWeek === workWeekEnd && currentHour >= 17 && !initialWeekendModeShown) {
       // If we're loading after 5:00pm on work week end day, update the UI
       console.log("Page loaded after 5:00pm on work week end day - using weekend mode");
-      // Force refresh the UI
+      
+      // Force refresh the UI - the getWorkWeekDateRanges function will handle weekend mode
       setRefreshTimestamp(Date.now());
+      
+      // Show notification only once
+      addToast('info', 'Weekend mode active - viewing next week\'s schedule', 5000);
+      
+      // Mark as shown to prevent repeated notifications
+      markWeekendModeAsShown();
     }
-  }, [workWeekEnd, setRefreshTimestamp]); // Include workWeekEnd in dependencies
+  }, [workWeekEnd, setRefreshTimestamp, addToast, initialWeekendModeShown]);
 
   // Add a timer effect to check for work week transitions at 5:00pm
   useEffect(() => {
@@ -1666,20 +1990,38 @@ const HomeContent: React.FC = () => {
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
       
-      // Check if we're at the work week end day and it's between 5:00pm and 5:05pm
-      // The 5-minute window ensures we don't miss the transition and don't refresh too often
+      // Check if we're at the work week end day and it's 5:00pm or later but before 5:05pm
+      // This gives a small window to process the transition only once
       if (currentDayOfWeek === workWeekEnd && 
           currentHour === 17 && 
           currentMinute < 5) {
-        console.log("Work week transition detected at 5:00pm - refreshing dashboard");
-        // Force refresh the UI to update the week view
-        setRefreshTimestamp(Date.now());
-        // Optionally show a toast notification
-        addToast('info', 'Switched to weekend mode - next week is now this week', 3000);
+        // Only process the transition once per window
+        if (!transitionProcessed) {
+          console.log("Work week transition detected at 5:00pm - refreshing dashboard and updating selected date");
+
+          // Force refresh the UI to update the week view using the current date
+          // The getWorkWeekDateRanges function will automatically handle weekend mode
+          setRefreshTimestamp(Date.now());
+          
+          // Optionally show a toast notification
+          addToast('info', 'Switched to weekend mode - next week is now this week', 5000);
+
+          // Mark transition as processed for this window
+          setTransitionProcessed(true);
+          
+          // Also set the initial flag to prevent duplicate notifications
+          markWeekendModeAsShown();
+        }
+      } else {
+        // Only reset the flag when we're completely outside the transition window
+        // This ensures we don't process the transition again during the same 5:00-5:05pm window
+        if (currentDayOfWeek !== workWeekEnd || currentHour !== 17) {
+          setTransitionProcessed(false);
+        }
       }
     };
     
-    // Run the check immediately in case we're already at 5:00pm
+    // Run the check immediately when this effect runs
     checkForWorkWeekTransition();
     
     // Set up an interval to check every minute
@@ -1688,35 +2030,500 @@ const HomeContent: React.FC = () => {
     return () => {
       clearInterval(intervalId);
     };
-  }, [workWeekEnd, addToast]);
+  }, [workWeekEnd, addToast, setRefreshTimestamp, transitionProcessed, setTransitionProcessed, markWeekendModeAsShown]);
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Dashboard header with stats */}
-      {renderDashboardHeader()}
+  // Function to group and sort work orders
+  const groupAndSortWorkOrders = () => {
+    const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+    const grouped = {
+      thisWeek: [] as WorkOrder[],
+      nextWeek: [] as WorkOrder[],
+      future: [] as WorkOrder[],
+      past: [] as WorkOrder[],
+      noDate: [] as WorkOrder[],
+      current: [] as WorkOrder[],   // Added for new structure
+      next: [] as WorkOrder[],      // Added for new structure
+      other: [] as WorkOrder[]      // Added for new structure
+    };
+
+    filteredWorkOrders.forEach(order => {
+      const visitDate = order.visits?.nextVisit?.date ||
+                        order.nextVisitDate ||
+                        order.visitDate ||
+                        order.date;
+
+      if (!visitDate) {
+        grouped.noDate.push(order);
+        return;
+      }
+
+      const orderDate = new Date(visitDate);
+
+      if (isNaN(orderDate.getTime())) { // Check for invalid date
+        grouped.noDate.push(order); // Add orders with invalid dates to noDate
+        return;
+      }
+
+      if (orderDate >= dateRanges.currentWeekStart && orderDate <= dateRanges.currentWeekEnd) {
+        grouped.thisWeek.push(order);
+        grouped.current.push(order);  // Updated for new structure
+      } else if (orderDate >= dateRanges.nextWeekStart && orderDate <= dateRanges.nextWeekEnd) {
+        grouped.nextWeek.push(order);
+        grouped.next.push(order);     // Updated for new structure
+      } else if (orderDate > dateRanges.nextWeekEnd) {
+        grouped.future.push(order);
+        grouped.other.push(order);    // Updated for new structure
+      } else {
+        grouped.past.push(order);
+        grouped.other.push(order);    // Updated for new structure
+      }
+    });
+
+    const sortByDate = (a: WorkOrder, b: WorkOrder) => {
+      const dateA = new Date(a.visits?.nextVisit?.date || a.nextVisitDate || a.visitDate || a.date || 0);
+      const dateB = new Date(b.visits?.nextVisit?.date || b.nextVisitDate || b.visitDate || b.date || 0);
+       // Handle potential invalid dates during sort
+      if (isNaN(dateA.getTime())) return 1;
+      if (isNaN(dateB.getTime())) return -1;
+      return dateA.getTime() - dateB.getTime();
+    };
+
+    grouped.thisWeek.sort(sortByDate);
+    grouped.nextWeek.sort(sortByDate);
+    grouped.future.sort(sortByDate);
+    grouped.past.sort(sortByDate);
+    grouped.current.sort(sortByDate);  // Sort new structure
+    grouped.next.sort(sortByDate);     // Sort new structure
+    grouped.other.sort(sortByDate);    // Sort new structure
+
+    return grouped;
+  };
+
+  // Type for the grouped work orders
+  type GroupedWorkOrders = ReturnType<typeof groupAndSortWorkOrders>;
+
+  // New function to render the grouped weekly sections based on passed data
+  const renderWeeklySections = (grouped: GroupedWorkOrders) => {
+    // Determine if the current view is the actual current week
+    const now = new Date();
+    const currentActualWeekRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, now);
+    const selectedWeekRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+    const isActualCurrentWeek = currentActualWeekRanges.currentWeekStart.getTime() === selectedWeekRanges.currentWeekStart.getTime();
+
+    // Helper function to render a group of work orders with date headers
+    const renderOrderGroup = (orders: WorkOrder[]) => {
+      // We'll group orders by date in this function
+      const ordersByDate = organizeWorkOrdersByDate(orders);
       
+      // Function to format date for display
+      const formatDateHeader = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const today = new Date();
+        const tomorrow = new Date();
+        tomorrow.setDate(today.getDate() + 1);
+        
+        // Check if it's today or tomorrow
+        if (date.toDateString() === today.toDateString()) {
+          return 'Today - ' + date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        } else if (date.toDateString() === tomorrow.toDateString()) {
+          return 'Tomorrow - ' + date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        } else {
+          return date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+        }
+      };
+      
+      return (
+        <div>
+          {ordersByDate.map((dateGroup) => (
+            <div key={dateGroup.date} className="mb-6">
+              <div className="flex items-center mb-3">
+                <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center">
+                  <FiCalendar className="mr-1 h-3.5 w-3.5" /> 
+                  {formatDateHeader(dateGroup.date)}
+                </h3>
+                <div className="ml-auto bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium px-2 py-0.5 rounded">
+                  {dateGroup.orders.length} job{dateGroup.orders.length !== 1 ? 's' : ''}
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                {dateGroup.orders.map((order) => renderJobRow(order))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    return (
+      <div className="pb-8">
+        {/* Current week section */}
+        <div className="mb-6">
+          <div className="flex items-center space-x-2 mb-4">
+            <div className="flex-shrink-0 h-10 w-10 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+              <FiActivity className="text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Current Week
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {formatDateRange(workWeekDates.currentWeekStart, workWeekDates.currentWeekEnd)}
+              </p>
+            </div>
+            <div className="ml-auto">
+              <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 text-xs font-medium px-2.5 py-1 rounded-full">
+                {grouped.thisWeek.length} jobs
+              </span>
+            </div>
+          </div>
+
+          {grouped.thisWeek.length > 0 ? (
+            <>
+              {renderOrderGroup(grouped.thisWeek)}
+            </>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-8 text-center border border-gray-200 dark:border-gray-700">
+              <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/20 mb-4">
+                <FiCalendar className="h-8 w-8 text-blue-500 dark:text-blue-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No jobs scheduled</h3>
+              <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                There are no jobs scheduled for the current week. Try changing the filters or checking next week.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Next week section */}
+        <div className="mb-6">
+          <div className="flex items-center space-x-2 mb-4">
+            <div className="flex-shrink-0 h-10 w-10 bg-green-50 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+              <FiTrendingUp className="text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Next Week
+              </h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {formatDateRange(workWeekDates.nextWeekStart, workWeekDates.nextWeekEnd)}
+              </p>
+            </div>
+            <div className="ml-auto">
+              <span className="bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 text-xs font-medium px-2.5 py-1 rounded-full">
+                {grouped.nextWeek.length} jobs
+              </span>
+            </div>
+          </div>
+
+          {grouped.nextWeek.length > 0 ? (
+            <>
+              {renderOrderGroup(grouped.nextWeek)}
+            </>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-8 text-center border border-gray-200 dark:border-gray-700">
+              <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-green-50 dark:bg-green-900/20 mb-4">
+                <FiCalendar className="h-8 w-8 text-green-500 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No jobs scheduled</h3>
+              <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                There are no jobs scheduled for next week yet. Check back later or adjust your filters.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Other dates section */}
+        {grouped.other.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="flex-shrink-0 h-10 w-10 bg-purple-50 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
+                <FiList className="text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Other Dates
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Jobs scheduled outside current and next week
+                </p>
+              </div>
+              <div className="ml-auto">
+                <span className="bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 text-xs font-medium px-2.5 py-1 rounded-full">
+                  {grouped.other.length} jobs
+                </span>
+              </div>
+            </div>
+
+            {renderOrderGroup(grouped.other)}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Calculate grouped work orders before the main return
+  const groupedWorkOrders = groupAndSortWorkOrders();
+
+  // Function to open WorkFossa website with active user's credentials
+  const openWorkFossaWithLogin = async (targetUrl: string = 'https://app.workfossa.com') => {
+    try {
+      // Get active user ID
+      const activeUserId = localStorage.getItem('activeUserId');
+      
+      if (!activeUserId) {
+        throw new Error('No active user found. Please select a user first.');
+      }
+      
+      // Fetch active user's credentials
+      const response = await fetch(`/api/users/${activeUserId}/credentials`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to get active user credentials');
+      }
+      
+      const credentials = await response.json();
+      
+      if (!credentials.email || !credentials.password) {
+        throw new Error('Active user has incomplete credentials');
+      }
+      
+      // Use the electron API to open the URL with the active user's credentials
+      // @ts-ignore (electron is defined in the preload script)
+      const result = await window.electron.openUrlWithActiveUser({
+        url: targetUrl,
+        email: credentials.email,
+        password: credentials.password
+      });
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to open WorkFossa');
+      }
+      
+      // Show success toast
+      addToast(
+        'info',
+        'WorkFossa has been opened with active user credentials'
+      );
+    } catch (error) {
+      console.error('Error opening WorkFossa:', error);
+      
+      // Show error toast
+      addToast(
+        'error',
+        error instanceof Error ? error.message : 'An unknown error occurred'
+      );
+    }
+  };
+
+  // Add workWeekDates state
+  const [workWeekDates, setWorkWeekDates] = useState<WorkWeekDateRanges>(() => 
+    getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate)
+  );
+
+  // Add status states for work orders and dispensers
+  const [workOrderStatus, setWorkOrderStatus] = usePersistentScrapeStatus('workOrder', {
+    status: 'idle',
+    progress: 0,
+    message: ''
+  });
+
+  const [dispenserStatus, setDispenserStatus] = usePersistentScrapeStatus('dispenser', {
+    status: 'idle',
+    progress: 0,
+    message: ''
+  });
+
+  const [isWorkOrderScraping, setIsWorkOrderScraping] = useState(() => {
+    const stored = sessionStorage.getItem('isWorkOrderScraping');
+    return stored === 'true';
+  });
+
+  const [isDispenserScraping, setIsDispenserScraping] = useState(() => {
+    const stored = sessionStorage.getItem('isDispenserScraping');
+    return stored === 'true';
+  });
+
+  // Update sessionStorage when scraping status changes
+  useEffect(() => {
+    sessionStorage.setItem('isWorkOrderScraping', isWorkOrderScraping.toString());
+  }, [isWorkOrderScraping]);
+
+  useEffect(() => {
+    sessionStorage.setItem('isDispenserScraping', isDispenserScraping.toString());
+  }, [isDispenserScraping]);
+
+  // Update workWeekDates when selectedDate changes
+  useEffect(() => {
+    setWorkWeekDates(getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate));
+  }, [selectedDate, workWeekStart, workWeekEnd]);
+  
+  // Add handler functions for scraping
+  const handleScrapeWorkOrders = async () => {
+    try {
+      setIsWorkOrderScraping(true);
+      setWorkOrderStatus({
+        status: 'processing',
+        progress: 0,
+        message: 'Starting work order data collection...'
+      });
+      
+      // Use the scrapeService function instead of direct fetch
+      await startScrapeJob();
+      
+      // Set a polling interval to check status
+      const intervalId = setInterval(async () => {
+        try {
+          // Use the scrapeService function instead of direct fetch
+          const status = await getScrapeStatus();
+          setWorkOrderStatus(status);
+          
+          // If complete, stop polling and refresh data
+          if (status.status === 'completed') {
+            clearInterval(intervalId);
+            setIsWorkOrderScraping(false);
+            loadData(true); // Reload data with dispenser refresh
+          }
+        } catch (error) {
+          console.error('Error checking scrape status:', error);
+          clearInterval(intervalId);
+          setIsWorkOrderScraping(false);
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error starting work order scrape:', error);
+      setIsWorkOrderScraping(false);
+      addToast('error', `Failed to start work order scrape: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleScrapeDispenserData = async () => {
+    try {
+      setIsDispenserScraping(true);
+      setDispenserStatus({
+        status: 'processing',
+        progress: 0,
+        message: 'Starting dispenser data collection...'
+      });
+      
+      // Use the scrapeService function instead of direct fetch
+      await startDispenserScrapeJob();
+      
+      // Set a polling interval to check status
+      const intervalId = setInterval(async () => {
+        try {
+          // Use the scrapeService function instead of direct fetch
+          const status = await getDispenserScrapeStatus();
+          setDispenserStatus(status);
+          
+          // If complete, stop polling and refresh data
+          if (status.status === 'completed') {
+            clearInterval(intervalId);
+            setIsDispenserScraping(false);
+            loadData(true); // Reload data with dispenser refresh
+          }
+        } catch (error) {
+          console.error('Error checking dispenser scrape status:', error);
+          clearInterval(intervalId);
+          setIsDispenserScraping(false);
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error starting dispenser scrape:', error);
+      setIsDispenserScraping(false);
+      addToast('error', `Failed to start dispenser scrape: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Add polling for scrape status when component mounts if a scrape is already in progress
+  useEffect(() => {
+    // Check if there's a scrape in progress from session storage
+    const workOrderScraping = sessionStorage.getItem('isWorkOrderScraping') === 'true';
+    const dispenserScraping = sessionStorage.getItem('isDispenserScraping') === 'true';
+    
+    if (workOrderScraping) {
+      // Create polling for work order scrape status
+      const intervalId = setInterval(async () => {
+        try {
+          // Use the scrapeService function instead of direct fetch
+          const status = await getScrapeStatus();
+          setWorkOrderStatus(status);
+          
+          // If complete, stop polling and refresh data
+          if (status.status === 'completed') {
+            clearInterval(intervalId);
+            setIsWorkOrderScraping(false);
+            loadData(true); // Reload data with dispenser refresh
+          }
+        } catch (error) {
+          console.error('Error checking scrape status:', error);
+          clearInterval(intervalId);
+          setIsWorkOrderScraping(false);
+        }
+      }, 1000);
+      
+      return () => clearInterval(intervalId);
+    }
+    
+    if (dispenserScraping) {
+      // Create polling for dispenser scrape status
+      const intervalId = setInterval(async () => {
+        try {
+          // Use the scrapeService function
+          const status = await getDispenserScrapeStatus();
+          setDispenserStatus(status);
+          
+          // If complete, stop polling and refresh data
+          if (status.status === 'completed') {
+            clearInterval(intervalId);
+            setIsDispenserScraping(false);
+            loadData(true); // Reload data with dispenser refresh
+          }
+        } catch (error) {
+          console.error('Error checking dispenser scrape status:', error);
+          clearInterval(intervalId);
+          setIsDispenserScraping(false);
+        }
+      }, 1000);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, []);
+
+  // Slightly adjust container padding for better responsiveness
+  return (
+    // Remove flex-col and any padding to eliminate the gap next to the sidebar
+    <div className="h-full max-w-full overflow-x-hidden">
+      {/* Dashboard header with stats */}
+      <div className="px-1 sm:px-0">
+        {renderDashboardHeader()}
+      </div>
+
       {/* Main toolbar */}
-      <div className="bg-[#1e293b] text-white rounded-lg shadow-md mb-4 flex flex-col">
+      {/* Updated background, padding, and spacing */}
+      <div className="bg-gradient-to-r from-gray-800 to-gray-900 dark:from-gray-900 dark:to-gray-950 text-white rounded-xl shadow-lg mb-6 flex flex-col overflow-hidden border border-gray-700 dark:border-gray-800">
         {/* Top section - view toggles, update times and filter */}
-        <div className="flex items-center justify-between p-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between p-4 border-b border-gray-700/60 dark:border-gray-800/60 gap-3">
+          <div className="flex items-center gap-2 relative z-10"> {/* Decreased gap for mobile */}
             <button
-              className={`px-4 py-2 rounded-md flex items-center gap-2 ${
-                activeView === 'weekly' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-[#2d3c55] text-gray-300 hover:bg-[#3a4a66]'
+              className={`px-3 py-2 rounded-md flex items-center gap-1 transition-all text-sm sm:text-base sm:px-4 sm:py-2.5 sm:gap-2 ${
+                activeView === 'weekly'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-700/70 dark:bg-gray-800/70 text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700 hover:text-white'
               }`}
               onClick={() => setActiveView('weekly')}
             >
               <FiList className="h-4 w-4" />
               <span>List</span>
             </button>
-            
+
             <button
-              className={`px-4 py-2 rounded-md flex items-center gap-2 ${
-                activeView === 'calendar' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-[#2d3c55] text-gray-300 hover:bg-[#3a4a66]'
+              className={`px-3 py-2 rounded-md flex items-center gap-1 transition-all text-sm sm:text-base sm:px-4 sm:py-2.5 sm:gap-2 ${
+                activeView === 'calendar'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-700/70 dark:bg-gray-800/70 text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700 hover:text-white'
               }`}
               onClick={() => setActiveView('calendar')}
             >
@@ -1724,36 +2531,48 @@ const HomeContent: React.FC = () => {
               <span>Calendar</span>
             </button>
           </div>
-          
-          <div className="flex items-center space-x-4">
-            {/* LastUpdated and NextUpdate sections removed from here as they're already in the sidebar */}
+
+          <div className="flex items-center space-x-2">
+            {/* Dark mode toggle button */}
+            <button
+              className="p-2.5 text-gray-300 hover:text-yellow-400 hover:bg-gray-700/50 dark:hover:bg-gray-800/50 rounded-md focus:outline-none transition-colors"
+              title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              onClick={() => {
+                const toggleTheme = document.querySelector('#theme-toggle') as HTMLButtonElement;
+                if (toggleTheme) toggleTheme.click();
+              }}
+            >
+              {isDarkMode ? <FiSun className="h-5 w-5" /> : <FiMoon className="h-5 w-5" />}
+            </button>
           </div>
         </div>
-        
+
         {/* Bottom section - search and action buttons */}
-        <div className="flex items-center gap-4 p-3 px-4 bg-[#273349]">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap items-center gap-4 p-4 relative"> {/* Added flex-wrap for mobile */}
+          {/* Added subtle background gradients */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 z-0"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-600/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 z-0"></div>
+          
+          <div className="relative flex-1 z-10 min-w-[200px] w-full sm:w-auto">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <FiSearch className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="text"
-              className="block w-full pl-10 pr-3 py-2 bg-[#1e293b] border border-gray-600 rounded-md text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              placeholder="Search by store name, work order ID, or instructions..."
+              className="block w-full pl-10 pr-3 py-3 bg-gray-700/70 dark:bg-gray-800/70 border border-gray-600 dark:border-gray-700 rounded-lg text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-colors shadow-inner"
+              placeholder="Search store name, ID, instructions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          
-          <div className="flex items-center">
+
+          <div className="flex items-center gap-2 z-10 flex-wrap justify-center sm:justify-start">
             <button
-              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none"
+              className="p-2.5 text-gray-300 hover:text-blue-400 bg-gray-700/70 dark:bg-gray-800/70 hover:bg-gray-600 dark:hover:bg-gray-700 rounded-lg focus:outline-none transition-colors"
               title="Refresh Data"
               onClick={() => {
                 setIsDataRefreshing(true);
                 addToast('info', 'Refreshing data...', 2000);
-                
-                // Force reload data with dispenser refresh
                 loadData(true).then(() => {
                   setIsDataRefreshing(false);
                   addToast('success', 'Data refreshed successfully', 3000);
@@ -1765,9 +2584,9 @@ const HomeContent: React.FC = () => {
             >
               <FiRefreshCw className={`h-5 w-5 ${isDataRefreshing ? 'animate-spin' : ''}`} />
             </button>
-            
+
             <button
-              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none ml-2"
+              className="p-2.5 text-gray-300 hover:text-blue-400 bg-gray-700/70 dark:bg-gray-800/70 hover:bg-gray-600 dark:hover:bg-gray-700 rounded-lg focus:outline-none transition-colors"
               title="View Logs"
               onClick={() => {
                 setShowLogsModal(true);
@@ -1776,24 +2595,110 @@ const HomeContent: React.FC = () => {
             >
               <FiFileText className="h-5 w-5" />
             </button>
-            
+
             <button
-              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none ml-2"
+              className="p-2.5 text-gray-300 hover:text-blue-400 bg-gray-700/70 dark:bg-gray-800/70 hover:bg-gray-600 dark:hover:bg-gray-700 rounded-lg focus:outline-none transition-colors"
+              title="Open WorkFossa Website"
+              onClick={() => openWorkFossaWithLogin()}
+            >
+              <FiGlobe className="h-5 w-5" />
+            </button>
+
+            <button
+              className="p-2.5 text-gray-300 hover:text-blue-400 bg-gray-700/70 dark:bg-gray-800/70 hover:bg-gray-600 dark:hover:bg-gray-700 rounded-lg focus:outline-none transition-colors"
               title={isFullscreenMode ? "Exit Fullscreen" : "Enter Fullscreen"}
               onClick={() => setIsFullscreenMode(!isFullscreenMode)}
             >
               {isFullscreenMode ? <FiMinimize className="h-5 w-5" /> : <FiMaximize className="h-5 w-5" />}
             </button>
+
+            {/* Work Week Settings Button */}
+            <button
+              onClick={() => setShowWorkWeekSettings(!showWorkWeekSettings)}
+              className={`p-2.5 rounded-lg focus:outline-none transition-colors flex items-center ${showWorkWeekSettings ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-blue-400 bg-gray-700/70 dark:bg-gray-800/70 hover:bg-gray-600 dark:hover:bg-gray-700'}`}
+              aria-expanded={showWorkWeekSettings}
+              aria-controls="work-week-settings-panel"
+              title="Work Week Settings"
+            >
+              <FiSettings className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </div>
-      
-      {/* Content area */}
-      <div className={`mt-4 ${isFullscreenMode ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 p-4 overflow-auto' : ''}`}>
+
+      {/* Work Week Settings Panel - Redesigned for better appearance */}
+      {showWorkWeekSettings && (
+         <div
+           id="work-week-settings-panel"
+           className="bg-white dark:bg-gray-800 rounded-xl p-5 mb-6 border border-gray-200 dark:border-gray-700 shadow-md transition-all duration-300 ease-in-out"
+         >
+           <div className="flex items-center justify-between mb-4">
+             <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+               <FiSettings className="mr-2 text-blue-500" />
+               Work Week Preferences
+             </h3>
+             <button 
+               onClick={() => setShowWorkWeekSettings(false)}
+               className="text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
+             >
+               <FiX className="h-5 w-5" />
+             </button>
+           </div>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Start of Work Week</label>
+                <select
+                  value={workWeekStart}
+                  onChange={(e) => setWorkWeekStart(Number(e.target.value))}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2.5 px-4 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value={0}>Sunday</option>
+                  <option value={1}>Monday</option>
+                  <option value={2}>Tuesday</option>
+                  <option value={3}>Wednesday</option>
+                  <option value={4}>Thursday</option>
+                  <option value={5}>Friday</option>
+                  <option value={6}>Saturday</option>
+                </select>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-900/40 p-4 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">End of Work Week</label>
+                <select
+                  value={workWeekEnd}
+                  onChange={(e) => setWorkWeekEnd(Number(e.target.value))}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg py-2.5 px-4 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value={0}>Sunday</option>
+                  <option value={1}>Monday</option>
+                  <option value={2}>Tuesday</option>
+                  <option value={3}>Wednesday</option>
+                  <option value={4}>Thursday</option>
+                  <option value={5}>Friday</option>
+                  <option value={6}>Saturday</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-5 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border-l-4 border-blue-500">
+              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">About Work Week Settings</h4>
+              <p className="text-xs text-blue-700 dark:text-blue-400 mb-2">
+                These settings define which days are considered part of your work week for planning purposes.
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-400 mb-2">
+                <span className="font-medium">Weekend Mode:</span> The dashboard automatically displays the <strong>next</strong> work week's schedule after 5:00 PM on the selected 'End of Work Week' day.
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-400">
+                <span className="font-medium">Job Filtering:</span> The weekly dashboard views will primarily focus on jobs scheduled between your selected start and end days.
+              </p>
+            </div>
+          </div>
+        )}
+
+      {/* Main Content Area Wrapper - Improve mobile responsiveness with padding */}
+      <div className={`flex-grow px-1 sm:px-0 ${isFullscreenMode ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 p-4 overflow-auto' : ''}`}>
         {isFullscreenMode && (
           <div className="absolute top-2 right-2 z-50">
-            <button 
-              className="p-2 bg-gray-200 dark:bg-gray-700 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+            <button
+              className="p-2 bg-gray-200 dark:bg-gray-700 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 shadow-lg"
               onClick={() => setIsFullscreenMode(false)}
               title="Exit Fullscreen"
             >
@@ -1810,27 +2715,36 @@ const HomeContent: React.FC = () => {
           <>
             {/* Weekly view */}
             {activeView === 'weekly' && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                  <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Work Orders</h2>
-                </div>
-                
+              <div className="bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700"> {/* Added background and container styling */}
                 {/* Always-visible navigation bar */}
-                <div className="bg-gray-100 dark:bg-gray-700 p-3 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="flex items-center">
-                      <h3 className="font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <FiCalendar className="mr-2 text-blue-500" />
-                        <span>Week of </span>
-                        <span className="font-bold ml-1">
-                          {getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate).currentWeekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                      </h3>
-                    </div>
-                  </div>
+                <div className="bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between rounded-t-xl"> {/* Updated styling */}
                   <div className="flex items-center">
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center"> {/* Updated font weight and text color */}
+                      <FiCalendar className="mr-2 text-blue-500" />
+                      <span className="text-lg"> {/* Changed to text-lg for better readability */} 
+                        Week of {getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate).currentWeekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </h3>
+                    {/* Add visit count badge if viewing the actual current week */}
+                    {(() => {
+                      const now = new Date();
+                      const currentActualWeekRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, now);
+                      const selectedWeekRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+                      const isActualCurrentWeek = currentActualWeekRanges.currentWeekStart.getTime() === selectedWeekRanges.currentWeekStart.getTime();
+                      
+                      if (isActualCurrentWeek && groupedWorkOrders.thisWeek.length > 0) {
+                        return (
+                          <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full text-sm font-medium ml-3">
+                            {groupedWorkOrders.thisWeek.length} Visit{groupedWorkOrders.thisWeek.length !== 1 ? 's' : ''}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                  <div className="flex items-center gap-2"> {/* Changed to gap for consistent spacing */}
                     <button 
-                      className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 dark:text-blue-400"
+                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
                       onClick={() => {
                         // Navigate to previous week
                         const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
@@ -1839,17 +2753,25 @@ const HomeContent: React.FC = () => {
                         
                         // Update state to trigger re-render
                         setSelectedDate(newStart);
-                        setCurrentMonth(newStart.getMonth());
-                        setCurrentYear(newStart.getFullYear());
-                        setRefreshTimestamp(Date.now());
-                        addToast('info', `Showing week of ${newStart.toLocaleDateString()}`, 2000);
                       }}
                       title="Previous Week"
                     >
-                      <FiArrowUp className="h-5 w-5 transform -rotate-90" />
+                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
                     </button>
+                    
+                    <button
+                      className="flex items-center gap-1 py-1.5 px-3 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-md hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
+                      onClick={goToCurrentWeek}
+                      title="Go to Current Week"
+                    >
+                      <FiCalendar className="h-4 w-4" />
+                      <span className="text-sm font-medium">Today</span>
+                    </button>
+                    
                     <button 
-                      className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 dark:text-blue-400 ml-1"
+                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 transition-colors"
                       onClick={() => {
                         // Navigate to next week
                         const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
@@ -1858,607 +2780,254 @@ const HomeContent: React.FC = () => {
                         
                         // Update state to trigger re-render
                         setSelectedDate(newStart);
-                        setCurrentMonth(newStart.getMonth());
-                        setCurrentYear(newStart.getFullYear());
-                        setRefreshTimestamp(Date.now());
-                        addToast('info', `Showing week of ${newStart.toLocaleDateString()}`, 2000);
                       }}
                       title="Next Week"
                     >
-                      <FiArrowUp className="h-5 w-5 transform rotate-90" />
-                    </button>
-                    <button 
-                      className="p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-800 text-blue-600 dark:text-blue-400 ml-1"
-                      onClick={goToCurrentWeek}
-                      title="Go to Current Week"
-                    >
-                      <FiClock className="h-5 w-5" />
+                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
                     </button>
                   </div>
                 </div>
                 
-                {/* Job list */}
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredWorkOrders.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-                      No work orders found with the current filters.
-                    </div>
-                  ) : (
-                    // Group work orders by week
-                    (() => {
-                      // Get date ranges for current and next weeks
-                      const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
-                      
-                      // Group orders by week: thisWeek, nextWeek, future, past
-                      const today = new Date();
-                      
-                      const grouped = {
-                        thisWeek: [] as WorkOrder[],
-                        nextWeek: [] as WorkOrder[],
-                        future: [] as WorkOrder[],
-                        past: [] as WorkOrder[],
-                        noDate: [] as WorkOrder[]
-                      };
-                      
-                      filteredWorkOrders.forEach(order => {
-                        const visitDate = order.visits?.nextVisit?.date || 
-                                          order.nextVisitDate || 
-                                          order.visitDate || 
-                                          order.date;
-                        
-                        if (!visitDate) {
-                          grouped.noDate.push(order);
-                          return;
-                        }
-                        
-                        const orderDate = new Date(visitDate);
-                        
-                        if (orderDate >= dateRanges.currentWeekStart && orderDate <= dateRanges.currentWeekEnd) {
-                          grouped.thisWeek.push(order);
-                        } else if (orderDate >= dateRanges.nextWeekStart && orderDate <= dateRanges.nextWeekEnd) {
-                          grouped.nextWeek.push(order);
-                        } else if (orderDate > dateRanges.nextWeekEnd) {
-                          grouped.future.push(order);
-                        } else {
-                          grouped.past.push(order);
-                        }
-                      });
-                      
-                      // Sort each group by date
-                      const sortByDate = (a: WorkOrder, b: WorkOrder) => {
-                        const dateA = new Date(a.visits?.nextVisit?.date || a.nextVisitDate || a.visitDate || a.date || 0);
-                        const dateB = new Date(b.visits?.nextVisit?.date || b.nextVisitDate || b.visitDate || b.date || 0);
-                        return dateA.getTime() - dateB.getTime();
-                      };
-                      
-                      grouped.thisWeek.sort(sortByDate);
-                      grouped.nextWeek.sort(sortByDate);
-                      grouped.future.sort(sortByDate);
-                      grouped.past.sort(sortByDate);
-                      
-                      // Format date range for display
-                      const formatDateRange = (start: Date, end: Date) => {
-                        return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-                      };
-                      
-                      return (
-                        <>
-                          {/* This Week Section */}
-                          {grouped.thisWeek.length > 0 && (
-                            <div>
-                              <div className="bg-blue-50 dark:bg-blue-900/30 p-3 border-b border-blue-200 dark:border-blue-800 flex items-center">
-                                <div className="flex items-center">
-                                  <h3 className="font-medium text-blue-800 dark:text-blue-200 flex items-center">
-                                    <FiCalendar className="mr-2" />
-                                    This Week
-                                  </h3>
-                                  <span className="bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
-                                    {grouped.thisWeek.length} Visit{grouped.thisWeek.length !== 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.thisWeek.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Next Week Section */}
-                          {grouped.nextWeek.length > 0 && (
-                            <div>
-                              <div className="bg-green-50 dark:bg-green-900/30 p-3 border-b border-green-200 dark:border-green-800 flex items-center">
-                                <div className="flex items-center">
-                                  <h3 className="font-medium text-green-800 dark:text-green-200 flex items-center">
-                                    <FiCalendar className="mr-2" />
-                                    Next Week
-                                  </h3>
-                                  <span className="bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
-                                    {grouped.nextWeek.length} Visit{grouped.nextWeek.length !== 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.nextWeek.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Future Jobs Section */}
-                          {grouped.future.length > 0 && (
-                            <div>
-                              <div className="bg-purple-50 dark:bg-purple-900/30 p-3 border-b border-purple-200 dark:border-purple-800 flex items-center justify-between">
-                                <h3 className="font-medium text-purple-800 dark:text-purple-200 flex items-center">
-                                  <FiCalendar className="mr-2" />
-                                  Future Visits
-                                </h3>
-                                <span className="bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-full text-xs font-medium">
-                                  {grouped.future.length} Visit{grouped.future.length !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.future.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Past Jobs Section */}
-                          {grouped.past.length > 0 && (
-                            <div>
-                              <div className="bg-gray-50 dark:bg-gray-700 p-3 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
-                                <h3 className="font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                  <FiCalendar className="mr-2" />
-                                  Past Visits
-                                </h3>
-                                <span className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full text-xs font-medium">
-                                  {grouped.past.length} Visit{grouped.past.length !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.past.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* No Date Section */}
-                          {grouped.noDate.length > 0 && (
-                            <div>
-                              <div className="bg-amber-50 dark:bg-amber-900/30 p-3 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between">
-                                <h3 className="font-medium text-amber-800 dark:text-amber-200 flex items-center">
-                                  <FiAlertCircle className="mr-2" />
-                                  Unscheduled Visits
-                                </h3>
-                                <span className="bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full text-xs font-medium">
-                                  {grouped.noDate.length} Visit{grouped.noDate.length !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.noDate.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()
+                {/* Apply active filter indicator and filter buttons */}
+                <div className="p-3 sm:p-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center flex-wrap gap-1 sm:gap-2"> {/* Adjusted gap for mobile */}
+                    <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mr-1 sm:mr-2">Filter:</span>
+                    
+                    <button
+                      className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm ${activeFilter === 'all' 
+                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 font-medium' 
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                      onClick={() => setActiveFilter('all')}
+                    >
+                      All
+                    </button>
+                    
+                    <button
+                      className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm flex items-center ${activeFilter === '7-eleven' 
+                        ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-300 font-medium' 
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                      onClick={() => setActiveFilter('7-eleven')}
+                    >
+                      7-11
+                    </button>
+                    
+                    <button
+                      className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm flex items-center ${activeFilter === 'circle-k' 
+                        ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-300 font-medium' 
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                      onClick={() => setActiveFilter('circle-k')}
+                    >
+                      Circle K
+                    </button>
+                    
+                    <button
+                      className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm flex items-center ${activeFilter === 'wawa' 
+                        ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-300 font-medium' 
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                      onClick={() => setActiveFilter('wawa')}
+                    >
+                      Wawa
+                    </button>
+                    
+                    <button
+                      className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-md text-xs sm:text-sm flex items-center ${activeFilter === 'other' 
+                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300 font-medium' 
+                        : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                      onClick={() => setActiveFilter('other')}
+                    >
+                      Other
+                    </button>
+                  </div>
+
+                  {activeFilter !== 'all' && (
+                    <button
+                      className="text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex items-center"
+                      onClick={() => setActiveFilter('all')}
+                    >
+                      <FiX className="h-3.5 w-3.5 mr-1" /> Clear Filter
+                    </button>
                   )}
+                </div>
+                
+                {/* Weekly sections rendered with improved styling */}
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {renderWeeklySections(groupedWorkOrders)}
                 </div>
               </div>
             )}
-            
+
             {/* Calendar view */}
             {activeView === 'calendar' && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                  <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">
-                    Calendar View - {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  </h2>
-                  <div className="flex space-x-2">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      {new Date(currentYear, currentMonth).toLocaleString('default', { month: 'long', year: 'numeric' })}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <button 
-                      className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                       onClick={() => {
-                        const newMonth = currentMonth - 1;
-                        if (newMonth < 0) {
+                        if (currentMonth === 0) {
                           setCurrentMonth(11);
                           setCurrentYear(currentYear - 1);
                         } else {
-                          setCurrentMonth(newMonth);
+                          setCurrentMonth(currentMonth - 1);
                         }
                       }}
+                      className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
                     >
-                      Previous
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
                     </button>
                     <button
-                      className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700"
                       onClick={() => {
-                        const newMonth = currentMonth + 1;
-                        if (newMonth > 11) {
+                        const today = new Date();
+                        setCurrentMonth(today.getMonth());
+                        setCurrentYear(today.getFullYear());
+                      }}
+                      className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-sm font-medium"
+                    >
+                      Today
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (currentMonth === 11) {
                           setCurrentMonth(0);
                           setCurrentYear(currentYear + 1);
                         } else {
-                          setCurrentMonth(newMonth);
+                          setCurrentMonth(currentMonth + 1);
                         }
                       }}
+                      className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400"
                     >
-                      Next
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </button>
                   </div>
                 </div>
                 
                 {/* Calendar grid */}
-                <div className="grid grid-cols-7 gap-px bg-gray-200 dark:bg-gray-700">
-                  {/* Day headers */}
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
-                    <div 
-                      key={day} 
-                      className={`bg-gray-100 dark:bg-gray-800 p-2 text-center font-medium ${
-                        index >= workWeekStart && index <= workWeekEnd 
-                          ? 'text-gray-900 dark:text-gray-100' 
-                          : 'text-gray-500 dark:text-gray-400'
-                      }`}
-                    >
-                      {day}
-                    </div>
-                  ))}
+                <div className="p-4">
+                  {/* Weekday headers */}
+                  <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, i) => (
+                      <div key={i} className="text-center text-xs font-medium text-gray-500 dark:text-gray-400 py-2">
+                        {day}
+                      </div>
+                    ))}
+                  </div>
                   
                   {/* Calendar days */}
-                  {Array.from({ length: new Date(currentYear, currentMonth + 1, 0).getDate() + new Date(currentYear, currentMonth, 1).getDay() }, (_, i) => {
-                    const dayOffset = new Date(currentYear, currentMonth, 1).getDay();
-                    const dayNumber = i - dayOffset + 1;
-                    const isCurrentMonth = dayNumber > 0 && dayNumber <= new Date(currentYear, currentMonth + 1, 0).getDate();
-                    
-                    if (!isCurrentMonth) {
-                      return <div key={`empty-${i}`} className="bg-gray-50 dark:bg-gray-900 min-h-[100px]"></div>;
-                    }
-                    
-                    const currentDate = new Date(currentYear, currentMonth, dayNumber);
-                    const isToday = currentDate.toDateString() === new Date().toDateString();
-                    const dayJobs = filteredWorkOrders.filter(order => {
-                      // Try multiple date fields to find a match
-                      const orderDate = order.visits?.nextVisit?.date || 
-                                       order.scheduledDate || 
-                                       order.nextVisitDate || 
-                                       order.visitDate || 
-                                       order.date;
+                  <div className="grid grid-cols-7 gap-1">
+                    {(() => {
+                      const days = [];
+                      const date = new Date(currentYear, currentMonth, 1);
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
                       
-                      if (!orderDate) return false;
+                      // Add empty cells for days before the first day of the month
+                      const firstDayOfMonth = date.getDay();
+                      for (let i = 0; i < firstDayOfMonth; i++) {
+                        days.push(
+                          <div key={`empty-${i}`} className="h-24 p-1 border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-md"></div>
+                        );
+                      }
                       
-                      const visitDate = new Date(orderDate);
-                      return visitDate.toDateString() === currentDate.toDateString();
-                    });
-                    
-                    return (
-                      <div 
-                        key={`day-${dayNumber}`} 
-                        className={`bg-white dark:bg-gray-800 p-2 min-h-[100px] ${
-                          isToday ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
-                        }`}
-                      >
-                        <div className={`text-right font-medium ${
-                          isToday ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'
-                        }`}>
-                          {dayNumber}
-                        </div>
+                      // Add cells for each day of the month
+                      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+                      
+                      for (let i = 1; i <= daysInMonth; i++) {
+                        const currentDate = new Date(currentYear, currentMonth, i);
+                        const isToday = currentDate.getTime() === today.getTime();
                         
-                        <div className="mt-1 space-y-1 overflow-y-auto max-h-[80px]">
-                          {dayJobs.map(job => {
-                            const storeType = getStoreTypeForFiltering(job);
-                            const storeStyle = getStoreStyles(storeType);
+                        // Count events on this day
+                        const eventsOnDay = filteredWorkOrders.filter(order => {
+                          const visitDate = order.visits?.nextVisit?.date || order.nextVisitDate || order.visitDate || order.date;
+                          if (!visitDate) return false;
+                          
+                          const orderDate = new Date(visitDate);
+                          return orderDate.getDate() === i && 
+                                 orderDate.getMonth() === currentMonth && 
+                                 orderDate.getFullYear() === currentYear;
+                        });
+                        
+                        days.push(
+                          <div 
+                            key={`day-${i}`} 
+                            className={`h-24 p-1 border rounded-md transition-colors ${
+                              isToday 
+                                ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20' 
+                                : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start">
+                              <span className={`text-sm font-medium rounded-full w-6 h-6 flex items-center justify-center ${
+                                isToday 
+                                  ? 'bg-blue-500 text-white' 
+                                  : 'text-gray-700 dark:text-gray-300'
+                              }`}>
+                                {i}
+                              </span>
+                              
+                              {eventsOnDay.length > 0 && (
+                                <span className="text-xs font-medium px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                  {eventsOnDay.length}
+                                </span>
+                              )}
+                            </div>
                             
-                            return (
-                              <div 
-                                key={job.id} 
-                                className={`text-xs p-1 rounded ${storeStyle.cardBg} ${storeStyle.text} truncate cursor-pointer border-l-2 ${storeStyle.cardBorder.replace('border-l-4', 'border-l-2')}`}
-                                onClick={(e) => {
-                                  // Open job details by showing the dispenser data
-                                  handleViewDispenserData(job, e);
-                                }}
-                              >
-                                {job.customer?.name || 'Unknown'} - {job.workOrderId || job.id}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
+                            {/* Show up to 2 events, with a "+more" indicator if needed */}
+                            <div className="mt-1 space-y-1 overflow-hidden" style={{ maxHeight: "77px" }}>
+                              {eventsOnDay.slice(0, 2).map((order, idx) => {
+                                const storeType = getStoreTypeForFiltering(order);
+                                const storeStyle = getStoreStyles(storeType);
+                                
+                                return (
+                                  <div 
+                                    key={idx} 
+                                    className={`text-xs p-1 rounded truncate ${storeStyle.badge}`}
+                                    title={order.customer?.name || 'Unknown store'}
+                                  >
+                                    {order.customer?.name || 'Unknown store'}
+                                  </div>
+                                );
+                              })}
+                              
+                              {eventsOnDay.length > 2 && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                                  +{eventsOnDay.length - 2} more
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      return days;
+                    })()}
+                  </div>
                 </div>
               </div>
             )}
           </>
         )}
+
+        {/* Display the logs modal if enabled */}
       </div>
-      
-      {/* Dispenser modal */}
+
+      {/* Modals remain outside the main content flow but within the component return */}
       {showDispenserModal && (
-        <div 
-          className="fixed inset-0 z-50 overflow-y-auto"
-          onClick={() => setShowDispenserModal(false)} // Close modal when clicking the backdrop
-        >
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
-            </div>
-            
-            <div 
-              className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle max-w-2xl w-full"
-              onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
-            >
-              {/* Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 px-6 py-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg leading-6 font-medium text-white flex items-center">
-                    <FiTool className="h-5 w-5 mr-2" />
-                    Dispenser Data {selectedOrderId && `for Order #${selectedOrderId}`}
-                  </h3>
-                  <button
-                    className="text-white hover:text-gray-200 focus:outline-none"
-                    onClick={() => setShowDispenserModal(false)}
-                  >
-                    <FiX className="h-6 w-6" />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Content */}
-              <div className="bg-white dark:bg-gray-800 p-4">
-                {selectedDispensers.length > 0 ? (
-                  <div className="space-y-3 max-h-[calc(85vh-130px)] overflow-y-auto pr-1">
-                    {selectedDispensers.map((dispenser, index) => {
-                      // Extract the dispenser number from the title with improved pattern matching
-                      let dispenserNumber = `#${index+1}`;
-                      
-                      if (dispenser.title) {
-                        // First try dual format (e.g., "1/2 - Regular...")
-                        const dualMatch = dispenser.title.match(/^(\d+\/\d+)/);
-                        if (dualMatch) {
-                          dispenserNumber = dualMatch[1];
-                        } else {
-                          // Then try single number format (e.g., "13 - Diesel...")
-                          const singleMatch = dispenser.title.match(/^(\d+)\s*-/);
-                          if (singleMatch) {
-                            dispenserNumber = singleMatch[1];
-                          }
-                        }
-                      }
-                      
-                      return (
-                        <div 
-                          key={index} 
-                          className="bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm overflow-hidden"
-                        >
-                          {/* Condensed single line layout */}
-                          <div className="p-3 flex items-center">
-                            {/* Dispenser number badge */}
-                            <div className="bg-blue-600 text-white rounded-lg min-w-[50px] px-2 py-1 text-sm font-bold shadow-sm mr-3 flex-shrink-0 text-center">
-                              {dispenserNumber}
-                            </div>
-                            
-                            {/* Fuel types - middle section */}
-                            <div className="flex-1 overflow-x-auto">
-                              {dispenser.fields && dispenser.fields.Grade ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {sortFuelTypes(dispenser.fields.Grade).map((grade: string, i: number) => {
-                                    // Define consistent colors based on fuel type
-                                    let bgClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-                                    let gradeLower = grade.toLowerCase();
-                                    
-                                    if (gradeLower.includes('regular')) {
-                                      bgClass = 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
-                                    } else if (gradeLower.includes('plus')) {
-                                      bgClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300';
-                                    } else if (gradeLower.includes('premium')) {
-                                      bgClass = 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300';
-                                    } else if (gradeLower.includes('diesel')) {
-                                      bgClass = 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300';
-                                    } else if (gradeLower.includes('e-85') || gradeLower.includes('ethanol')) {
-                                      bgClass = 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300';
-                                    } else if (gradeLower.includes('super')) {
-                                      bgClass = 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300';
-                                    }
-                                    
-                                    return (
-                                      <span
-                                        key={i}
-                                        className={`px-2 py-0.5 rounded text-xs font-medium ${bgClass}`}
-                                      >
-                                        {grade.trim()}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="text-sm text-gray-500 dark:text-gray-400 italic">
-                                  No fuel data
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Details button */}
-                            <button
-                              onClick={() => toggleTechnicalDetails(index)}
-                              className="text-xs flex items-center px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 ml-2 flex-shrink-0"
-                            >
-                              {expandedTechnicalDetails.includes(index) ? (
-                                <>
-                                  <FiChevronDown className="mr-1 h-3 w-3" />
-                                  Details
-                                </>
-                              ) : (
-                                <>
-                                  <FiSettings className="mr-1 h-3 w-3" />
-                                  Details
-                                </>
-                              )}
-                            </button>
-                          </div>
-                            
-                          {/* Technical specs - ONLY SHOWN WHEN EXPANDED */}
-                          {expandedTechnicalDetails.includes(index) && (
-                            <div className="p-3 pt-0 mt-1 border-t border-gray-200 dark:border-gray-600">
-                              <div className="grid grid-cols-2 gap-3 text-sm">
-                                {dispenser.make && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Make/Model</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">
-                                      {dispenser.make} {dispenser.model && `/ ${dispenser.model}`}
-                                    </span>
-                                  </div>
-                                )}
-                                
-                                {dispenser.fields && dispenser.fields['Number of Nozzles (per side)'] && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Nozzles per side</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Number of Nozzles (per side)']}</span>
-                                  </div>
-                                )}
-                                
-                                {dispenser.fields && dispenser.fields['Meter Type'] && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Meter type</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Meter Type']}</span>
-                                  </div>
-                                )}
-                                
-                                {dispenser.fields && dispenser.fields['Stand Alone Code'] && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Stand Alone Code</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Stand Alone Code']}</span>
-                                  </div>
-                                )}
-                                
-                                {dispenser.serial && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Serial Number</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.serial}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4">
-                      <FiInfo className="h-8 w-8 text-blue-500 dark:text-blue-400" />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">No Dispenser Information</h3>
-                    <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                      This work order does not have any dispenser information available.
-                    </p>
-                  </div>
-                )}
-              </div>
-              
-              {/* Footer */}
-              <div className="bg-gray-50 dark:bg-gray-700 px-6 py-3 flex justify-between items-center">
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedDispensers.length > 0 ? 
-                    `${selectedDispensers.length} dispenser${selectedDispensers.length !== 1 ? 's' : ''}` : 
-                    'No dispensers available'
-                  }
-                </div>
-                <div className="flex gap-2">
-                  {selectedDispensers.length > 0 && (
-                    <button 
-                      type="button" 
-                      className="text-sm px-4 py-1.5 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
-                      onClick={() => {
-                        // Toggle all technical details at once
-                        if (expandedTechnicalDetails.length === selectedDispensers.length) {
-                          setExpandedTechnicalDetails([]);
-                        } else {
-                          setExpandedTechnicalDetails([...Array(selectedDispensers.length).keys()]);
-                        }
-                      }}
-                    >
-                      {expandedTechnicalDetails.length === selectedDispensers.length ? 
-                        'Hide All Details' : 'Show All Details'}
-                    </button>
-                  )}
-                  <button 
-                    type="button" 
-                    className="text-sm px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium shadow-sm focus:outline-none"
-                    onClick={() => setShowDispenserModal(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Logs modal */}
-      {showLogsModal && (
-        <div 
-          className="fixed inset-0 z-50 overflow-y-auto"
-          onClick={() => setShowLogsModal(false)} // Close modal when clicking the backdrop
-        >
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
-            </div>
-            
-            <div 
-              className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
-              onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
-            >
-              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
-                      Scrape Logs
-                    </h3>
-                    
-                    <div className="mt-2">
-                      <ScrapeLogsConsole 
-                        type={logConsoleType}
-                        showHeader={true}
-                        height="400px"
-                        autoScroll={true}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button 
-                  type="button" 
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => setShowLogsModal(false)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {/* Floating alert */}
-      {showAlert && (
-        <div className={`fixed bottom-4 right-4 rounded-md p-4 shadow-lg ${
-          alertType === 'success' ? 'bg-green-500 text-white' :
-          alertType === 'error' ? 'bg-red-500 text-white' :
-          'bg-blue-500 text-white'
-        }`}>
-          <div className="flex items-center">
-            {alertType === 'success' && <FiCheckCircle className="h-5 w-5 mr-2" />}
-            {alertType === 'error' && <FiAlertCircle className="h-5 w-5 mr-2" />}
-            {alertType === 'info' && <FiInfo className="h-5 w-5 mr-2" />}
-            <span>{alertMessage}</span>
-            <button 
-              className="ml-4 text-white hover:text-gray-200"
-              onClick={() => setShowAlert(false)}
-            >
-              <FiX className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
+        <DispenserModal
+          isOpen={showDispenserModal}
+          onClose={() => setShowDispenserModal(false)}
+          dispensers={selectedDispensers}
+          orderId={selectedOrderId}
+        />
       )}
     </div>
   );

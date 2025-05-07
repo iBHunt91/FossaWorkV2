@@ -3,7 +3,7 @@
  */
 import express from 'express';
 const router = express.Router();
-import * as formAutomation from '../form-automation/automateForm.js';
+import * as formAutomation from '../form-automation/AutomateForm.js';
 import * as logger from '../utils/logger.js';
 
 // Process a single visit
@@ -26,16 +26,16 @@ router.post('/form-automation', async (req, res) => {
     // Start the visit processing in the background
     process.nextTick(async () => {
       try {
-        await formAutomation.processVisit(visitUrl, headless !== false, workOrderId);
+        await formAutomation.processVisit(visitUrl, headless !== false, workOrderId, jobId);
       } catch (error) {
         logger.error(`Error in background processing: ${error.message}`);
       }
     });
     
-    // Respond immediately
-    res.status(202).json({
+    // Ensure we're explicitly setting status code to 202 (Accepted)
+    return res.status(202).json({
       message: 'Visit processing started',
-      jobId
+      jobId: jobId // Explicitly name the property to ensure it's included
     });
   } catch (error) {
     logger.error(`Error processing visit: ${error.message}`);

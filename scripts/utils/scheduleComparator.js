@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { getLatestScrapeFile, getPreviousScrapeFile, getScheduleChangesPath, getChangesArchivePath } from './dataManager.js';
+import { resolveUserFilePath } from '../../server/utils/userManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -10,18 +11,9 @@ const __dirname = dirname(__filename);
 // Path to store completed jobs tracking file
 const COMPLETED_JOBS_FILE = path.join(__dirname, '..', '..', 'data/completed_jobs.json');
 
-// Change severity levels
-const SEVERITY = {
-    CRITICAL: 'critical',  // Job removed or added to same day
-    HIGH: 'high',          // Other important changes
-    MEDIUM: 'medium',      // Less critical changes
-    LOW: 'low'            // Minor changes
-};
-
 // Function to compare two jobs
 function compareJobs(currentJob, previousJob, userPreferences = null) {
     const changes = {
-        severity: SEVERITY.LOW,
         details: []
     };
 
@@ -32,7 +24,6 @@ function compareJobs(currentJob, previousJob, userPreferences = null) {
 
     // Check for removed job
     if (!currentJob) {
-        changes.severity = SEVERITY.CRITICAL;
         changes.details.push({
             type: 'removed',
             jobId: previousJob.id,
@@ -44,7 +35,6 @@ function compareJobs(currentJob, previousJob, userPreferences = null) {
 
     // Check for new job
     if (!previousJob) {
-        changes.severity = SEVERITY.HIGH;
         changes.details.push({
             type: 'added',
             jobId: currentJob.id,
@@ -56,7 +46,6 @@ function compareJobs(currentJob, previousJob, userPreferences = null) {
 
     // Compare visit dates
     if (currentJob.visits.nextVisit.date !== previousJob.visits.nextVisit.date) {
-        changes.severity = SEVERITY.HIGH;
         changes.details.push({
             type: 'date_changed',
             jobId: currentJob.id,
@@ -104,16 +93,13 @@ function shouldIncludeJob(job, preferences) {
 }
 
 // Function to compare schedules
-export function compareSchedules(currentSchedule, previousSchedule, userPreferences = null) {
+export function compareSchedules(currentSchedule, previousSchedule, userPreferences = null, userId = null) {
     console.log('Starting schedule comparison...');
     console.log(`Current schedule has ${currentSchedule.workOrders.length} jobs`);
     console.log(`Previous schedule has ${previousSchedule.workOrders.length} jobs`);
     
     const changes = {
-        critical: [],  // Jobs removed or added to same day
-        high: [],      // Other important changes
-        medium: [],    // Less critical changes
-        low: [],       // Minor changes (completed jobs) - no longer reported
+        allChanges: [], // All changes are now in a single array
         summary: {
             removed: 0,
             added: 0,
@@ -168,19 +154,14 @@ export function compareSchedules(currentSchedule, previousSchedule, userPreferen
             const dispensers = getDispenserCount(currentJob);
             
             // Check if it's being added to a date that already had jobs
-            // This logic determines if it's critical (added to current day) or high severity (future job)
             const today = new Date();
             const jobDate = new Date(date);
             const isCurrentDay = jobDate.toDateString() === today.toDateString();
             
-            // It's critical if it's for today or if the date already has previous jobs
-            const severity = isCurrentDay || previousJobsByDate.has(date) ? SEVERITY.CRITICAL : SEVERITY.HIGH;
-            const changeList = severity === SEVERITY.CRITICAL ? changes.critical : changes.high;
-            
-            console.log(`New job detected: ${jobId} on ${date} (${severity} severity)`);
+            console.log(`New job detected: ${jobId} on ${date}`);
             
             // Add this as a newly added job
-            changeList.push({
+            changes.allChanges.push({
                 type: 'added',
                 jobId: currentJob.id,
                 visitId: currentJob.visits?.nextVisit?.visitId,
@@ -190,6 +171,7 @@ export function compareSchedules(currentSchedule, previousSchedule, userPreferen
                 location: currentJob.customer.address ? 
                     `${currentJob.customer.address.cityState.split(' ')[0]}, ${currentJob.customer.address.cityState.split(' ')[1]}` : 
                     'Unknown',
+                address: currentJob.customer.address || null,
                 date: date
             });
             
@@ -267,19 +249,30 @@ export function compareSchedules(currentSchedule, previousSchedule, userPreferen
                     const removedDispensers = getDispenserCount(previousJob);
                     const addedDispensers = getDispenserCount(newJob);
                     
-                    changes.critical.push({
-                        type: 'replacement',
-                        removedJobId: previousJob.id,
-                        addedJobId: newJob.id,
-                        removedStore: previousJob.customer.storeNumber,
-                        addedStore: newJob.customer.storeNumber,
-                        removedDispensers: removedDispensers,
-                        addedDispensers: addedDispensers,
+                    changes.allChanges.push({
+                        type: 'replaced',
+                        oldJobId: previousJob.id, 
+                        newJobId: newJob.id,
+                        oldStore: previousJob.customer.storeNumber,
+                        newStore: newJob.customer.storeNumber,
+                        oldStoreName: previousJob.customer.name,
+                        newStoreName: newJob.customer.name,
+                        oldDispensers: removedDispensers,
+                        newDispensers: addedDispensers,
+                        oldLocation: previousJob.customer.address ? 
+                            `${previousJob.customer.address.cityState.split(' ')[0]}, ${previousJob.customer.address.cityState.split(' ')[1]}` : 
+                            'Unknown',
+                        newLocation: newJob.customer.address ? 
+                            `${newJob.customer.address.cityState.split(' ')[0]}, ${newJob.customer.address.cityState.split(' ')[1]}` : 
+                            'Unknown',
+                        oldAddress: previousJob.customer.address || null,
+                        newAddress: newJob.customer.address || null,
                         date: date
                     });
                     
                     processedJobs.add(previousJob.id);
                     processedJobs.add(newJob.id);
+                    
                     changes.summary.removed++;
                     changes.summary.added++;
                 } else {
@@ -289,22 +282,38 @@ export function compareSchedules(currentSchedule, previousSchedule, userPreferen
                         continue;
                     }
 
-                    console.log(`Job removal detected: ${previousJob.id} on ${date}`);
+                    // Check if this job was completed (only if userId is provided)
+                    console.log(`\n********** REMOVAL DETECTION **********`);
+                    console.log(`Checking if job ${previousJob.id} was completed or truly removed`);
+                    const isCompleted = userId ? isJobCompleted(previousJob.id, userId) : false;
 
-                    changes.critical.push({
-                        type: 'removed',
-                        jobId: previousJob.id,
-                        store: previousJob.customer.storeNumber,
-                        storeName: previousJob.customer.name,
-                        dispensers: getDispenserCount(previousJob),
-                        location: previousJob.customer.address ? 
-                            `${previousJob.customer.address.cityState.split(' ')[0]}, ${previousJob.customer.address.cityState.split(' ')[1]}` : 
-                            'Unknown',
-                        date: date
-                    });
-                    
-                    processedJobs.add(previousJob.id);
-                    changes.summary.removed++;
+                    if (isCompleted) {
+                        console.log(`Job ${previousJob.id} is in the completed jobs list, not treating as removed`);
+                        processedJobs.add(previousJob.id);
+                        console.log(`********** END REMOVAL DETECTION **********\n`);
+                        continue; // Skip this job since it's completed
+                    } else {
+                        console.log(`Job ${previousJob.id} was NOT found in completed jobs, will report as removed`);
+                        console.log(`********** END REMOVAL DETECTION **********\n`);
+                        
+                        console.log(`Job removal detected: ${previousJob.id} on ${date}`);
+
+                        changes.allChanges.push({
+                            type: 'removed',
+                            jobId: previousJob.id,
+                            store: previousJob.customer.storeNumber,
+                            storeName: previousJob.customer.name,
+                            dispensers: getDispenserCount(previousJob),
+                            location: previousJob.customer.address ? 
+                                `${previousJob.customer.address.cityState.split(' ')[0]}, ${previousJob.customer.address.cityState.split(' ')[1]}` : 
+                                'Unknown',
+                            address: previousJob.customer.address || null,
+                            date: date
+                        });
+                        
+                        processedJobs.add(previousJob.id);
+                        changes.summary.removed++;
+                    }
                 }
             }
         }
@@ -324,12 +333,18 @@ export function compareSchedules(currentSchedule, previousSchedule, userPreferen
         if (potentialSwap) {
             console.log(`Job swap detected: ${jobId} <-> ${potentialSwap.jobId}`);
             
-            changes.high.push({
+            changes.allChanges.push({
                 type: 'swap',
                 job1Id: jobId,
                 job2Id: potentialSwap.jobId,
                 job1Store: job.customer.storeNumber,
                 job2Store: potentialSwap.job.customer.storeNumber,
+                job1StoreName: job.customer.name,
+                job2StoreName: potentialSwap.job.customer.name,
+                job1Location: job.customer.address?.city || 'Unknown',
+                job2Location: potentialSwap.job.customer.address?.city || 'Unknown',
+                job1Address: job.customer.address || null,
+                job2Address: potentialSwap.job.customer.address || null,
                 job1Dispensers: getDispenserCount(job),
                 job2Dispensers: getDispenserCount(potentialSwap.job),
                 oldDate1: oldDate,
@@ -341,12 +356,13 @@ export function compareSchedules(currentSchedule, previousSchedule, userPreferen
             changes.summary.swapped++;
         } else {
             // This is just a date change
-            changes.high.push({
+            changes.allChanges.push({
                 type: 'date_changed',
                 jobId: jobId,
                 store: job.customer.storeNumber,
                 storeName: job.customer.name,
                 location: job.customer.address?.city || 'Unknown',
+                address: job.customer.address || null,
                 oldDate: oldDate,
                 newDate: newDate,
                 dispensers: getDispenserCount(job)
@@ -358,9 +374,7 @@ export function compareSchedules(currentSchedule, previousSchedule, userPreferen
 
     console.log('Schedule comparison completed');
     console.log('Changes summary:', changes.summary);
-    console.log(`Critical changes: ${changes.critical.length}`);
-    console.log(`High severity changes: ${changes.high.length}`);
-    console.log(`Medium severity changes: ${changes.medium.length}`);
+    console.log(`Total changes: ${changes.allChanges.length}`);
 
     return changes;
 }
@@ -396,22 +410,10 @@ function generateChangeReport(changes) {
     report.push('All Changes:');
     report.push('----------------');
     
-    // Critical changes
-    for (const change of changes.critical) {
+    // All changes are now in a single array
+    for (const change of changes.allChanges) {
         report.push(formatChange(change));
     }
-    
-    // High severity changes
-    for (const change of changes.high) {
-        report.push(formatChange(change));
-    }
-    
-    // Medium severity changes
-    for (const change of changes.medium) {
-        report.push(formatChange(change));
-    }
-    
-    // We no longer include low severity changes (completed jobs) as per requirement #1
     
     return report.join('\n');
 }
@@ -419,8 +421,8 @@ function generateChangeReport(changes) {
 // Helper function to format individual changes
 function formatChange(change) {
     switch (change.type) {
-        case 'replacement':
-            return `- Visit #${change.removedJobId} (Store ${change.removedStore.replace('##', '#')}, ${change.removedDispensers} dispensers) was removed and replaced with Visit #${change.addedJobId} (Store ${change.addedStore.replace('##', '#')}, ${change.addedDispensers} dispensers) on ${change.date}\n`;
+        case 'replaced':
+            return `- Visit #${change.oldJobId} (Store ${change.oldStore.replace('##', '#')}, ${change.oldDispensers} dispensers) was removed and replaced with Visit #${change.newJobId} (Store ${change.newStore.replace('##', '#')}, ${change.newDispensers} dispensers) on ${change.date}\n`;
         case 'removed':
             return `- Visit #${change.jobId} (Store ${change.store.replace('##', '#')}, ${change.dispensers} dispensers) was removed on ${change.date}\n`;
         case 'added':
@@ -472,16 +474,72 @@ function trackCompletedJob(jobId, date, store, storeName, dispensers, location) 
 }
 
 // Check if a job has been completed
-function isJobCompleted(jobId) {
-    if (!fs.existsSync(COMPLETED_JOBS_FILE)) {
-        return false;
-    }
-    
+function isJobCompleted(jobId, userId) {
+    console.log(`\n=====================================================`);
+    console.log(`DETAILED CHECK: Is job ${jobId} completed for user ${userId}?`);
     try {
-        const completedJobs = JSON.parse(fs.readFileSync(COMPLETED_JOBS_FILE, 'utf8'));
-        return completedJobs.some(job => job.jobId === jobId);
+        // Path to completed jobs file for this user
+        const completedJobsFilePath = resolveUserFilePath('completed_jobs.json', userId);
+        console.log(`Looking for completed jobs at: ${completedJobsFilePath}`);
+        
+        // Check if the file exists
+        if (!fs.existsSync(completedJobsFilePath)) {
+            console.log(`Completed jobs file not found at ${completedJobsFilePath}`);
+            console.log(`=====================================================\n`);
+            return false;
+        }
+        
+        // Read and parse the file
+        const completedJobsData = JSON.parse(fs.readFileSync(completedJobsFilePath, 'utf8'));
+        console.log(`Found ${completedJobsData.completedJobs.length} completed jobs: ${JSON.stringify(completedJobsData.completedJobs)}`);
+        
+        // First, try exact match
+        const isExactMatch = completedJobsData.completedJobs.includes(jobId);
+        console.log(`EXACT COMPARISON: Checking if "${jobId}" exists in the list: ${isExactMatch}`);
+        
+        if (isExactMatch) {
+            console.log(`Result: Job ${jobId} is IN the completed jobs list (exact match)`);
+            console.log(`=====================================================\n`);
+            return true;
+        }
+        
+        // If exact match fails, try more flexible matching
+        // Normalize job IDs by removing prefix and whitespace
+        const normalizedJobId = jobId.replace(/^W-|\s+/g, '').trim();
+        
+        // Find any jobs that match after normalization
+        const matches = completedJobsData.completedJobs.some(completedId => {
+            const normalizedCompletedId = completedId.replace(/^W-|\s+/g, '').trim();
+            const isMatch = normalizedJobId === normalizedCompletedId;
+            if (isMatch) {
+                console.log(`NORMALIZED MATCH: "${jobId}" (normalized: "${normalizedJobId}") matches "${completedId}" (normalized: "${normalizedCompletedId}")`);
+            }
+            return isMatch;
+        });
+        
+        if (matches) {
+            console.log(`Result: Job ${jobId} is IN the completed jobs list (normalized match)`);
+            console.log(`=====================================================\n`);
+            return true;
+        }
+        
+        // Also check for partial matches for debugging purposes
+        const partialMatches = completedJobsData.completedJobs.filter(id => 
+            id.includes(normalizedJobId) || 
+            normalizedJobId.includes(id.replace(/^W-|\s+/g, '').trim())
+        );
+        
+        if (partialMatches.length > 0) {
+            console.log(`PARTIAL MATCHES found but not used for detection: ${JSON.stringify(partialMatches)}`);
+            console.log(`This indicates potential format differences between stored completed jobs and job IDs`);
+        }
+        
+        console.log(`Result: Job ${jobId} is NOT IN the completed jobs list (no matches)`);
+        console.log(`=====================================================\n`);
+        return false;
     } catch (error) {
-        console.warn('Error checking completed jobs file', error);
+        console.error(`Error checking if job ${jobId} is completed:`, error);
+        console.log(`=====================================================\n`);
         return false;
     }
 }
@@ -523,7 +581,7 @@ export function analyzeScheduleChanges(userPreferences = null, userId = 'Bruce')
         const previousSchedule = JSON.parse(fs.readFileSync(previousFile, 'utf8'));
 
         // Compare the schedules
-        const changes = compareSchedules(currentSchedule, previousSchedule, userPreferences);
+        const changes = compareSchedules(currentSchedule, previousSchedule, userPreferences, userId);
 
         // Generate a report of the changes
         const report = generateChangeReport(changes);
@@ -533,7 +591,7 @@ export function analyzeScheduleChanges(userPreferences = null, userId = 'Bruce')
         fs.writeFileSync(reportPath, report);
 
         // Archive the changes to a single history file if there are any significant changes
-        if (changes.critical.length > 0 || changes.high.length > 0 || changes.medium.length > 0) {
+        if (changes.allChanges.length > 0) {
             updateChangeHistory(changes, userId);
             
             // Also keep individual archive for backward compatibility

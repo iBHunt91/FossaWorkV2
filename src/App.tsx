@@ -1,6 +1,6 @@
 import React, { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom'
-import { FiHome, FiSettings, FiFilter, FiZap, FiFileText, FiDownload, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiClock, FiLayout, FiDatabase, FiUser, FiChevronDown } from 'react-icons/fi'
+import { FiHome, FiSettings, FiFilter, FiZap, FiFileText, FiDownload, FiRefreshCw, FiCheckCircle, FiAlertCircle, FiClock, FiLayout, FiDatabase, FiUser, FiChevronDown, FiCalendar, FiShoppingBag } from 'react-icons/fi'
 import bannerImage from './assets/images/FossaMonitorLogo.png'
 import { 
   startScrapeJob, 
@@ -16,6 +16,7 @@ import { DispenserProvider } from './context/DispenserContext'
 import Toast from './components/Toast'
 import LastScrapedTime from './components/LastScrapedTime'
 import NextScrapeTime from './components/NextScrapeTime'
+import SystemLogs from './pages/SystemLogs'
 
 interface User {
   id: string;
@@ -27,13 +28,12 @@ interface User {
 
 // Lazy load pages
 const Home = React.lazy(() => import('./pages/Home'))
-const HomeRedesign = React.lazy(() => import('./pages/Home'))
 const Settings = React.lazy(() => import('./pages/Settings'))
 const Filters = React.lazy(() => import('./pages/Filters'))
-const FiltersRedesign = React.lazy(() => import('./pages/Filters'))
 const AutoFossa = React.lazy(() => import('./pages/AutoFossa'))
 const FormPrep = React.lazy(() => import('./pages/FormPrep'))
 const History = React.lazy(() => import('./pages/History'))
+const CircleK = React.lazy(() => import('./pages/CircleK'))
 
 // Create an AppContent component that uses the toast hook
 const AppContent: React.FC = () => {
@@ -623,64 +623,65 @@ const AppContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-gray-50 dark:bg-gray-900 transition-colors duration-200 overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-gray-800 shadow-lg fixed inset-y-0 left-0 z-10 flex flex-col transition-colors duration-200">
-        <div className="p-4 pb-0">
-          <div>
+    <DispenserProvider>
+      <div className="flex h-screen bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+        {/* Sidebar - Updated Styling */}
+        <div className="hidden md:flex md:w-64 bg-gray-900 flex-col shadow-lg text-gray-300">
+          {/* Logo */}
+          <div className="flex items-center justify-center p-5 mb-6">
             <img 
               src={bannerImage} 
               alt="Fossa Monitor" 
-              className="w-full h-auto object-cover rounded-md shadow-md"
+              className="w-full h-auto object-cover rounded-lg shadow-md"
             />
           </div>
           
           {/* Active User Display with Dropdown */}
-          <div className="px-4 py-2.5 border-b border-gray-200 dark:border-gray-700 relative" ref={userDropdownRef}>
+          <div className="px-2 py-2 border-b border-gray-700 relative mb-4" ref={userDropdownRef}>
             <div 
-              className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg p-2 -mx-2"
+              className="flex items-center justify-between cursor-pointer hover:bg-gray-700 rounded-lg p-2"
               onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
             >
               <div className="flex items-center">
-                <FiUser className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2" />
-                <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate max-w-[130px]">
+                <div className="bg-primary-500/20 p-1.5 rounded-md mr-2">
+                  <FiUser className="w-4 h-4 text-primary-400" />
+                </div>
+                <span className="text-sm font-medium text-gray-200 truncate max-w-[130px]">
                   {activeUser?.label || activeUser?.email || 'No User'}
                 </span>
                 {activeUser && (
-                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400">
+                  <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
                     Active
                   </span>
                 )}
               </div>
-              <FiChevronDown className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-200 ${isUserDropdownOpen ? 'transform rotate-180' : ''}`} />
+              <FiChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${isUserDropdownOpen ? 'transform rotate-180' : ''}`} />
             </div>
             
             {/* User Dropdown */}
             {isUserDropdownOpen && (
-              <div className="absolute left-0 right-0 mt-1 mx-4 bg-white dark:bg-gray-700 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 py-1 z-20">
+              <div className="absolute left-0 right-0 mt-1 mx-2 bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-1 z-20">
                 {allUsers.map((user) => {
-                  // Explicitly compute isActive for each user
                   const isUserActive = activeUser && user.id === activeUser.id;
-                  
                   return (
                     <div 
                       key={user.id}
-                      className={`px-3 py-2 flex items-center ${isUserActive ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-600'} cursor-pointer transition-colors duration-150`}
+                      className={`px-3 py-2 flex items-center ${isUserActive ? 'bg-blue-900/30 text-white' : 'text-gray-300 hover:bg-gray-700'} cursor-pointer transition-colors duration-150`}
                       onClick={() => !isUserActive && handleUserSwitch(user.id)}
                     >
-                      <FiUser className="w-4 h-4 text-gray-500 dark:text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-800 dark:text-gray-200 truncate flex-grow">
+                      <FiUser className="w-4 h-4 text-gray-400 mr-2" />
+                      <span className="text-sm truncate flex-grow">
                         {user.label || user.email}
                       </span>
                       {isUserActive && (
-                        <FiCheckCircle className="w-4 h-4 text-green-500 dark:text-green-400 ml-2" />
+                        <FiCheckCircle className="w-4 h-4 text-green-400 ml-2" />
                       )}
                     </div>
                   );
                 })}
-                <div className="border-t border-gray-200 dark:border-gray-600 mt-1 pt-1">
+                <div className="border-t border-gray-700 mt-1 pt-1">
                   <div 
-                    className="px-3 py-2 flex items-center hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer text-blue-600 dark:text-blue-400"
+                    className="px-3 py-2 flex items-center hover:bg-gray-700 cursor-pointer text-blue-400"
                     onClick={() => {
                       setIsUserDropdownOpen(false);
                       navigate('/settings');
@@ -693,247 +694,159 @@ const AppContent: React.FC = () => {
               </div>
             )}
           </div>
-        </div>
-        <nav className="mt-2 space-y-1 px-3 flex-grow overflow-y-auto">
-          <Link
-            to="/redesign"
-            className={`sidebar-link ${location.pathname === '/redesign' ? 'active' : ''}`}
-          >
-            <FiLayout className="w-5 h-5 mr-3" />
-            <span className="text-base">Dashboard</span>
-          </Link>
-          <Link
-            to="/filters"
-            className={`sidebar-link ${location.pathname === '/filters' ? 'active' : ''}`}
-          >
-            <FiFilter className="w-5 h-5 mr-3" />
-            <span className="text-base">Filters</span>
-          </Link>
-          <Link
-            to="/form-prep"
-            className={`sidebar-link ${location.pathname === '/form-prep' ? 'active' : ''}`}
-          >
-            <FiFileText className="w-5 h-5 mr-3" />
-            <span className="text-base">Form Prep</span>
-          </Link>
-          <Link
-            to="/auto-fossa"
-            className={`sidebar-link ${location.pathname === '/auto-fossa' ? 'active' : ''}`}
-          >
-            <FiZap className="w-5 h-5 mr-3" />
-            <span className="text-base">Auto Fossa</span>
-          </Link>
-          <Link
-            to="/history"
-            className={`sidebar-link ${location.pathname === '/history' ? 'active' : ''}`}
-          >
-            <FiClock className="w-5 h-5 mr-3" />
-            <span className="text-base">History</span>
-          </Link>
-          <Link
-            to="/settings"
-            className={`sidebar-link ${location.pathname === '/settings' ? 'active' : ''}`}
-          >
-            <FiSettings className="w-5 h-5 mr-3" />
-            <span className="text-base">Settings</span>
-          </Link>
-        </nav>
-        
-        {/* Scrape buttons at bottom */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 mt-auto bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-gray-800 dark:via-gray-800 dark:to-gray-700">
-          <div className="mb-4">
-            <div className="bg-white dark:bg-gray-800 p-3 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-              <div className="flex items-center mb-3">
-                <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 mr-2.5">
-                  <FiDatabase className="w-4 h-4" />
-                </div>
-                <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">Data Tools</h3>
+
+          {/* Wrap navigation in a growing container */}
+          <div className="flex-grow overflow-y-auto">
+            {/* Navigation Menu Section */}
+            <div className="px-1 py-2 mt-2">
+              <div className="text-xs uppercase font-semibold text-gray-500 px-3 mb-3">
+                Main Menu
               </div>
-              <div className="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
+            </div>
+            <nav className="px-3 flex-grow overflow-y-auto space-y-1">
+              {/* Links go here... */}
+              <Link
+                to="/"
+                className={`relative flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${location.pathname === '/' ? 'bg-gray-700/50 text-white' : 'text-gray-300 hover:bg-gray-700/30 hover:text-white'}`}
+              >
+                {location.pathname === '/' && <span className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400 rounded-r-md"></span>}
+                <FiLayout className="w-5 h-5 mr-3 text-blue-400" />
+                Dashboard
+              </Link>
+              {/* ... other links ... */}
+              <Link
+                to="/filters"
+                className={`relative flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${location.pathname === '/filters' ? 'bg-gray-700/50 text-white' : 'text-gray-300 hover:bg-gray-700/30 hover:text-white'}`}
+              >
+                {location.pathname === '/filters' && <span className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400 rounded-r-md"></span>}
+                <FiFilter className="w-5 h-5 mr-3 text-amber-400" />
+                Filters
+              </Link>
+              <Link
+                to="/form-prep"
+                className={`relative flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${location.pathname === '/form-prep' ? 'bg-gray-700/50 text-white' : 'text-gray-300 hover:bg-gray-700/30 hover:text-white'}`}
+              >
+                {location.pathname === '/form-prep' && <span className="absolute left-0 top-0 bottom-0 w-1 bg-purple-400 rounded-r-md"></span>}
+                <FiFileText className="w-5 h-5 mr-3 text-purple-400" />
+                Form Prep
+              </Link>
+              <Link
+                to="/auto-fossa"
+                className={`relative flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${location.pathname === '/auto-fossa' ? 'bg-gray-700/50 text-white' : 'text-gray-300 hover:bg-gray-700/30 hover:text-white'}`}
+              >
+                {location.pathname === '/auto-fossa' && <span className="absolute left-0 top-0 bottom-0 w-1 bg-green-400 rounded-r-md"></span>}
+                <FiZap className="w-5 h-5 mr-3 text-green-400" />
+                Auto Fossa
+              </Link>
+
+              <div className="pt-4 pb-2 px-1">
+                <div className="text-xs uppercase font-semibold text-gray-500 px-3 mb-3">
+                  Management
+                </div>
+              </div>
+
+              <Link
+                to="/history"
+                className={`relative flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${location.pathname === '/history' ? 'bg-gray-700/50 text-white' : 'text-gray-300 hover:bg-gray-700/30 hover:text-white'}`}
+              >
+                {location.pathname === '/history' && <span className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-400 rounded-r-md"></span>}
+                <FiClock className="w-5 h-5 mr-3 text-indigo-400" />
+                Schedule Changes
+              </Link>
+              <Link
+                to="/system-logs"
+                className={`relative flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${location.pathname === '/system-logs' ? 'bg-gray-700/50 text-white' : 'text-gray-300 hover:bg-gray-700/30 hover:text-white'}`}
+              >
+                {location.pathname === '/system-logs' && <span className="absolute left-0 top-0 bottom-0 w-1 bg-blue-400 rounded-r-md"></span>}
+                <FiFileText className="w-5 h-5 mr-3 text-blue-400" />
+                System Logs
+              </Link>
+              <Link
+                to="/circle-k"
+                className={`relative flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${location.pathname === '/circle-k' ? 'bg-gray-700/50 text-white' : 'text-gray-300 hover:bg-gray-700/30 hover:text-white'}`}
+              >
+                {location.pathname === '/circle-k' && <span className="absolute left-0 top-0 bottom-0 w-1 bg-red-400 rounded-r-md"></span>}
+                <FiShoppingBag className="w-5 h-5 mr-3 text-red-400" />
+                Circle K
+              </Link>
+              <Link
+                to="/settings"
+                className={`relative flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${location.pathname === '/settings' ? 'bg-gray-700/50 text-white' : 'text-gray-300 hover:bg-gray-700/30 hover:text-white'}`}
+              >
+                {location.pathname === '/settings' && <span className="absolute left-0 top-0 bottom-0 w-1 bg-gray-400 rounded-r-md"></span>}
+                <FiSettings className="w-5 h-5 mr-3 text-gray-400" />
+                Settings
+              </Link>
+            </nav>
+          </div> {/* End of flex-grow wrapper for nav */}
+
+          {/* Data Tools Section - Corrected Layout, Ensured Bottom Position */}
+          <div className="px-3 py-4 border-t border-gray-700 space-y-4 flex-shrink-0">
+            <h3 className="text-xs uppercase font-semibold text-gray-500 px-1 mb-3">Data Status</h3>
+            {/* Time Info - Corrected */}
+            <div className="space-y-3 px-1">
+              <div className="flex items-start text-sm text-gray-300">
                 <LastScrapedTime />
+              </div>
+              <div className="flex items-start text-sm text-gray-300">
                 <NextScrapeTime />
               </div>
             </div>
-          </div>
-          <div className="space-y-4">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-3.5 transition-all duration-200 hover:shadow-md">
+            
+            {/* Scrape Buttons - Simplified Styles */}
+            <div className="space-y-3 pt-3">
               <button 
-                className={`w-full flex items-center justify-center ${getWorkOrderButtonStyle()} text-white font-medium py-2.5 px-4 rounded-lg shadow-sm transition-all duration-200 transform hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-800`}
+                className={`w-full flex items-center justify-center ${getWorkOrderButtonStyle()} text-white font-medium py-2 px-3 rounded-md shadow-sm transition-all duration-200 transform hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-900`}
                 onClick={handleScrapeWorkOrders}
                 disabled={isWorkOrderScraping && !workOrderError}
               >
                 <div className="flex items-center">
                   {getWorkOrderButtonIcon()}
-                  <span className="text-base">{getWorkOrderButtonText()}</span>
+                  <span className="text-sm ml-2">{getWorkOrderButtonText()}</span>
                 </div>
               </button>
-              {(isWorkOrderScraping || workOrderStatus.status === 'completed') && !workOrderError && (
-                <div className="mt-3.5">
-                  <div className="flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                    <span>Progress</span>
-                    <span className="bg-primary-50 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full">{workOrderStatus.progress}%</span>
-                  </div>
-                  <div className="relative">
-                    <ProgressBar progress={workOrderStatus.progress} />
-                    {isWorkOrderScraping && workOrderStatus.progress > 0 && workOrderStatus.progress < 100 && (
-                      <div className="absolute top-0 left-0 w-full">
-                        <div 
-                          className="h-2.5 bg-white/20 rounded-full animate-pulse" 
-                          style={{ 
-                            width: `${Math.min(100, workOrderStatus.progress + 5)}%`,
-                            animationDuration: '1.5s'
-                          }}
-                        ></div>
-                      </div>
-                    )}
-                  </div>
-                  {isWorkOrderScraping && (
-                    <div className="flex items-start mt-2.5">
-                      <div className="animate-spin mt-0.5 mr-2 h-3 w-3 border-2 border-primary-500 border-t-transparent rounded-full"></div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 italic leading-tight">
-                        {workOrderStatus.message || 'Processing...'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-              {workOrderError && (
-                <div className="mt-3.5 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
-                  <div className="flex items-start">
-                    <div className="mr-2 mt-0.5 flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-800/50">
-                      <FiAlertCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div>
-                      <strong className="font-medium">Error:</strong> {workOrderError}
-                    </div>
-                  </div>
-                  {workOrderError.includes('already running') && (
-                    <button 
-                      className="mt-3 px-3.5 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg text-sm font-medium flex items-center transition-all duration-200 w-full sm:w-auto justify-center shadow-sm hover:shadow"
-                      onClick={() => {
-                        setForceRetry(true);
-                        handleScrapeWorkOrders();
-                      }}
-                    >
-                      <FiRefreshCw className="w-3.5 h-3.5 mr-2" />
-                      Force Retry
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-3.5 transition-all duration-200 hover:shadow-md">
+              
               <button 
-                className={`w-full flex items-center justify-center ${getDispenserButtonStyle()} text-white font-medium py-2.5 px-4 rounded-lg shadow-sm transition-all duration-200 transform hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800`}
+                className={`w-full flex items-center justify-center ${getDispenserButtonStyle()} text-white font-medium py-2 px-3 rounded-md shadow-sm transition-all duration-200 transform hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-900`}
                 onClick={handleScrapeDispenserData}
                 disabled={isDispenserScraping && !dispenserError}
               >
                 <div className="flex items-center">
                   {getDispenserButtonIcon()}
-                  <span className="text-base">{getDispenserButtonText()}</span>
+                  <span className="text-sm ml-2">{getDispenserButtonText()}</span>
                 </div>
               </button>
-              {(isDispenserScraping || dispenserStatus.status === 'completed') && !dispenserError && (
-                <div className="mt-3.5">
-                  <div className="flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                    <span>Progress</span>
-                    <span className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">{dispenserStatus.progress}%</span>
-                  </div>
-                  <div className="relative">
-                    <div className="w-full h-2.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-indigo-500 transition-all duration-300 ease-out relative"
-                        style={{ width: `${dispenserStatus.progress}%` }}
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer"></div>
-                      </div>
-                    </div>
-                    {isDispenserScraping && dispenserStatus.progress > 0 && dispenserStatus.progress < 100 && (
-                      <div className="absolute top-0 left-0 w-full">
-                        <div 
-                          className="h-2.5 bg-white/20 rounded-full animate-pulse" 
-                          style={{ 
-                            width: `${Math.min(100, dispenserStatus.progress + 5)}%`,
-                            animationDuration: '1.5s'
-                          }}
-                        ></div>
-                      </div>
-                    )}
-                  </div>
-                  {isDispenserScraping && (
-                    <div className="flex items-start mt-2.5">
-                      <div className="animate-spin mt-0.5 mr-2 h-3 w-3 border-2 border-indigo-500 border-t-transparent rounded-full"></div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 italic leading-tight">
-                        {dispenserStatus.message || 'Processing...'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-              {dispenserError && (
-                <div className="mt-3.5 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
-                  <div className="text-red-600 dark:text-red-400 font-medium mb-2 flex items-start">
-                    <div className="mr-2 mt-0.5 flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-red-100 dark:bg-red-800/50">
-                      <FiAlertCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div>{dispenserError}</div>
-                  </div>
-                  <div className="text-gray-700 dark:text-gray-300 text-xs mt-2 ml-7">
-                    <p>This may be a temporary issue. Please try again, or try the following:</p>
-                    <ul className="list-disc pl-5 mt-1.5 space-y-1.5">
-                      <li>Check if the store has dispensers configured in Fossa</li>
-                      <li>Verify your network connection is stable</li>
-                      <li>If the problem persists, try "Force Rescrape" on specific stores</li>
-                    </ul>
-                  </div>
-                  <div className="mt-3 flex space-x-3">
-                    <button 
-                      className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg text-sm font-medium flex items-center transition-all duration-200 flex-grow justify-center shadow-sm hover:shadow"
-                      onClick={handleScrapeDispenserData}
-                    >
-                      <FiRefreshCw className="w-3.5 h-3.5 mr-2" />
-                      Try Again
-                    </button>
-                    {dispenserError.includes('already running') && (
-                      <button 
-                        className="px-3.5 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg text-sm font-medium flex items-center transition-all duration-200 flex-grow justify-center shadow-sm hover:shadow"
-                        onClick={() => {
-                          setForceRetry(true);
-                          handleScrapeDispenserData();
-                        }}
-                      >
-                        <FiRefreshCw className="w-3.5 h-3.5 mr-2" />
-                        Force Retry
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
-        </div>
-      </aside>
+        </div> {/* End of sidebar div */}
 
-      {/* Main content */}
-      <main className="flex-1 ml-64 p-8 transition-colors duration-200 overflow-auto h-screen">
-        <div className="max-w-7xl mx-auto text-gray-800 dark:text-gray-100">
-          <Suspense fallback={<div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-          </div>}>
-            <Routes>
-              <Route path="/" element={<HomeRedesign />} />
-              <Route path="/redesign" element={<HomeRedesign />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/filters" element={<Filters />} />
-              <Route path="/auto-fossa" element={<AutoFossa />} />
-              <Route path="/form-prep" element={<FormPrep />} />
-            </Routes>
-          </Suspense>
-        </div>
-      </main>
-    </div>
+        {/* Main Content Area */} 
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header */}
+          <header className="bg-white dark:bg-gray-800 shadow p-2 sm:p-4 flex flex-wrap justify-between items-center">
+            {/* Header content can go here - maybe a title or hamburger menu toggle? */}
+            <div> {/* Placeholder for left side */} </div>
+            <div> {/* Placeholder for right side */} </div>
+          </header>
+
+          {/* Main Content - Removed responsive padding (p-2 sm:p-4) */}
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-200 dark:bg-gray-700">
+            <Suspense fallback={<div className="flex justify-center items-center h-full">Loading...</div>}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/filters" element={<Filters />} />
+                <Route path="/form-prep" element={<FormPrep />} />
+                <Route path="/auto-fossa" element={<AutoFossa />} />
+                <Route path="/history" element={<History />} />
+                <Route path="/system-logs" element={<SystemLogs />} />
+                <Route path="/circle-k" element={<CircleK />} />
+              </Routes>
+            </Suspense>
+          </main>
+        </div> {/* End of main content wrapper */}
+      </div> {/* End of main flex container */}
+    </DispenserProvider>
   );
 };
 
@@ -942,7 +855,19 @@ function App() {
   return (
     <ToastProvider>
       <DispenserProvider>
-        <AppContent />
+        <div className="App h-screen flex flex-col dark:bg-gray-900 dark:text-white">
+          <Suspense 
+            fallback={
+              <div className="flex justify-center items-center h-screen">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-indigo-500"></div>
+              </div>
+            }
+          >
+            <Routes>
+              <Route path="/*" element={<AppContent />} />
+            </Routes>
+          </Suspense>
+        </div>
       </DispenserProvider>
     </ToastProvider>
   );

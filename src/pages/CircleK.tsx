@@ -42,10 +42,11 @@ const generateSignature = (name: string): string => {
   
   if (!ctx) return '';
   
-  // Clear the canvas
+  // Clear the canvas with transparency instead of white
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = 'white';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Remove the white background fill
+  // ctx.fillStyle = 'white';
+  // ctx.fillRect(0, 0, canvas.width, canvas.height);
   
   // Capitalize first letter of each word for more natural signature
   const formattedName = name
@@ -75,8 +76,8 @@ const generateSignature = (name: string): string => {
   for (let y = 0; y < canvas.height; y++) {
     for (let x = 0; x < canvas.width; x++) {
       const idx = (y * canvas.width + x) * 4;
-      // If the pixel is not white (i.e., part of the signature)
-      if (data[idx] < 250 || data[idx + 1] < 250 || data[idx + 2] < 250) {
+      // Only look for non-transparent pixels (with alpha > 0)
+      if (data[idx + 3] > 0) {
         minX = Math.min(minX, x);
         minY = Math.min(minY, y);
         maxX = Math.max(maxX, x);
@@ -111,7 +112,7 @@ const generateSignature = (name: string): string => {
     0, 0, croppedWidth, croppedHeight
   );
   
-  // Return the cropped signature as data URL
+  // Return the cropped signature as data URL with transparency
   return croppedCanvas.toDataURL('image/png');
 };
 
@@ -163,6 +164,8 @@ const CircleK: React.FC = () => {
         context.lineWidth = 2;
         context.lineCap = 'round';
         context.strokeStyle = '#000000';
+        // Clear with transparency
+        context.clearRect(0, 0, canvas.width, canvas.height);
         signatureCtxRef.current = context;
       }
     }
@@ -213,9 +216,38 @@ const CircleK: React.FC = () => {
       signatureCtxRef.current.closePath();
       setIsDrawing(false);
       
-      // Save the signature
+      // Save the signature with transparency
       if (signatureCanvasRef.current) {
-        const dataUrl = signatureCanvasRef.current.toDataURL('image/png');
+        // Get the original canvas data
+        const canvas = signatureCanvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Create a new temporary canvas for the transparent version
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (!tempCtx) return;
+
+        // Get the signature data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Convert white pixels to transparent
+        // Only keep the actual signature
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          // If it's a white or light pixel (background)
+          if (imageData.data[i] > 240 && imageData.data[i + 1] > 240 && imageData.data[i + 2] > 240) {
+            // Make it fully transparent
+            imageData.data[i + 3] = 0;
+          }
+        }
+        
+        // Put the modified image data on the temporary canvas
+        tempCtx.putImageData(imageData, 0, 0);
+        
+        // Save the transparent signature
+        const dataUrl = tempCanvas.toDataURL('image/png');
         setSignatureImage(dataUrl);
       }
     }
@@ -242,13 +274,52 @@ const CircleK: React.FC = () => {
 
   const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setSignatureImage(event.target?.result as string);
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (typeof event.target?.result !== 'string') return;
+      
+      // Create an image from the uploaded file
+      const img = new Image();
+      img.onload = () => {
+        // Create a canvas to process the image
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        
+        // Draw the image onto the canvas
+        ctx.drawImage(img, 0, 0);
+        
+        // Get the image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Make white/light background transparent
+        for (let i = 0; i < data.length; i += 4) {
+          // If it's a white or light pixel (background)
+          if (data[i] > 240 && data[i+1] > 240 && data[i+2] > 240) {
+            // Make it transparent
+            data[i+3] = 0;
+          }
+        }
+        
+        // Put the modified image data back to the canvas
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Convert to data URL and set as signature
+        const dataUrl = canvas.toDataURL('image/png');
+        setSignatureImage(dataUrl);
+        addToast('success', 'Signature uploaded', 3000);
       };
-      reader.readAsDataURL(file);
-    }
+      
+      // Load the image from the file reader result
+      img.src = event.target.result as string;
+    };
+    
+    reader.readAsDataURL(file);
   };
 
   const createNewDispenser = (number: number): Dispenser => {
@@ -974,10 +1045,11 @@ const CircleK: React.FC = () => {
               </button>
             </div>
             
-            <div className="border-2 border-gray-300 dark:border-gray-600 rounded bg-white">
+            <div className="border-2 border-gray-300 dark:border-gray-600 rounded" style={{ backgroundColor: '#f0f0f0' }}>
               <canvas
                 ref={signatureCanvasRef}
-                className="w-full h-64 bg-white touch-none"
+                className="w-full h-64 touch-none"
+                style={{ backgroundColor: 'transparent' }}
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={endDrawing}

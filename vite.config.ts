@@ -35,5 +35,11 @@ export default defineConfig({
   // Improve TS module resolution
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx']
+  },
+  // Force clear cache on build
+  clearScreen: true,
+  // Ensure CSS processing is working
+  css: {
+    postcss: './postcss.config.mjs'
   }
 }) 

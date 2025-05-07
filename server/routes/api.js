@@ -22,7 +22,9 @@ const router = express.Router();
 // Store recent log messages for UI display
 const scrapeJobLogs = {
   workOrder: [],
-  dispenser: []
+  dispenser: [],
+  server: [],
+  formPrep: []
 };
 
 // Maximum number of log entries to keep
@@ -30,10 +32,21 @@ const MAX_LOG_ENTRIES = 100;
 
 // Helper to add a log entry
 const addLogEntry = (type, message) => {
+  // Validate the type
+  if (!['workOrder', 'dispenser', 'server', 'formPrep'].includes(type)) {
+    console.warn(`Invalid log type '${type}'. Using 'server' instead.`);
+    type = 'server';
+  }
+
   const logEntry = {
     timestamp: new Date().toISOString(),
     message
   };
+  
+  // Ensure the log array exists
+  if (!scrapeJobLogs[type]) {
+    scrapeJobLogs[type] = [];
+  }
   
   scrapeJobLogs[type].unshift(logEntry); // Add to beginning of array
   
@@ -89,8 +102,13 @@ resetStuckJobs();
 router.get('/scrape-logs/:type', (req, res) => {
   const { type } = req.params;
   
-  if (type !== 'workOrder' && type !== 'dispenser') {
+  if (!['workOrder', 'dispenser', 'server', 'formPrep'].includes(type)) {
     return res.status(400).json({ error: 'Invalid log type' });
+  }
+  
+  // Initialize logs array if it doesn't exist yet
+  if (!scrapeJobLogs[type]) {
+    scrapeJobLogs[type] = [];
   }
   
   return res.json({
@@ -1871,5 +1889,14 @@ router.post('/change-history/entry', (req, res) => {
   }
 });
 
+/**
+ * Helper to add a form prep automation log entry
+ * @param {string} message - Log message
+ * @returns {Object} Log entry
+ */
+const addFormPrepLog = (message) => {
+  return addLogEntry('formPrep', message);
+};
+
 // Export the router
-export { router, addLogEntry, scrapeJobLogs }; 
+export { router, addLogEntry, scrapeJobLogs, addFormPrepLog }; 

@@ -44,6 +44,13 @@ export const processSingleVisit = async (
   }
 
   const result = await response.json();
+  
+  // Ensure we always have a jobId, even if the server doesn't provide one
+  if (!result.jobId) {
+    console.warn('Server did not provide a jobId, generating a client-side fallback ID');
+    result.jobId = `client-${Date.now()}`;
+  }
+  
   return { ...result, success: true };
 };
 
@@ -66,7 +73,8 @@ export const getFormAutomationStatus = async (): Promise<FormAutomationStatus> =
  */
 export const processBatchVisits = async (
   filePath: string,
-  headless: boolean
+  headless: boolean,
+  options?: { selectedVisits?: string[] | null; resumeFromBatchId?: string }
 ): Promise<{ message: string, jobId: string }> => {
   const url = await ENDPOINTS.FORM_AUTOMATION_BATCH();
   
@@ -77,7 +85,9 @@ export const processBatchVisits = async (
     },
     body: JSON.stringify({
       filePath,
-      headless
+      headless,
+      selectedVisits: options?.selectedVisits,
+      resumeFromBatchId: options?.resumeFromBatchId
     }),
   });
 
@@ -104,25 +114,77 @@ export const getBatchAutomationStatus = async (): Promise<BatchAutomationStatus>
 };
 
 /**
- * Cancel an ongoing form automation job
+ * Cancel an active form automation process
+ * @param {string} jobId - The job ID to cancel
+ * @returns {Promise<{success: boolean, message: string}>}
  */
-export const cancelFormAutomation = async (jobId: string): Promise<{ success: boolean, message: string }> => {
-  const url = await ENDPOINTS.FORM_AUTOMATION_CANCEL();
+export const cancelFormAutomation = async (jobId: string): Promise<{success: boolean, message: string}> => {
+  try {
+    console.log(`Requesting cancellation of job ID: ${jobId}`);
+    const endpoint = await ENDPOINTS.FORM_AUTOMATION_CANCEL();
   
-  const response = await fetch(url, {
+    // Log the job ID for debugging
+    console.log(`Sending cancellation request to ${endpoint} for job ID: ${jobId}`);
+    
+    const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      jobId
-    }),
+      body: JSON.stringify({ jobId }),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to cancel form automation');
+      console.error(`Server returned error on cancellation: ${errorData.error || response.statusText}`);
+      return { 
+        success: false, 
+        message: errorData.error || `Server error: ${response.status} ${response.statusText}` 
+      };
+    }
+    
+    const data = await response.json();
+    
+    // If the server explicitly returns success: false, respect that
+    if (data && data.success === false) {
+      console.error(`Cancellation failed: ${data.message || 'Unknown error'}`);
+      return { 
+        success: false, 
+        message: data.message || 'Failed to cancel automation' 
+      };
   }
 
-  return response.json();
+    // The server should have properly verified cancellation, so we can trust its response
+    console.log(`Cancellation result: ${JSON.stringify(data)}`);
+    return { 
+      success: true, 
+      message: data.message || 'Automation cancelled successfully' 
+    };
+  } catch (error) {
+    console.error('Error cancelling form automation:', error);
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'Failed to cancel form automation' 
+    };
+  }
+};
+
+export const openUrlWithDebugMode = async (url: string) => {
+  try {
+    // Use the electron API to open the URL with login, explicitly setting debug mode
+    // @ts-ignore (electron is defined in the preload script)
+    const result = await window.electron.openUrlWithLogin(url, { isDebugMode: true });
+    
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to open URL in debug mode');
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening URL in debug mode:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    };
+  }
 }; 

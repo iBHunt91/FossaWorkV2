@@ -18,6 +18,8 @@ const projectRoot = path.resolve(__dirname, '..');
 // Set the environment variables
 process.env.RUNNING_ELECTRON_DEV = 'true';
 process.env.NODE_ENV = 'development';
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+process.env.ELECTRON_NO_DEPRECATION_WARNING = 'true';
 
 console.log('Starting Electron development environment...');
 
@@ -41,7 +43,7 @@ function isPortInUse(port) {
 }
 
 // Check if the server is responding
-function checkServerReachable(port = 3001, retries = 5) {
+function checkServerReachable(port = 3001, retries = 3) {
   return new Promise((resolve) => {
     let attempt = 0;
     
@@ -54,7 +56,7 @@ function checkServerReachable(port = 3001, retries = 5) {
         port: port,
         path: '/health',
         method: 'GET',
-        timeout: 1000,
+        timeout: 500,
       }, (res) => {
         if (res.statusCode === 200) {
           console.log('✅ Server is up and running!');
@@ -62,7 +64,7 @@ function checkServerReachable(port = 3001, retries = 5) {
         } else {
           console.log(`Server responded with status: ${res.statusCode}`);
           if (attempt < retries) {
-            setTimeout(tryConnect, 1000);
+            setTimeout(tryConnect, 500);
           } else {
             console.log('❌ Server is not responding correctly.');
             resolve(false);
@@ -73,7 +75,7 @@ function checkServerReachable(port = 3001, retries = 5) {
       req.on('error', (err) => {
         console.log(`Server connection failed: ${err.message}`);
         if (attempt < retries) {
-          setTimeout(tryConnect, 1000);
+          setTimeout(tryConnect, 500);
         } else {
           console.log('❌ Could not connect to server after multiple attempts.');
           resolve(false);
@@ -108,32 +110,8 @@ async function cleanup() {
       console.log('Error running free-port script:', error.message);
     }
     
-    const cleanupCmd = `
-      $ErrorActionPreference = 'SilentlyContinue'
-      
-      # Kill Node and Electron processes
-      Stop-Process -Name "node" -Force
-      Stop-Process -Name "electron" -Force
-      
-      # Kill processes on specific ports
-      $ports = @(3001, 5173, 5174, 5175, 5176, 5177)
-      foreach ($port in $ports) {
-        $processId = (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue).OwningProcess
-        if ($processId) {
-          Stop-Process -Id $processId -Force
-        }
-      }
-    `;
-    
-    try {
-      await execAsync('powershell -Command "' + cleanupCmd + '"');
-      console.log('Cleanup completed');
-    } catch (error) {
-      console.log('No processes to clean up');
-    }
-    
     // Wait a bit to ensure all processes are cleaned up
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 500));
   }
 }
 
@@ -155,7 +133,7 @@ async function startServer() {
       try {
         await execAsync('taskkill /F /IM node.exe');
         // Wait for the process to fully terminate
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
         console.log('Error killing existing server:', error.message);
       }
@@ -176,11 +154,11 @@ async function startServer() {
   
   serverProcess.unref();
   
-  // Wait for the server to be available with increased timeout
+  // Wait for the server to be available with optimized timeout
   console.log('Waiting for server to be available...');
   let serverReachable = false;
-  const maxAttempts = 15; // Increased from 10 to 15
-  const retryInterval = 2000; // Increased from 1000 to 2000ms
+  const maxAttempts = 8;
+  const retryInterval = 500;
   
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise(resolve => setTimeout(resolve, retryInterval));
@@ -219,8 +197,8 @@ async function startApp() {
     const isWindows = platform() === 'win32';
     const npmCmd = isWindows ? 'npm.cmd' : 'npm';
     
-    // Start Vite and Electron only (server is already running)
-    const concurrentCmd = `concurrently "vite" "electron ."`;
+    // Start Vite and Electron concurrently with optimized settings
+    const concurrentCmd = `concurrently --kill-others "vite --force" "electron ."`;
     
     const electronProcess = spawn(npmCmd, ['exec', '--', concurrentCmd], {
       env: process.env,

@@ -11,18 +11,24 @@ import net from 'net';
 import cron from 'node-cron';
 import { analyzeScheduleChanges } from '../scripts/utils/scheduleComparator.js';
 import { sendScheduleChangeNotifications } from '../scripts/notifications/notificationService.js';
+import { checkAndSendScheduledDigests } from '../scripts/notifications/notificationScheduler.js';
 import settingsRouter from './routes/settings.js';
 import { runScrape } from '../scripts/unified_scrape.js';
 // Import formAutomationRouter directly as an ES module
 import formAutomationRouter from './routes/formAutomation.js';
 import userRouter from './routes/users.js';
+import circleKRouter from './routes/circleK.js';
 import { getActiveUser, getUserCredentials, listUsers, resolveUserFilePath } from './utils/userManager.js';
+import { debug, info, warn, error, success } from './utils/logger.js';
+import { requestLogger, errorHandler, notFoundHandler, sanitizeRequest } from './utils/middlewares.js';
+import { maskSensitiveEnv } from './utils/security.js';
+import { EventEmitter } from 'events';
 
 // Find script directory regardless of how the script is run
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables - try different paths
+// Load environment variables - try different paths, but skip sensitive credentials
 const envPaths = [
   path.join(__dirname, '..', '.env'),
   path.join(__dirname, '..', 'scripts', '.env')
@@ -31,20 +37,29 @@ const envPaths = [
 let envLoaded = false;
 for (const envPath of envPaths) {
   if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath });
-    console.log(`[${new Date().toLocaleTimeString()}] [INFO] Environment Configuration`);
-    console.log(`  Loading environment from: ${envPath}`);
-    console.log(`  Status:`);
-    console.log(`  FOSSA_EMAIL:    [${process.env.FOSSA_EMAIL ? 'SET' : 'NOT SET'}]`);
-    console.log(`  FOSSA_PASSWORD: [${process.env.FOSSA_PASSWORD ? 'SET' : 'NOT SET'}]`);
-    console.log(`--------------------------------------------------`);
+    // Load the entire file content
+    const envConfig = dotenv.parse(fs.readFileSync(envPath));
+    
+    // Filter out sensitive credentials before loading into process.env
+    const safeEnvConfig = { ...envConfig };
+    delete safeEnvConfig.FOSSA_EMAIL;
+    delete safeEnvConfig.FOSSA_PASSWORD;
+    
+    // Manually set non-sensitive environment variables
+    Object.entries(safeEnvConfig).forEach(([key, value]) => {
+      process.env[key] = value;
+    });
+    
+    info(`Environment Configuration`, 'SERVER');
+    info(`Loading environment from: ${envPath}`, 'SERVER');
+    info(`--------------------------------------------------`, 'SERVER');
     envLoaded = true;
     break;
   }
 }
 
 if (!envLoaded) {
-  console.warn(`[${new Date().toLocaleTimeString()}] [WARN] No .env file found. Using default environment variables.`);
+  warn(`No .env file found. Using default environment variables.`, 'SERVER');
 }
 
 // Helper function to check if a port is in use
@@ -64,6 +79,11 @@ function isPortInUse(port) {
   });
 }
 
+// Set environment variables
+process.env.IS_SERVER_PROCESS = 'true';
+process.env.SERVER_HANDLES_NOTIFICATIONS = 'true'; // Explicitly set server to handle notifications
+
+// Initialize Express
 const app = express();
 const PREFERRED_PORT = parseInt(process.env.PORT || '3001', 10);
 const FALLBACK_PORT = parseInt(process.env.PORT_FALLBACK || '3002', 10);
@@ -90,11 +110,25 @@ let dispenserScrapeJob = {
 const PORT_ALTERNATIVES = [3001, 3002, 3003, 3004, 3005];
 
 // Find an available port function
-async function findAvailablePort() {
+async function findAvailablePort(preferredPort = null) {
+  // If a preferred port is specified, try it first
+  if (preferredPort) {
+    const inUse = await isPortInUse(preferredPort);
+    if (!inUse) {
+      info(`Using preferred port: ${preferredPort}`, 'SERVER');
+      return preferredPort;
+    }
+    info(`Preferred port ${preferredPort} is in use, trying alternatives`, 'SERVER');
+  }
+  
+  // Try the alternatives
   for (const port of PORT_ALTERNATIVES) {
+    // Skip the preferred port if we already tried it
+    if (port === preferredPort) continue;
+    
     const inUse = await isPortInUse(port);
     if (!inUse) {
-      console.log(`[SERVER] Found available port: ${port}`);
+      info(`Found available port: ${port}`, 'SERVER');
       return port;
     }
   }
@@ -121,7 +155,7 @@ const forceResetJobs = () => {
     startTime: null
   };
 
-  console.log('[SERVER] Force reset all job states to idle on server start');
+  info('Force reset all job states to idle on server start', 'SERVER');
   addLogEntry('workOrder', 'Server restarted - forced reset of job state');
   addLogEntry('dispenser', 'Server restarted - forced reset of job state');
 };
@@ -134,23 +168,23 @@ const initializeUserManagement = () => {
     const credentials = getUserCredentials(activeUserId);
     
     if (credentials && credentials.email && credentials.password) {
-      console.log(`[${new Date().toLocaleTimeString()}] [INFO] Setting credentials for active user: ${credentials.email}`);
+      info(`Setting credentials for active user: ${credentials.email}`, 'USER');
       process.env.FOSSA_EMAIL = credentials.email;
       process.env.FOSSA_PASSWORD = credentials.password;
       
       // Ensure user directory structure exists
       const userDir = path.join(__dirname, '..', 'data', 'users', activeUserId);
       if (!fs.existsSync(userDir)) {
-        console.log(`[${new Date().toLocaleTimeString()}] [INFO] Creating user directory structure for: ${activeUserId}`);
+        info(`Creating user directory structure for: ${activeUserId}`, 'USER');
         fs.mkdirSync(userDir, { recursive: true });
         fs.mkdirSync(path.join(userDir, 'archive'), { recursive: true });
         fs.mkdirSync(path.join(userDir, 'changes_archive'), { recursive: true });
       }
     } else {
-      console.log(`[${new Date().toLocaleTimeString()}] [WARN] Active user found but credentials are invalid`);
+      warn(`Active user found but credentials are invalid`, 'USER');
     }
   } else {
-    console.log(`[${new Date().toLocaleTimeString()}] [INFO] No active user found, using default credentials from .env`);
+    info(`No active user found, using default credentials from .env`, 'USER');
   }
 };
 
@@ -165,14 +199,14 @@ if (!scrapeJobLogs.workOrder) {
 // Add some initial log entries to confirm logs are working
 addLogEntry('dispenser', 'Server started - Dispenser logging initialized');
 addLogEntry('workOrder', 'Server started - Work order logging initialized');
-console.log('Log entries initialized:', {
-  dispenser: scrapeJobLogs.dispenser.length,
-  workOrder: scrapeJobLogs.workOrder.length
-});
+info('Log entries initialized:', 'SERVER');
+debug(`Dispenser logs: ${scrapeJobLogs.dispenser.length}, Work order logs: ${scrapeJobLogs.workOrder.length}`, 'LOGS');
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(sanitizeRequest); // Add sanitization middleware
+app.use(requestLogger); // Add request logging middleware
 app.use(express.static(path.join(__dirname, '../client/dist')));
 
 // Routes
@@ -180,6 +214,7 @@ app.use('/api', router);
 app.use('/api/settings', settingsRouter);
 app.use('/api', formAutomationRouter);
 app.use('/api/users', userRouter);
+app.use('/api/circle-k', circleKRouter);
 
 // Simple test route
 app.get('/api/ping', (req, res) => {
@@ -201,13 +236,13 @@ app.get('/api/last-scraped', (req, res) => {
     // Get user-specific path using resolveUserFilePath
     const outputPath = resolveUserFilePath('scraped_content.json');
     const metadataPath = resolveUserFilePath('metadata.json');
-    console.log(`Checking last scraped time from user-specific file: ${outputPath}`);
+    debug(`Checking last scraped time from user-specific file: ${outputPath}`, 'API');
     
     // First, try to read from the user-specific data file
     if (fs.existsSync(outputPath)) {
       // Try to read the timestamp from metadata
       const data = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
-      console.log('User data file exists, checking for metadata');
+      debug('User data file exists, checking for metadata', 'API');
       
       // Check if metadata exists in the main file
       if (data.metadata && data.metadata.timestamp) {
@@ -221,7 +256,7 @@ app.get('/api/last-scraped', (req, res) => {
     
     // If user-specific file doesn't exist, try the metadata file
     else if (fs.existsSync(metadataPath)) {
-      console.log('Using user-specific metadata file');
+      debug('Using user-specific metadata file', 'API');
       const metadataContent = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
       
       if (metadataContent.metadata && metadataContent.metadata.timestamp) {
@@ -235,11 +270,11 @@ app.get('/api/last-scraped', (req, res) => {
     
     // No data file found for the user
     else {
-      console.warn('No user-specific data files exist');
+      warn('No user-specific data files exist', 'API');
       return res.json({ timestamp: null });
     }
-  } catch (error) {
-    console.error('API Error:', error);
+  } catch (err) {
+    error(`Failed to read last scraped time: ${err.message}`, 'API');
     res.status(500).json({ error: 'Failed to read last scraped time' });
   }
 });
@@ -247,276 +282,465 @@ app.get('/api/last-scraped', (req, res) => {
 // Next scrape endpoint
 app.get('/api/next-scrape', (req, res) => {
   try {
-    console.log('Next scrape endpoint called');
-    
-    // Use current time for calculations
+    debug('Next scrape endpoint called', 'API');
+    // Calculate next scrape time based on current time
     const now = new Date();
-    console.log(`Current system time: ${now.toISOString()}`);
+    debug(`Current system time: ${now.toISOString()}`, 'API');
     
-    // Check if scraping is suspended
-    const isSuspended = process.env.SUSPEND_HOURLY_SCRAPE === 'true';
-    const suspendUntil = process.env.SUSPEND_HOURLY_SCRAPE_UNTIL;
-    
-    // Calculate next scrape time (next hour at minute 0)
+    // Default: scrape at the top of each hour
     const nextScrape = new Date(now);
+    
+    // Reset minutes, seconds, milliseconds to target the next hour
     nextScrape.setMinutes(0);
     nextScrape.setSeconds(0);
     nextScrape.setMilliseconds(0);
     nextScrape.setHours(nextScrape.getHours() + 1);
     
-    console.log(`Calculated next scrape time: ${nextScrape.toISOString()}`);
-    
-    // Format response
-    const response = {
-      timestamp: nextScrape.toISOString(),
-      currentTime: now.toISOString(),
-      timeUntilNextScrape: `${Math.floor((nextScrape - now) / (1000 * 60))} minutes`,
-      isSuspended: isSuspended
-    };
-    
-    // Add suspension details if applicable
-    if (isSuspended) {
-      response.suspended = true;
-      response.suspendedUntil = suspendUntil || null;
-      
-      if (suspendUntil) {
-        const suspendDate = new Date(suspendUntil);
-        if (suspendDate > now) {
-          response.suspensionRemainingTime = `${Math.floor((suspendDate - now) / (1000 * 60))} minutes`;
-        } else {
-          // Suspension period has ended, but status hasn't been updated yet
-          response.suspensionEnded = true;
-        }
-      } else {
-        response.suspensionIndefinite = true;
-      }
+    // If there's a scheduled scrape cron job, calculate based on that instead
+    if (process.env.SCRAPE_SCHEDULE) {
+      // Parse the cron schedule to calculate next run time
+      // This would require a cron parser library to do properly
+      // For now, we'll just return the default next hour calculation
     }
     
-    console.log('Response:', response);
-    res.json(response);
-  } catch (error) {
-    console.error('API Error:', error);
+    info(`Calculated next scrape time: ${nextScrape.toISOString()}`, 'SCHEDULER');
+    
+    // Ensure we use timestamp as the primary field, but keep nextScrape for backward compatibility
+    res.json({ 
+      timestamp: nextScrape.toISOString(),
+      nextScrape: nextScrape.toISOString(), // Keep for backward compatibility
+      message: `Next automatic scrape scheduled for ${nextScrape.toLocaleTimeString()}`
+    });
+  } catch (err) {
+    error(`Failed to calculate next scrape time: ${err.message}`, 'API');
     res.status(500).json({ error: 'Failed to calculate next scrape time' });
   }
 });
 
-// Debug route for logs
-app.get('/api/debug/logs', (req, res) => {
-  res.json({
-    dispenser: scrapeJobLogs.dispenser.length,
-    workOrder: scrapeJobLogs.workOrder.length,
-    samples: {
-      dispenser: scrapeJobLogs.dispenser.slice(0, 3),
-      workOrder: scrapeJobLogs.workOrder.slice(0, 3)
+// Force scrape endpoint
+app.post('/api/force-scrape', async (req, res) => {
+  try {
+    // Check if a scrape is already in progress
+    if (scrapeProgress.status === 'running') {
+      return res.status(409).json({ 
+        error: 'A scrape job is already in progress',
+        status: scrapeProgress.status,
+        progress: scrapeProgress.progress,
+        message: scrapeProgress.message
+      });
     }
-  });
+    
+    // Reset the progress object
+    scrapeProgress = {
+      status: 'running',
+      progress: 0,
+      message: 'Starting work order scrape...',
+      error: null,
+      lastScraped: null
+    };
+    
+    // Start scraping
+    try {
+      // Trigger the unified scrape script
+      const response = await runScrape({
+        onProgress: (progress, message) => {
+          scrapeProgress.progress = progress;
+          scrapeProgress.message = message;
+          addLogEntry('workOrder', message);
+        }
+      });
+      
+      debug('Response:', JSON.stringify(response));
+      
+      // Update progress to complete
+      scrapeProgress.status = 'success';
+      scrapeProgress.progress = 100;
+      scrapeProgress.message = 'Work order scrape completed successfully';
+      scrapeProgress.lastScraped = new Date().toISOString();
+      
+      // Return success
+      res.json({ 
+        status: 'success',
+        message: 'Work order scrape completed successfully',
+        timestamp: scrapeProgress.lastScraped
+      });
+      
+      // Analyze schedule changes - this happens in the background
+      setTimeout(async () => {
+        try {
+          info('Analyzing schedule changes...', 'SCHEDULER');
+          const changes = await analyzeScheduleChanges();
+          if (changes && changes.length > 0) {
+            info(`Found ${changes.length} schedule changes, sending notifications...`, 'SCHEDULER');
+            await sendScheduleChangeNotifications(changes);
+          } else {
+            info('No schedule changes detected', 'SCHEDULER');
+          }
+        } catch (err) {
+          error(`Failed to analyze schedule changes: ${err.message}`, 'SCHEDULER');
+        }
+      }, 1000);
+      
+    } catch (err) {
+      error(`Scrape failed: ${err.message}`, 'SCRAPER');
+      scrapeProgress.status = 'error';
+      scrapeProgress.error = err.message;
+      scrapeProgress.message = `Error during scrape: ${err.message}`;
+      
+      res.status(500).json({ 
+        error: 'Failed to complete work order scrape',
+        message: err.message
+      });
+    }
+  } catch (err) {
+    error(`Force scrape API error: ${err.message}`, 'API');
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-// Share job objects with API router
-router.scrapeProgress = scrapeProgress;
-router.dispenserScrapeJob = dispenserScrapeJob;
-
-// Force reset any "stuck" jobs before starting
-forceResetJobs();
-
-// Initialize user management
-initializeUserManagement();
-
-// Connect the circular dependency
+// Connect dispenser service with log function
 setAddLogEntryFunction(addLogEntry);
-console.log('Dispenser service connected with addLogEntry function');
+info('Dispenser service connected with addLogEntry function', 'SERVER');
 
-// Function to run scrape for all users sequentially
+// Function to run scrape for all users
 async function runScrapeForAllUsers() {
-  console.log(`[${new Date().toLocaleTimeString()}] Starting multi-user work order scrape...`);
-  addLogEntry('workOrder', 'Starting multi-user work order scrape');
+  info('Starting multi-user work order scrape...', 'SCHEDULER');
+  
+  // Get the active user before we start
+  const originalActiveUser = getActiveUser();
+  const originalCredentials = originalActiveUser ? getUserCredentials(originalActiveUser) : null;
   
   // Get all users
   const users = listUsers();
   
-  if (users.length === 0) {
-    console.log(`[${new Date().toLocaleTimeString()}] No users found, skipping scrape`);
-    addLogEntry('workOrder', 'No users found, skipping scrape');
+  if (!users || users.length === 0) {
+    warn('No users found, skipping scrape', 'SCHEDULER');
     return;
   }
   
-  console.log(`[${new Date().toLocaleTimeString()}] Found ${users.length} users to process`);
+  info(`Found ${users.length} users to process`, 'SCHEDULER');
   
-  // Remember original active user to restore later
-  const originalActiveUserId = getActiveUser();
-  
-  // Process each user sequentially
+  // Process each user in sequence
   for (let i = 0; i < users.length; i++) {
     const user = users[i];
-    console.log(`[${new Date().toLocaleTimeString()}] Processing user ${i+1}/${users.length}: ${user.label || user.email}`);
-    addLogEntry('workOrder', `Processing user: ${user.label || user.email} (${i+1}/${users.length})`);
     
-    // Set this user as active temporarily
-    process.env.FOSSA_EMAIL = user.email;
-    process.env.FOSSA_PASSWORD = user.password;
-    
-    // Run scrape for this user
     try {
-      await runScrape({
-        isManual: false,
-        userId: user.id,
-        progressCallback: (progress, message) => {
-          console.log(`[${new Date().toLocaleTimeString()}] [User: ${user.label || user.email}] Scrape progress: ${progress}% - ${message}`);
-          
-          // If scraping is complete, analyze schedule changes
-          if (progress === 100 && (message.includes('complete') || message.includes('success'))) {
-            console.log(`[${new Date().toLocaleTimeString()}] [User: ${user.label || user.email}] Work order scrape completed successfully`);
-            scrapeProgress.lastScraped = new Date().toISOString();
-            addLogEntry('workOrder', `User ${user.label || user.email}: Scrape completed successfully`);
-            
-            // Analyze schedule changes after successful scrape
-            console.log(`[${new Date().toLocaleTimeString()}] [User: ${user.label || user.email}] Analyzing schedule changes...`);
-            addLogEntry('workOrder', `User ${user.label || user.email}: Analyzing schedule changes...`);
-            
-            // Schedule change analysis happens inside runScrape, we don't need to call it again
-          }
+      // Set this user as active to use their credentials
+      if (user.id) {
+        info(`Processing user ${i+1}/${users.length}: ${user.label || user.email}`, 'SCHEDULER');
+        
+        // Skip users without valid credentials
+        if (!user.email || !user.password) {
+          warn(`User ${user.label || user.id} has missing credentials, skipping`, 'SCHEDULER');
+          continue;
         }
-      });
-      
-      console.log(`[${new Date().toLocaleTimeString()}] Completed scrape for user: ${user.label || user.email}`);
-      addLogEntry('workOrder', `Completed scrape for user: ${user.label || user.email}`);
-      
-    } catch (error) {
-      console.error(`[${new Date().toLocaleTimeString()}] Error scraping for user ${user.label || user.email}:`, error);
-      addLogEntry('workOrder', `Error scraping for user ${user.label || user.email}: ${error.message}`);
+        
+        // Set as active user to use their credentials
+        process.env.FOSSA_EMAIL = user.email;
+        process.env.FOSSA_PASSWORD = user.password;
+        
+        // Run scrape for this user
+        await runScrape({
+          userId: user.id,
+          onProgress: (progress, message) => {
+            info(`[User: ${user.label || user.email}] Scrape progress: ${progress}% - ${message}`, 'SCHEDULER');
+          }
+        });
+        
+        info(`[User: ${user.label || user.email}] Work order scrape completed successfully`, 'SCHEDULER');
+        
+        // Analyze schedule changes for this user
+        try {
+          info(`[User: ${user.label || user.email}] Analyzing schedule changes...`, 'SCHEDULER');
+          const changes = await analyzeScheduleChanges(user.id);
+          if (changes && changes.length > 0) {
+            await sendScheduleChangeNotifications(changes, user.id);
+          }
+        } catch (analyzeErr) {
+          error(`Failed to analyze schedule changes for user ${user.label || user.email}: ${analyzeErr.message}`, 'SCHEDULER');
+        }
+        
+        info(`Completed scrape for user: ${user.label || user.email}`, 'SCHEDULER');
+      }
+    } catch (userErr) {
+      error(`Failed to process user ${user.label || user.id}: ${userErr.message}`, 'SCHEDULER');
     }
   }
   
-  // Restore original active user
-  if (originalActiveUserId) {
-    const originalUserCredentials = getUserCredentials(originalActiveUserId);
-    if (originalUserCredentials) {
-      process.env.FOSSA_EMAIL = originalUserCredentials.email;
-      process.env.FOSSA_PASSWORD = originalUserCredentials.password;
-      console.log(`[${new Date().toLocaleTimeString()}] Restored original active user credentials`);
-    }
+  // Restore original user credentials
+  if (originalActiveUser && originalCredentials) {
+    process.env.FOSSA_EMAIL = originalCredentials.email;
+    process.env.FOSSA_PASSWORD = originalCredentials.password;
+    info('Restored original active user credentials', 'SCHEDULER');
   }
   
-  console.log(`[${new Date().toLocaleTimeString()}] Multi-user work order scrape completed`);
-  addLogEntry('workOrder', 'Multi-user work order scrape completed');
+  info('Multi-user work order scrape completed', 'SCHEDULER');
 }
 
-// Set up hourly scraping job
-try {
-  // Schedule work order scraping to run every hour at minute 0
-  cron.schedule('0 * * * *', () => {
-    console.log(`[${new Date().toLocaleTimeString()}] Checking hourly work order scrape status...`);
+// Set up CRON job to trigger scraping on a schedule
+// Default: Every hour at minute 0
+const setupHourlyScrapeSchedule = () => {
+  if (process.env.DISABLE_SERVER_SCRAPING === 'true') {
+    info('Server scraping is disabled, skipping hourly work order scrape', 'SCHEDULER');
+    return;
+  }
+  
+  // Setup check for suspension first to run every hour
+  cron.schedule('0 * * * *', async () => {
+    info('Checking hourly work order scrape status...', 'SCHEDULER');
     
-    // Check if scraping is suspended
-    const isSuspended = process.env.SUSPEND_HOURLY_SCRAPE === 'true';
-    const suspendUntil = process.env.SUSPEND_HOURLY_SCRAPE_UNTIL;
+    // Check for suspension and see if suspension period has ended
+    const suspendUntil = process.env.SUSPEND_SCRAPING_UNTIL ? new Date(process.env.SUSPEND_SCRAPING_UNTIL) : null;
+    const suspendReason = process.env.SUSPEND_SCRAPING_REASON || 'by admin request';
     
-    if (isSuspended) {
-      // If suspendUntil is set and that time has passed, resume scraping automatically
-      if (suspendUntil && new Date(suspendUntil) < new Date()) {
-        console.log(`[${new Date().toLocaleTimeString()}] Suspension period has ended, resuming hourly scraping`);
-        process.env.SUSPEND_HOURLY_SCRAPE = 'false';
-        
-        // Update the .env file as well
-        try {
-          const envPath = path.join(__dirname, '..', '.env');
-          let envContent = fs.readFileSync(envPath, 'utf8');
-          envContent = envContent.replace(/SUSPEND_HOURLY_SCRAPE=.*/g, 'SUSPEND_HOURLY_SCRAPE=false');
-          fs.writeFileSync(envPath, envContent, 'utf8');
-        } catch (error) {
-          console.error(`[${new Date().toLocaleTimeString()}] Error updating .env file:`, error);
-        }
-      } else {
-        // Skip this scrape
-        const reason = suspendUntil 
-          ? `until ${new Date(suspendUntil).toLocaleString()}`
-          : 'indefinitely';
-        console.log(`[${new Date().toLocaleTimeString()}] Skipping hourly work order scrape (suspended ${reason})`);
-        addLogEntry('workOrder', `Skipping scheduled hourly scrape (suspended ${reason})`);
-        return;
-      }
+    // If suspension has a date and it's in the past, remove suspension
+    if (suspendUntil && suspendUntil < new Date()) {
+      info('Suspension period has ended, resuming hourly scraping', 'SCHEDULER');
+      delete process.env.SUSPEND_SCRAPING_UNTIL;
+      delete process.env.SUSPEND_SCRAPING_REASON;
     }
     
-    console.log(`[${new Date().toLocaleTimeString()}] Starting hourly work order scrape for all users...`);
+    // If we're suspended, log but don't run
+    if (process.env.SUSPEND_SCRAPING_UNTIL) {
+      // Format the suspension date for logging
+      const formattedDate = new Date(process.env.SUSPEND_SCRAPING_UNTIL).toLocaleString();
+      warn(`Skipping hourly work order scrape (suspended ${suspendReason} until ${formattedDate})`, 'SCHEDULER');
+      return;
+    }
     
-    // Use the multi-user scrape function instead of the single-user one
-    runScrapeForAllUsers().catch(error => {
-      console.error(`[${new Date().toLocaleTimeString()}] Hourly multi-user work order scrape failed:`, error);
-      addLogEntry('workOrder', `Scheduled hourly multi-user scrape failed: ${error.message}`);
-    });
+    // Not suspended, proceed with hourly scrape
+    info('Starting hourly work order scrape for all users...', 'SCHEDULER');
+    await runScrapeForAllUsers();
   });
   
-  console.log(`[${new Date().toLocaleTimeString()}] Hourly work order scraping job scheduled`);
-  addLogEntry('workOrder', 'Hourly work order scraping job scheduled');
-} catch (error) {
-  console.error(`[${new Date().toLocaleTimeString()}] Error setting up hourly scraping job:`, error);
-  addLogEntry('workOrder', `Error setting up hourly scraping job: ${error.message}`);
-}
+  info('Hourly work order scraping job scheduled', 'SCHEDULER');
+};
 
-// Add a function to verify dispenser data integrity
+// Set up CRON job to check and send daily digest notifications
+const setupDigestNotificationSchedule = () => {
+  // Run every 5 minutes to check if any user has a digest due for delivery
+  cron.schedule('*/5 * * * *', async () => {
+    info('Checking for scheduled digest notifications...', 'SCHEDULER');
+    try {
+      const result = await checkAndSendScheduledDigests();
+      if (result.processed > 0) {
+        info(`Sent ${result.processed} digest notifications`, 'SCHEDULER');
+      } else {
+        debug('No digest notifications were due for delivery', 'SCHEDULER');
+      }
+    } catch (error) {
+      error(`Error checking digest notifications: ${error.message}`, 'SCHEDULER');
+    }
+  });
+  
+  info('Digest notification check scheduled (every 5 minutes)', 'SCHEDULER');
+};
+
+// Verify dispenser data integrity function
 function verifyDispenserDataIntegrity() {
   try {
-    const dataPath = path.resolve(__dirname, '..', 'data', 'scraped_content.json');
-    if (!fs.existsSync(dataPath)) {
-      console.error('Data file not found at:', dataPath);
+    // Get user-specific path
+    const outputPath = resolveUserFilePath('scraped_content.json');
+    
+    // Check if file exists
+    if (!fs.existsSync(outputPath)) {
+      warn('No data file found for verification', 'VERIFY');
       return false;
     }
     
-    const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-    if (!data.workOrders || !Array.isArray(data.workOrders)) {
-      console.error('Invalid data structure: workOrders array not found');
+    // Read data file
+    const rawData = fs.readFileSync(outputPath, 'utf8');
+    const data = JSON.parse(rawData);
+    
+    // Check if work orders exist
+    if (!data.workOrders || data.workOrders.length === 0) {
+      warn('No work orders found in data file', 'VERIFY');
       return false;
     }
     
-    // Check for dispenser data
-    const jobsWithDispensers = data.workOrders.filter(job => job.dispensers && Array.isArray(job.dispensers) && job.dispensers.length > 0);
-    console.log(`[Data Verification] Found ${jobsWithDispensers.length} of ${data.workOrders.length} jobs with dispenser data`);
+    // Check if any jobs have dispenser data
+    const jobsWithDispensers = data.workOrders.filter(job => job.dispensers && job.dispensers.length > 0);
+    info(`[Data Verification] Found ${jobsWithDispensers.length} of ${data.workOrders.length} jobs with dispenser data`, 'VERIFY');
     
+    // Sample a dispenser to check data structure
     if (jobsWithDispensers.length > 0) {
       const sampleJob = jobsWithDispensers[0];
-      console.log(`[Data Verification] Sample job ${sampleJob.id} has ${sampleJob.dispensers.length} dispensers`);
-      console.log(`[Data Verification] First dispenser sample: ${JSON.stringify(sampleJob.dispensers[0]).substring(0, 200)}...`);
-    } else {
-      console.warn('[Data Verification] No jobs with dispenser data found');
+      info(`[Data Verification] Sample job ${sampleJob.id} has ${sampleJob.dispensers.length} dispensers`, 'VERIFY');
+      info(`[Data Verification] First dispenser sample: ${JSON.stringify(sampleJob.dispensers[0]).substring(0, 200)}...`, 'VERIFY');
+      return true;
     }
     
-    return jobsWithDispensers.length > 0;
-  } catch (error) {
-    console.error('[Data Verification] Error verifying dispenser data:', error);
+    return false;
+  } catch (err) {
+    error(`Data integrity verification error: ${err.message}`, 'VERIFY');
     return false;
   }
 }
 
-// Run data verification on startup
-const dataVerificationResult = verifyDispenserDataIntegrity();
-console.log(`[Data Verification] Dispenser data verification result: ${dataVerificationResult ? 'PASS' : 'FAIL'}`);
+// Define loadUserEnvironment function
+const loadUserEnvironment = (userId = null) => {
+  try {
+    const envVars = getUserCredentials(userId || getActiveUser());
+    
+    if (envVars) {
+      // Log masked environment variables
+      const maskedEnv = maskSensitiveEnv(envVars);
+      debug('Loading user environment variables:', 'SERVER');
+      debug(JSON.stringify(maskedEnv, null, 2), 'SERVER');
+      
+      // Set the environment variables
+      Object.assign(process.env, envVars);
+    } else {
+      warn('No environment variables found for user', 'SERVER');
+    }
+  } catch (err) {
+    error('Failed to load user environment variables', 'SERVER', err);
+  }
+};
 
-// Start the server with port fallback - updated with new findAvailablePort function
+// Create cleanup function to handle application shutdown
+const cleanup = () => {
+  info('Cleaning up server resources before exit', 'SERVER');
+  if (server) {
+    server.close(() => {
+      info('Server closed successfully', 'SERVER');
+    });
+  }
+};
+
+// Error handling middleware (must be after all routes)
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// Define important global variables
+let port = parseInt(process.env.PORT || '3001', 10);
+let server = null;
+let dispStatus = false;
+const dataDir = path.join(__dirname, '..', 'data');
+const eventEmitter = new EventEmitter();
+
+// Start the server
 async function startServer() {
   try {
-    // Try to find an available port
-    const port = await findAvailablePort();
+    console.log('Starting server...');
+    info('Starting server...', 'SERVER');
     
-    // Start server on the available port
-    app.listen(port, '0.0.0.0', () => {
-      console.log(`[SERVER] Running on port ${port}`);
-      
-      // Update environment variables and Vite config if needed
-      process.env.SERVER_PORT = port.toString();
-      
-      // Log successful server start
-      addLogEntry('workOrder', `Server started on port ${port}`);
-    });
-  } catch (error) {
-    console.error('[SERVER] Failed to start server:', error);
+    // Load environment variables for the active user
+    try {
+      loadUserEnvironment();
+    } catch (envErr) {
+      console.error('Error loading user environment:', envErr);
+      error('Error loading user environment:', 'SERVER', envErr);
+    }
     
-    // If all else fails, let the system assign a random available port
-    app.listen(0, '0.0.0.0', () => {
-      const address = app.address();
-      console.log(`[SERVER] Running on port ${address.port} (auto-assigned)`);
-      process.env.SERVER_PORT = address.port.toString();
-    });
+    // Force reset the jobs on server start
+    try {
+      forceResetJobs();
+    } catch (resetErr) {
+      console.error('Error resetting jobs:', resetErr);
+      error('Error resetting jobs:', 'SERVER', resetErr);
+    }
+    
+    // Initialize user management
+    try {
+      initializeUserManagement();
+    } catch (userErr) {
+      console.error('Error initializing user management:', userErr);
+      error('Error initializing user management:', 'SERVER', userErr);
+    }
+    
+    // Verify dispenser data integrity
+    try {
+      verifyDispenserDataIntegrity();
+    } catch (dataErr) {
+      console.error('Error verifying dispenser data integrity:', dataErr);
+      error('Error verifying dispenser data integrity', 'SERVER', dataErr);
+    }
+    
+    try {
+      // Log crucial information (make sure to use the masked version)
+      debug(`Server configuration:`, 'SERVER');
+      const configSnapshot = {
+        PREFERRED_PORT,
+        NODE_ENV: process.env.NODE_ENV,
+        DATA_DIR: dataDir,
+        LOG_LEVEL: process.env.LOG_LEVEL,
+      };
+      debug(JSON.stringify(configSnapshot, null, 2), 'SERVER');
+      
+      // Find available port - try PREFERRED_PORT first
+      console.log(`Attempting to find available port starting with ${PREFERRED_PORT}`);
+      port = await findAvailablePort(PREFERRED_PORT);
+      console.log(`Using port: ${port}`);
+      
+      // Create server
+      console.log('Creating server...');
+      server = app.listen(port, () => {
+        console.log(`Server running on port ${port}`);
+        success(`Server running on port ${port}`, 'SERVER');
+        
+        // Emit server ready event
+        try {
+          eventEmitter.emit('server-ready', { port });
+        } catch (eventErr) {
+          console.error('Error emitting server-ready event:', eventErr);
+        }
+      });
+      
+      // Add error handler for server
+      server.on('error', (serverErr) => {
+        console.error('Server error:', serverErr.message);
+        error(`Server error: ${serverErr.message}`, 'SERVER', serverErr);
+        
+        if (serverErr.code === 'EADDRINUSE') {
+          console.error(`Port ${port} is already in use. Please try another port.`);
+        }
+      });
+      
+      // Set up dispenser service and pass the addLogEntry function
+      dispStatus = true;
+      
+      try {
+        setAddLogEntryFunction(addLogEntry);
+        success('Dispenser service connected with addLogEntry function', 'SERVER');
+      } catch (serviceErr) {
+        console.error('Failed to connect dispenser service with addLogEntry:', serviceErr);
+        error('Failed to connect dispenser service with addLogEntry', 'SERVER', serviceErr);
+      }
+      
+      // Set up hourly scrape schedule
+      try {
+        setupHourlyScrapeSchedule();
+      } catch (scheduleErr) {
+        console.error('Error setting up scrape schedule:', scheduleErr);
+        error('Error setting up scrape schedule:', 'SERVER', scheduleErr);
+      }
+      
+      // Set up digest notification schedule
+      try {
+        setupDigestNotificationSchedule();
+      } catch (digestErr) {
+        console.error('Error setting up digest notification schedule:', digestErr);
+        error('Error setting up digest notification schedule:', 'SERVER', digestErr);
+      }
+      
+      // Set up cleanup on app exit
+      process.on('SIGINT', cleanup);
+      process.on('SIGTERM', cleanup);
+      process.on('exit', cleanup);
+      
+      return { port, server };
+    } catch (err) {
+      console.error('Failed to start server:', err.message);
+      error('Failed to start server', 'SERVER', err);
+      process.exit(1);
+    }
+  } catch (outerErr) {
+    console.error('Critical server startup error:', outerErr);
+    error('Critical server startup error', 'SERVER', outerErr);
+    process.exit(1);
   }
 }
 
+// Start the server
 startServer();

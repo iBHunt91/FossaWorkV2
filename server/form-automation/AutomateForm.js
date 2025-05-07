@@ -17,8 +17,10 @@ import { chromium } from 'playwright';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 import * as logger from '../utils/logger.js';
 import { loginToFossa } from '../../scripts/utils/login.js';
+import { resolveUserFilePath, getActiveUser } from '../utils/userManager.js';
 
 // Load environment variables
 dotenv.config();
@@ -29,55 +31,103 @@ const FORM_TYPES = {
   OPEN_NECK_PROVER: 'Open Neck Prover'
 };
 
-// Status tracking
-let currentStatus = {
+// Job identification and cancellation tracking
+let currentJobId = null;
+let activeJobIds = new Set(); // Track all active job IDs
+let isCancelled = false;
+
+// Status tracking for single job
+let jobStatus = {
   status: 'idle',
-  message: 'Ready to process forms',
-  lastStatusUpdate: new Date().toISOString()
+  progress: 0,
+  message: ''
 };
 
-// Batch status tracking
+// Helper function to update status for a single job
+const updateStatus = (status, message, progress = null) => {
+  jobStatus = {
+    ...jobStatus,
+    status,
+    message,
+    progress: progress !== null ? progress : jobStatus.progress
+  };
+  
+  // Also log the status change
+  logger.info(`Status updated: ${status} - ${message}`, 'FORM_PREP');
+};
+
+// Status tracking for batch job
 let batchStatus = {
   status: 'idle',
-  message: 'Ready to process batch',
-  totalVisits: 0,
-  completedVisits: 0,
-  currentVisit: null,
-  currentVisitStatus: null,
-  startTime: new Date().toISOString(),
-  lastStatusUpdate: new Date().toISOString()
+  progress: 0,
+  message: '',
+  currentItem: 0,
+  totalItems: 0,
+  startTime: new Date().toISOString()
+};
+
+// Helper function to update batch status
+const updateBatchStatus = (status, message, progressOrProps = null, currentItem = null, totalItems = null) => {
+  // Parse additional progress properties
+  const progressProps = typeof progressOrProps === 'object' ? progressOrProps : {};
+  const updatedProgress = {
+    currentItem: currentItem || batchStatus.currentItem,
+    totalItems: totalItems || batchStatus.totalItems,
+    ...(batchStatus || {}),  // preserve existing properties
+    ...progressProps  // override with new properties
+  };
+  
+  // Update the batch status object
+  batchStatus = {
+    status,
+    message,
+    ...updatedProgress,
+    lastUpdated: new Date().toISOString()
+  };
+  
+  // Log batch status update
+  logger.debug(`Batch Status: ${status} - ${message}`);
+  
+  // Save batch status to history if it's a completion or error state
+  if (status === 'completed' || status === 'error') {
+    saveBatchStatusToHistory(batchStatus);
+  }
+  
+  return batchStatus;
 };
 
 /**
- * Update the current status with a new status and message
- * @param {string} status - The new status (idle, running, completed, error)
- * @param {string} message - The status message
+ * Save batch status to history file for resume functionality
+ * @param {Object} batchStatus - The batch status to save
  */
-function updateStatus(status, message) {
-  currentStatus = { 
-    ...currentStatus,
-    status, 
-    message,
-    lastStatusUpdate: new Date().toISOString()
-  };
-  logger.info(`Status updated: ${status} - ${message}`);
-}
-
-/**
- * Update the batch status with new information
- * @param {string} status - The new status (idle, running, completed, error)
- * @param {string} message - The status message
- * @param {object} additionalProps - Additional properties to update
- */
-function updateBatchStatus(status, message, additionalProps = {}) {
-  batchStatus = { 
-    ...batchStatus,
-    status, 
-    message,
-    lastStatusUpdate: new Date().toISOString(),
-    ...additionalProps
-  };
-  logger.info(`Batch status updated: ${status} - ${message}`);
+async function saveBatchStatusToHistory(batchStatus) {
+  try {
+    const batchHistoryPath = resolveUserFilePath('batch_history.json');
+    let batchHistory = [];
+    
+    // Load existing history if it exists
+    if (fs.existsSync(batchHistoryPath)) {
+      batchHistory = JSON.parse(fs.readFileSync(batchHistoryPath, 'utf8'));
+    }
+    
+    // Add current batch to history
+    batchHistory.push({
+      ...batchStatus,
+      savedAt: new Date().toISOString()
+    });
+    
+    // Limit history to last 20 entries
+    if (batchHistory.length > 20) {
+      batchHistory = batchHistory.slice(-20);
+    }
+    
+    // Save updated history
+    fs.writeFileSync(batchHistoryPath, JSON.stringify(batchHistory, null, 2), 'utf8');
+    logger.info(`Saved batch status to history`);
+  } catch (error) {
+    logger.error(`Error saving batch status to history: ${error.message}`);
+    // Non-critical error, don't throw
+  }
 }
 
 /**
@@ -91,7 +141,13 @@ function updateBatchStatus(status, message, additionalProps = {}) {
  */
 async function prepareForm(page, dispensers, formCount = null, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE) {
   try {
-    logger.info(`Preparing ${formType} form...`);
+    // Check for cancellation flag immediately
+    if (isCancelled) {
+      logger.info('Job cancelled, skipping form preparation');
+      return false;
+    }
+    
+    logger.info(`Preparing ${formType} form...`, 'FORM_PREP');
     updateStatus('running', `Preparing ${formType} form...`);
     
     // Check if we're on a visit page
@@ -104,15 +160,15 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
     }
     
     // Verify and log the available dispensers
-    logger.info(`Available dispensers (${dispensers.length}):`);
+    logger.info(`Available dispensers (${dispensers.length}):`, 'FORM_PREP');
     dispensers.forEach((dispenser, i) => {
-      logger.info(`  ${i+1}. ${dispenser.title || 'Unknown'}`);
+      logger.info(`  ${i+1}. ${dispenser.title || 'Unknown'}`, 'FORM_PREP');
     });
     
     // IMPORTANT: Use formCount if provided, otherwise default to dispensers length
     // For specific dispensers case, formCount should exactly match dispensers.length
     const formsToCreate = formCount || dispensers.length || 1;
-    logger.info(`Need to create exactly ${formsToCreate} ${formType} forms (formCount=${formCount}, dispensers.length=${dispensers.length})`);
+    logger.info(`Need to create exactly ${formsToCreate} ${formType} forms (formCount=${formCount}, dispensers.length=${dispensers.length})`, 'FORM_PREP');
     
     // More reliable form detection - check for form entries with the correct form type
     const getFormCount = async () => {
@@ -135,23 +191,23 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
     
     // Get initial form count
     const existingFormCount = await getFormCount();
-    logger.info(`Found ${existingFormCount} existing ${formType} forms`);
+    logger.info(`Found ${existingFormCount} existing ${formType} forms`, 'FORM_PREP');
     
     // Calculate how many more forms we need to add
     let remainingFormsToAdd = Math.max(0, formsToCreate - existingFormCount);
-    logger.info(`Need to add ${remainingFormsToAdd} more ${formType} forms`);
+    logger.info(`Need to add ${remainingFormsToAdd} more ${formType} forms`, 'FORM_PREP');
     
     // Double-check our math - NEVER exceed the number of dispensers for specific dispensers
     if (remainingFormsToAdd + existingFormCount > dispensers.length) {
-      logger.warn(`CORRECTION: Would create too many forms (${remainingFormsToAdd + existingFormCount}) for available dispensers (${dispensers.length})`);
+      logger.warn(`CORRECTION: Would create too many forms (${remainingFormsToAdd + existingFormCount}) for available dispensers (${dispensers.length})`, 'FORM_PREP');
       remainingFormsToAdd = Math.max(0, dispensers.length - existingFormCount);
-      logger.info(`CORRECTED: Will add only ${remainingFormsToAdd} forms for a total of ${remainingFormsToAdd + existingFormCount}`);
+      logger.info(`CORRECTED: Will add only ${remainingFormsToAdd} forms for a total of ${remainingFormsToAdd + existingFormCount}`, 'FORM_PREP');
     }
     
     let formsCreated = false;
     
     if (remainingFormsToAdd === 0) {
-      logger.info('All required forms already exist, skipping form addition');
+      logger.info('All required forms already exist, skipping form addition', 'FORM_PREP');
       updateStatus('running', 'All required forms already exist, proceeding to fill forms');
       // Don't return early - continue to collect and fill form URLs
     } else {
@@ -160,16 +216,22 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
       
       // For each form we need to create
       for (let formIndex = 0; formIndex < remainingFormsToAdd; formIndex++) {
+        // Check for cancellation during the loop
+        if (isCancelled) {
+          logger.info('Job cancelled, stopping form creation loop');
+          return false;
+        }
+        
         // Check current form count before adding
         const currentCount = await getFormCount();
         
         // Stop if we've already reached or exceeded the target
         if (currentCount >= formsToCreate) {
-          logger.info(`Already reached target of ${formsToCreate} forms (current: ${currentCount}), stopping`);
+          logger.info(`Already reached target of ${formsToCreate} forms (current: ${currentCount}), stopping`, 'FORM_PREP');
           break;
         }
         
-        logger.info(`Adding form ${formIndex + 1} of ${remainingFormsToAdd} (current count: ${currentCount})`);
+        logger.info(`Adding form ${formIndex + 1} of ${remainingFormsToAdd} (current count: ${currentCount})`, 'FORM_PREP');
         
         // Get the current form count before adding a new one
         const beforeFormCount = currentCount;
@@ -177,7 +239,7 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
         // Add the form - either "Attach" (first time) or "New" (subsequent times)
         if (formIndex === 0 && existingFormCount === 0) {
           // For the first form when no forms exist, click "Attach"
-          logger.info('Adding first form using Attach button');
+          logger.info('Adding first form using Attach button', 'FORM_PREP');
           
           // Using a more specific selector to target the Attach button next to the form type
           const attachLinkSelector = `li.plain-header:has-text("${formType}") a:has-text("Attach")`;
@@ -185,9 +247,10 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
           try {
             await page.waitForSelector(attachLinkSelector, { timeout: 5000 });
             await page.click(attachLinkSelector);
-            logger.info(`Clicked Attach button next to ${formType}`);
+            logger.info(`Clicked Attach button next to ${formType}`, 'FORM_PREP');
           } catch (error) {
             logger.warn(`Could not find specific Attach button: ${error.message}`);
+            logger.warn(`Could not find specific Attach button: ${error.message}`, 'FORM_PREP');
             
             // Try using JavaScript evaluation as a fallback
             const attached = await page.evaluate((targetFormType) => {
@@ -223,7 +286,7 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
           }
         } else {
           // For subsequent forms or when forms already exist, click "New"
-          logger.info('Adding additional form using New button');
+          logger.info('Adding additional form using New button', 'FORM_PREP');
           
           // Using a much more targeted approach to find the correct New button
           const buttonClicked = await page.evaluate((targetFormType) => {
@@ -293,7 +356,7 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
           }, formType);
           
           if (!buttonClicked) {
-            logger.warn('Could not find New button via targeted JavaScript, trying fallback method');
+            logger.warn('Could not find New button via targeted JavaScript, trying fallback method', 'FORM_PREP');
             
             // Try a direct click with very specific selectors
             try {
@@ -310,7 +373,7 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
                 if (await page.$(selector)) {
                   await page.click(selector);
                   clicked = true;
-                  logger.info(`Clicked using selector: ${selector}`);
+                  logger.info(`Clicked using selector: ${selector}`, 'FORM_PREP');
                   break;
                 }
               }
@@ -319,13 +382,13 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
                 throw new Error('Could not find New button with any selector');
               }
             } catch (error) {
-              logger.error(`Failed to click New button: ${error.message}`);
+              logger.error(`Failed to click New button: ${error.message}`, 'FORM_PREP');
             }
           }
         }
         
         // Wait for the loader to disappear, indicating the form is ready
-        logger.info('Waiting for loader to disappear...');
+        logger.info('Waiting for loader to disappear...', 'FORM_PREP');
         try {
           // Wait for the loader line to disappear (display:none)
           await page.waitForFunction(() => {
@@ -337,9 +400,9 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
             }
             return true;
           }, { timeout: 10000 });
-          logger.info('Loader disappeared, form is ready');
+          logger.info('Loader disappeared, form is ready', 'FORM_PREP');
         } catch (error) {
-          logger.warn(`Loader wait timed out: ${error.message}`);
+          logger.warn(`Loader wait timed out: ${error.message}`, 'FORM_PREP');
         }
         
         // Check if the form count has increased using our more reliable method
@@ -347,7 +410,7 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
         
         // If form count hasn't increased, retry
         if (afterFormCount <= beforeFormCount) {
-          logger.warn(`Form count didn't increase (${beforeFormCount} -> ${afterFormCount}). Retrying...`);
+          logger.warn(`Form count didn't increase (${beforeFormCount} -> ${afterFormCount}). Retrying...`, 'FORM_PREP');
           
           // Try clicking again using a different approach
           try {
@@ -368,7 +431,7 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
             const retryFormCount = await getFormCount();
             
             if (retryFormCount <= beforeFormCount) {
-              logger.error(`Failed to add form after retry (count: ${retryFormCount})`);
+              logger.error(`Failed to add form after retry (count: ${retryFormCount})`, 'FORM_PREP');
               formIndex--; // Try this form index again
               continue;
             } else {
@@ -376,19 +439,17 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
               totalFormsAdded++;
             }
           } catch (error) {
-            logger.error(`Error during retry: ${error.message}`);
-            formIndex--; // Try this form index again
-            continue;
+            logger.error(`Error during retry: ${error.message}`, 'FORM_PREP');
           }
         } else {
           // Form was added successfully
           totalFormsAdded++;
-          logger.info(`Form ${formIndex + 1} added successfully (count: ${afterFormCount})`);
+          logger.info(`Form ${formIndex + 1} added successfully (count: ${afterFormCount})`, 'FORM_PREP');
         }
         
         // Double-check that we haven't exceeded our target
         if (afterFormCount >= formsToCreate) {
-          logger.info(`Reached target of ${formsToCreate} forms (current: ${afterFormCount}), stopping`);
+          logger.info(`Reached target of ${formsToCreate} forms (current: ${afterFormCount}), stopping`, 'FORM_PREP');
           break;
         }
         
@@ -399,14 +460,14 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
       // Final verification
       const finalFormCount = await getFormCount();
       
-      logger.info(`Forms prepared successfully. Added ${totalFormsAdded} forms. Final form count: ${finalFormCount}`);
+      logger.info(`Forms prepared successfully. Added ${totalFormsAdded} forms. Final form count: ${finalFormCount}`, 'FORM_PREP');
       updateStatus('running', `Forms prepared successfully. Added ${totalFormsAdded} forms (total: ${finalFormCount}), proceeding to fill forms`);
       
       formsCreated = true;
     }
     
     // Whether we added new forms or not, collect the form URLs
-    logger.info('Collecting form URLs...');
+    logger.info('Collecting form URLs...', 'FORM_PREP');
     const formUrls = await page.evaluate((targetFormType) => {
       const formLinks = Array.from(document.querySelectorAll('a.none')).filter(a => 
         a.textContent.trim().includes(targetFormType)
@@ -415,24 +476,24 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
       return formLinks.map(link => link.href);
     }, formType);
     
-    logger.info(`Found ${formUrls.length} form URLs`);
+    logger.info(`Found ${formUrls.length} form URLs`, 'FORM_PREP');
     
     // If we have dispensers data and form URLs, fill out each form
     if (dispensers.length > 0 && formUrls.length > 0) {
-      logger.info(`Proceeding to fill form details. isSpecificDispensers=${isSpecificDispensers}, formType=${formType}`);
+      logger.info(`Proceeding to fill form details. isSpecificDispensers=${isSpecificDispensers}, formType=${formType}`, 'FORM_PREP');
       await fillFormDetails(page, formUrls, dispensers, isSpecificDispensers, formType);
     } else {
       if (formUrls.length === 0) {
-        logger.warn('No form URLs found to process');
+        logger.warn('No form URLs found to process', 'FORM_PREP');
       }
       if (dispensers.length === 0) {
-        logger.warn('No dispenser data available for forms');
+        logger.warn('No dispenser data available for forms', 'FORM_PREP');
       }
     }
     
     return true;
   } catch (error) {
-    logger.error(`Form preparation error: ${error.message}`);
+    logger.error(`Form preparation error: ${error.message}`, 'FORM_PREP');
     updateStatus('error', `Form preparation error: ${error.message}`);
     return false;
   }
@@ -449,23 +510,23 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
  */
 async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE) {
   try {
-    logger.info('Starting to fill form details...');
+    logger.info('Starting to fill form details...', 'FORM_PREP');
     console.log('====== STARTING FORM AUTOMATION ======');
     updateStatus('running', 'Filling form details...');
     
     // Verify we have the right number of forms for our dispensers
     if (formUrls.length > dispensers.length) {
-      logger.warn(`WARNING: More forms (${formUrls.length}) than dispensers (${dispensers.length}). Only the first ${dispensers.length} forms will be processed.`);
+      logger.warn(`WARNING: More forms (${formUrls.length}) than dispensers (${dispensers.length}). Only the first ${dispensers.length} forms will be processed.`, 'FORM_PREP');
       // Truncate the formUrls to match the number of dispensers
       formUrls = formUrls.slice(0, dispensers.length);
     } else if (formUrls.length < dispensers.length) {
-      logger.warn(`WARNING: Fewer forms (${formUrls.length}) than dispensers (${dispensers.length}). Only the first ${formUrls.length} dispensers will be used.`);
+      logger.warn(`WARNING: Fewer forms (${formUrls.length}) than dispensers (${dispensers.length}). Only the first ${formUrls.length} dispensers will be used.`, 'FORM_PREP');
     }
     
     // Log dispensers to forms mapping
-    logger.info(`Dispenser to Form Mapping:`);
+    logger.info(`Dispenser to Form Mapping:`, 'FORM_PREP');
     for (let i = 0; i < Math.min(formUrls.length, dispensers.length); i++) {
-      logger.info(`Form ${i+1} → ${dispensers[i]?.title || 'Unknown dispenser'}`);
+      logger.info(`Form ${i+1} → ${dispensers[i]?.title || 'Unknown dispenser'}`, 'FORM_PREP');
     }
     
     // Process forms in order
@@ -475,14 +536,14 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
       // Use the dispenser matching this form's index, NEVER default to the first dispenser
       // Only use a dispenser if we have one at this index
       if (!dispensers[i]) {
-        logger.warn(`No dispenser available for form ${i+1}, skipping this form`);
+        logger.warn(`No dispenser available for form ${i+1}, skipping this form`, 'FORM_PREP');
         continue;
       }
       
       const dispenser = dispensers[i];
       
-      logger.info(`Processing form ${i + 1}/${formUrls.length}: ${formUrl}`);
-      logger.info(`Using dispenser: ${dispenser.title}`);
+      logger.info(`Processing form ${i + 1}/${formUrls.length}: ${formUrl}`, 'FORM_PREP');
+      logger.info(`Using dispenser: ${dispenser.title}`, 'FORM_PREP');
       console.log(`\n>>> PROCESSING FORM ${i + 1}/${formUrls.length}`);
       console.log(`Using dispenser: ${dispenser.title}`);
       updateStatus('running', `Filling form ${i + 1}/${formUrls.length} with dispenser: ${dispenser.title}`);
@@ -491,18 +552,25 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
       await page.goto(formUrl);
       await page.waitForLoadState('networkidle');
       
+      // Check for cancellation after navigation
+      if (isCancelled) {
+        logger.info('Job cancelled, stopping form filling process');
+        updateStatus('completed', 'Job cancelled by user');
+        return false;
+      }
+      
       // Wait for the form to load
       try {
         await page.waitForSelector('.form-entry-equipment', { state: 'visible', timeout: 10000 });
-        logger.info('Form page loaded successfully');
+        logger.info('Form page loaded successfully', 'FORM_PREP');
       } catch (error) {
-        logger.warn(`Form page did not load as expected: ${error.message}`);
+        logger.warn(`Form page did not load as expected: ${error.message}`, 'FORM_PREP');
         console.log(`Form page did not load as expected: ${error.message}`);
         continue; // Skip to next form if this one doesn't load properly
       }
       
       // Fill the Equipment Dispenser dropdown
-      logger.info(`Selecting dispenser: ${dispenser.title || 'Unknown'}`);
+      logger.info(`Selecting dispenser: ${dispenser.title || 'Unknown'}`, 'FORM_PREP');
       console.log(`Selecting dispenser: ${dispenser.title || 'Unknown'}`);
       
       try {
@@ -510,7 +578,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
         const openDropdown = async (maxAttempts = 5) => {
           for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-              logger.info(`Attempt ${attempt}/${maxAttempts} to open dispenser dropdown`);
+              logger.info(`Attempt ${attempt}/${maxAttempts} to open dispenser dropdown`, 'FORM_PREP');
               
               // Clear any previous dropdown by clicking away if needed - fast check
               await page.evaluate(() => {
@@ -555,6 +623,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
               
               if (success.success) {
                 logger.info(`Direct DOM method successful, found ${success.optionsCount} options`);
+                logger.info(`Direct DOM method successful, found ${success.optionsCount} options`, 'FORM_PREP');
                 if (success.optionsCount > 0) {
                   // If we have options, we can proceed regardless of dropdown visibility
                   return true;
@@ -569,10 +638,12 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
                   const box = await dropdownTrigger.boundingBox();
                   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
                   logger.info('Clicked dropdown trigger with Playwright');
+                  logger.info('Clicked dropdown trigger with Playwright', 'FORM_PREP');
                 }
               } else { // Even attempts use native click with different force options
                 await page.click('.ks-select-selection', { force: true, timeout: 2000 });
                 logger.info('Clicked dropdown with force option');
+                logger.info('Clicked dropdown with force option', 'FORM_PREP');
               }
               
               // Longer wait for dropdown to appear - increased to 3000ms
@@ -582,6 +653,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
                   timeout: 2000
                 });
                 logger.info('Dropdown is now visible');
+                logger.info('Dropdown is now visible', 'FORM_PREP');
                 return true;
               } catch (err) {
                 // Check if dropdown exists but is hidden and if options are available
@@ -596,6 +668,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
                 
                 if (dropdownStatus.exists && dropdownStatus.optionsCount > 0) {
                   logger.info(`Dropdown exists with ${dropdownStatus.optionsCount} options, proceeding`);
+                  logger.info(`Dropdown exists with ${dropdownStatus.optionsCount} options, proceeding`, 'FORM_PREP');
                   return true;
                 }
                 
@@ -603,6 +676,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
               }
             } catch (error) {
               logger.warn(`Attempt ${attempt} failed: ${error.message}`);
+              logger.warn(`Attempt ${attempt} failed: ${error.message}`, 'FORM_PREP');
               
               if (attempt === maxAttempts) {
                 // Fast final attempt - just try to work with hidden elements
@@ -636,10 +710,12 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
                   
                   if (hasOptions) {
                     logger.info('Final attempt directly clicked an option');
+                    logger.info('Final attempt directly clicked an option', 'FORM_PREP');
                     return true;
                   }
                 } catch (e) {
                   logger.warn(`Final direct selection failed: ${e.message}`);
+                  logger.warn(`Final direct selection failed: ${e.message}`, 'FORM_PREP');
                 }
                 
                 throw error;
@@ -690,9 +766,11 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
         });
         
         logger.info(`Found ${availableOptions.length} dispenser options in dropdown`);
+        logger.info(`Found ${availableOptions.length} dispenser options in dropdown`, 'FORM_PREP');
         // Only log first few options to reduce log size
         availableOptions.slice(0, 3).forEach((text, idx) => {
           logger.info(`  Option ${idx+1}: ${text}`);
+          logger.info(`  Option ${idx+1}: ${text}`, 'FORM_PREP');
         });
         
         // Find and click the option matching our dispenser title - optimized version
@@ -788,6 +866,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
         
         if (dispenserSelected.success) {
           logger.info(`Selected dispenser for form ${i+1}: ${dispenserSelected.selected} (match type: ${dispenserSelected.matchType})`);
+          logger.info(`Selected dispenser for form ${i+1}: ${dispenserSelected.selected} (match type: ${dispenserSelected.matchType})`, 'FORM_PREP');
           console.log(`Selected dispenser for form ${i+1}: ${dispenserSelected.selected} (match type: ${dispenserSelected.matchType})`);
           
           // Quicker verification with fewer retries
@@ -800,16 +879,20 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
           });
           
           logger.info(`Selection verification: "${selectionText}"`);
+          logger.info(`Selection verification: "${selectionText}"`, 'FORM_PREP');
           
           if (selectionText && selectionText !== 'Select' && selectionText !== 'No selection text found') {
             logger.info(`Selection verified: "${selectionText}"`);
+            logger.info(`Selection verified: "${selectionText}"`, 'FORM_PREP');
             console.log(`Selection verified: "${selectionText}"`);
           } else {
             logger.warn(`Selection not verified, but continuing anyway`);
+            logger.warn(`Selection not verified, but continuing anyway`, 'FORM_PREP');
             // Continue anyway rather than retrying - we've already made our best effort
           }
         } else {
           logger.warn(`Could not select any dispenser for form ${i+1}: ${dispenserSelected.error || 'Unknown error'}`);
+          logger.warn(`Could not select any dispenser for form ${i+1}: ${dispenserSelected.error || 'Unknown error'}`, 'FORM_PREP');
           console.log(`Could not select any dispenser for form ${i+1}`);
           
           // Quick fallback - direct value setting
@@ -832,13 +915,16 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
             
             if (fallbackSuccess.success) {
               logger.info(`Applied fallback selection method: ${fallbackSuccess.method}`);
+              logger.info(`Applied fallback selection method: ${fallbackSuccess.method}`, 'FORM_PREP');
             }
           } catch (e) {
             logger.warn(`Fallback selection failed: ${e.message}`);
+            logger.warn(`Fallback selection failed: ${e.message}`, 'FORM_PREP');
           }
         }
       } catch (error) {
         logger.warn(`Error selecting dispenser: ${error.message}`);
+        logger.warn(`Error selecting dispenser: ${error.message}`, 'FORM_PREP');
         console.log(`Error selecting dispenser: ${error.message}`);
         
         // Try a fallback approach - just select any visible option
@@ -886,13 +972,16 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
           
           if (fallbackSuccess.success) {
             logger.info(`Fallback dispenser selection succeeded using method: ${fallbackSuccess.method}`);
+            logger.info(`Fallback dispenser selection succeeded: ${fallbackSuccess.text || 'unknown value'}`, 'FORM_PREP');
             console.log(`Fallback dispenser selection succeeded: ${fallbackSuccess.text || 'unknown value'}`);
           } else {
             logger.warn(`Fallback dispenser selection failed: ${fallbackSuccess.reason || fallbackSuccess.error || 'unknown reason'}`);
+            logger.warn(`Fallback dispenser selection failed: ${fallbackSuccess.reason || fallbackSuccess.error || 'no options found'}`, 'FORM_PREP');
             console.log(`Fallback dispenser selection failed: ${fallbackSuccess.reason || fallbackSuccess.error || 'no options found'}`);
           }
         } catch (fallbackError) {
           logger.warn(`Fallback dispenser selection error: ${fallbackError.message}`);
+          logger.warn(`Fallback dispenser selection error: ${fallbackError.message}`, 'FORM_PREP');
           console.log(`Fallback dispenser selection error: ${fallbackError.message}`);
         }
       }
@@ -964,13 +1053,16 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
         
         if (radioSelected.success) {
           logger.info(`Selected radio button using method: ${radioSelected.method}`);
+          logger.info(`Selected radio button using method: ${radioSelected.method}`, 'FORM_PREP');
           console.log(`Selected radio button using method: ${radioSelected.method}`);
         } else {
           logger.warn(`5 gallon option not found: ${radioSelected.error}`);
+          logger.warn(`5 gallon option not found: ${radioSelected.error}`, 'FORM_PREP');
           console.log(`5 gallon option not found: ${radioSelected.error}`);
         }
       } catch (error) {
         logger.warn(`Error selecting 5 gallon option: ${error.message}`);
+        logger.warn(`Error selecting 5 gallon option: ${error.message}`, 'FORM_PREP');
         console.log(`Error selecting 5 gallon option: ${error.message}`);
       }
       
@@ -985,7 +1077,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
           // Click the save button
           await page.click('button.save-section');
           logger.info('Clicked save button for initial form section');
-          console.log('Clicked save button for initial form section');
+          logger.info('Clicked save button for initial form section', 'FORM_PREP');
           
           // Wait for saving to complete - look for network activity or UI changes
           try {
@@ -1021,13 +1113,13 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
             if (saveResult) {
               saveVerified = true;
               logger.info(`Save verified: ${saveResult}`);
-              console.log(`Save verified: ${saveResult}`);
+              logger.info(`Save verified: ${saveResult}`, 'FORM_PREP');
             }
             
             // If we couldn't verify the save, wait a bit longer and check again
             if (!saveVerified) {
               logger.warn('Could not immediately verify save completion, waiting longer...');
-              console.log('Could not immediately verify save completion, waiting longer...');
+              logger.warn('Could not immediately verify save completion, waiting longer...', 'FORM_PREP');
               
               await page.waitForTimeout(2000); // Wait 2 seconds
               
@@ -1040,27 +1132,27 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
               if (nextButtonEnabled) {
                 saveVerified = true;
                 logger.info('Save verified after additional wait: Next button enabled');
-                console.log('Save verified after additional wait: Next button enabled');
+                logger.info('Save verified after additional wait: Next button enabled', 'FORM_PREP');
               } else {
                 logger.warn('Could not verify save completion even after waiting');
-                console.log('Could not verify save completion even after waiting');
+                logger.warn('Could not verify save completion even after waiting', 'FORM_PREP');
                 
                 // Let's try again to click save
                 try {
                   await page.click('button.save-section');
                   logger.info('Clicked save button again as verification failed');
-                  console.log('Clicked save button again as verification failed');
+                  logger.info('Clicked save button again as verification failed', 'FORM_PREP');
                   await page.waitForTimeout(1000); // Wait for save to complete
                 } catch (saveRetryError) {
                   logger.warn(`Error retrying save: ${saveRetryError.message}`);
-                  console.log(`Error retrying save: ${saveRetryError.message}`);
+                  logger.warn(`Error retrying save: ${saveRetryError.message}`, 'FORM_PREP');
                 }
               }
             }
             
           } catch (waitError) {
             logger.warn(`Timeout waiting for save to complete: ${waitError.message}`);
-            console.log(`Timeout waiting for save to complete: ${waitError.message}`);
+            logger.warn(`Timeout waiting for save to complete: ${waitError.message}`, 'FORM_PREP');
             
             // Let's still continue - the save might have worked even if we couldn't verify
           }
@@ -1069,14 +1161,14 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
           const fuelSectionsProcessed = await processAllFuelSections(page, dispenser, isSpecificDispensers, formType);
           if (fuelSectionsProcessed) {
             logger.info(`Successfully processed all fuel sections for form ${i + 1}`);
-            console.log(`Successfully processed all fuel sections for form ${i + 1}`);
+            logger.info(`Successfully processed all fuel sections for form ${i + 1}`, 'FORM_PREP');
           } else {
             logger.warn(`Failed to process all fuel sections for form ${i + 1}`);
-            console.log(`Failed to process all fuel sections for form ${i + 1}`);
+            logger.warn(`Failed to process all fuel sections for form ${i + 1}`, 'FORM_PREP');
           }
         } else {
           logger.warn('Save button not found');
-          console.log('Save button not found');
+          logger.warn('Save button not found', 'FORM_PREP');
           
           // Try alternate ways to find and click save
           const alternativeSaveFound = await page.evaluate(() => {
@@ -1095,38 +1187,42 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
           
           if (alternativeSaveFound) {
             logger.info('Found and clicked alternative save button');
-            console.log('Found and clicked alternative save button');
+            logger.info('Found and clicked alternative save button', 'FORM_PREP');
             await page.waitForTimeout(1000); // Wait for save to complete
             
             // Try to proceed with the fuel sections
             const fuelSectionsProcessed = await processAllFuelSections(page, dispenser, isSpecificDispensers, formType);
             if (fuelSectionsProcessed) {
               logger.info(`Successfully processed all fuel sections for form ${i + 1} after alternative save`);
-              console.log(`Successfully processed all fuel sections for form ${i + 1} after alternative save`);
+              logger.info(`Successfully processed all fuel sections for form ${i + 1} after alternative save`, 'FORM_PREP');
             }
           } else {
             logger.error('No save button found through any method - cannot proceed');
-            console.log('No save button found through any method - cannot proceed');
+            logger.error('No save button found through any method - cannot proceed', 'FORM_PREP');
             continue; // Skip to next form
           }
         }
       } catch (error) {
         logger.warn(`Error saving form: ${error.message}`);
+        logger.warn(`Error saving form: ${error.message}`, 'FORM_PREP');
         console.log(`Error saving form: ${error.message}`);
         continue; // Skip to next form if we can't save this one
       }
       
       logger.info(`Completed processing form ${i + 1}/${formUrls.length}`);
+      logger.info(`Completed processing form ${i + 1}/${formUrls.length}`, 'FORM_PREP');
       console.log(`<<< COMPLETED FORM ${i + 1}/${formUrls.length}`);
       updateStatus('running', `Completed form ${i + 1}/${formUrls.length}, ${i < formUrls.length - 1 ? 'moving to next form' : 'finishing up'}`);
     }
     
     logger.info('Form filling complete');
+    logger.info('Form filling complete', 'FORM_PREP');
     console.log('====== FORM AUTOMATION COMPLETED ======');
     updateStatus('completed', 'Form filling complete');
     return true;
   } catch (error) {
     logger.error(`Error filling form details: ${error.message}`);
+    logger.error(`Error filling form details: ${error.message}`, 'FORM_PREP');
     console.log(`CRITICAL ERROR: ${error.message}`);
     updateStatus('error', `Error filling form details: ${error.message}`);
     return false;
@@ -1144,7 +1240,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
 async function processAllFuelSections(page, dispenser, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE) {
   try {
     logger.info('=== ENTERING MULTI-SECTION MODE: Starting to process all fuel sections... ===');
-    console.log('=== ENTERING MULTI-SECTION MODE: Starting to process all fuel sections... ===');
+    logger.info('=== ENTERING MULTI-SECTION MODE: Starting to process all fuel sections... ===', 'FORM_PREP');
     
     // Click the "Next" button to move to the first fuel type section
     try {
@@ -1155,24 +1251,28 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
       
       if (!nextButtonExists) {
         logger.warn('Next button not found - unable to proceed to fuel sections');
-        console.log('Next button not found - unable to proceed to fuel sections');
+        logger.warn('Next button not found - unable to proceed to fuel sections', 'FORM_PREP');
         return false;
       }
       
       logger.info('Found Next button, clicking to proceed to fuel sections...');
-      console.log('Found Next button, clicking to proceed to fuel sections...');
+      logger.info('Found Next button, clicking to proceed to fuel sections...', 'FORM_PREP');
       
       // Click the next button
       await page.click('a.next-section');
       logger.info('Clicked Next button to proceed to fuel sections');
+      logger.info('Clicked Next button to proceed to fuel sections', 'FORM_PREP');
       
       // Load prover preferences from JSON file
       logger.info('Loading prover preferences...');
+      logger.info('Loading prover preferences...', 'FORM_PREP');
       const proverPreferences = await loadProverPreferences();
       if (!proverPreferences) {
         logger.warn('Could not load prover preferences, using default selection');
+        logger.warn('Could not load prover preferences, using default selection', 'FORM_PREP');
       } else {
         logger.info(`Loaded preferences for ${proverPreferences.provers.length} provers`);
+        logger.info(`Loaded preferences for ${proverPreferences.provers.length} provers`, 'FORM_PREP');
       }
       
       // Extract all fuel grades from the dispenser
@@ -1189,21 +1289,21 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
       }
       
       logger.info(`Found ${fuelGrades.length} fuel grades to process: ${fuelGrades.join(', ')}`);
-      console.log(`Found ${fuelGrades.length} fuel grades to process: ${fuelGrades.join(', ')}`);
+      logger.info(`Found ${fuelGrades.length} fuel grades to process: ${fuelGrades.join(', ')}`, 'FORM_PREP');
       
       // Add detailed debugging information
       logger.info(`DEBUG - Raw fuel grades: ${JSON.stringify(fuelGrades)}`);
-      console.log(`DEBUG - Raw fuel grades: ${JSON.stringify(fuelGrades)}`);
+      logger.info(`DEBUG - Raw fuel grades: ${JSON.stringify(fuelGrades)}`, 'FORM_PREP');
       const normalizedGrades = fuelGrades.map(grade => grade.split(':').pop().trim());
       logger.info(`DEBUG - Normalized fuel grades: ${JSON.stringify(normalizedGrades)}`);
-      console.log(`DEBUG - Normalized fuel grades: ${JSON.stringify(normalizedGrades)}`);
+      logger.info(`DEBUG - Normalized fuel grades: ${JSON.stringify(normalizedGrades)}`, 'FORM_PREP');
       
       // Check for Premium and Super combination
       const hasPremium = normalizedGrades.some(grade => grade === 'Premium');
       const hasSuper = normalizedGrades.some(grade => grade === 'Super' || grade === 'Super Premium' || grade === 'Ultra');
       if (hasPremium && hasSuper) {
         logger.info(`DEBUG - Special case detected: Premium and Super variants exist together`);
-        console.log(`DEBUG - Special case detected: Premium and Super variants exist together`);
+        logger.info(`DEBUG - Special case detected: Premium and Super variants exist together`, 'FORM_PREP');
       }
       
       // Check if there are any iterations visible
@@ -1213,7 +1313,7 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
       
       if (!anyIterationsExist) {
         logger.warn('No iteration sections found on the page');
-        console.log('No iteration sections found on the page');
+        logger.warn('No iteration sections found on the page', 'FORM_PREP');
         return false;
       }
       
@@ -1223,7 +1323,7 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
       });
       
       logger.info(`Found ${totalIterations} total fuel sections to process`);
-      console.log(`Found ${totalIterations} total fuel sections to process`);
+      logger.info(`Found ${totalIterations} total fuel sections to process`, 'FORM_PREP');
       updateStatus('running', `Found ${totalIterations} fuel sections to process`);
       
       // Process each fuel type section (iteration)
@@ -1235,7 +1335,7 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
         // Check if current iteration exists
         try {
           logger.info(`Checking for iteration ${currentIteration}...`);
-          console.log(`Checking for iteration ${currentIteration}...`);
+          logger.info(`Checking for iteration ${currentIteration}...`, 'FORM_PREP');
           
           const iterationExists = await page.waitForSelector(`#iteration-${currentIteration}`, { 
             timeout: 5000,
@@ -1244,13 +1344,13 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
           
           if (!iterationExists) {
             logger.info(`No more iterations found after iteration ${currentIteration - 1}`);
-            console.log(`No more iterations found after iteration ${currentIteration - 1}`);
+            logger.info(`No more iterations found after iteration ${currentIteration - 1}`, 'FORM_PREP');
             moreIterationsExist = false;
             break;
           }
           
           logger.info(`Found iteration ${currentIteration}, checking if expanded...`);
-          console.log(`Found iteration ${currentIteration}, checking if expanded...`);
+          logger.info(`Found iteration ${currentIteration}, checking if expanded...`, 'FORM_PREP');
           
           // Check if iteration is already open/expanded
           const isExpanded = await page.evaluate((iterationId) => {
@@ -1261,14 +1361,16 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
           // If not expanded, click to expand it
           if (!isExpanded) {
             logger.info(`Iteration ${currentIteration} is collapsed, expanding...`);
-            console.log(`Iteration ${currentIteration} is collapsed, expanding...`);
+            logger.info(`Iteration ${currentIteration} is collapsed, expanding...`, 'FORM_PREP');
             
             await page.click(`#iteration-${currentIteration} .panel-header a`);
             logger.info(`Expanded iteration ${currentIteration}`);
+            logger.info(`Expanded iteration ${currentIteration}`, 'FORM_PREP');
             await page.waitForTimeout(500);
             
           } else {
             logger.info(`Iteration ${currentIteration} is already expanded`);
+            logger.info(`Iteration ${currentIteration} is already expanded`, 'FORM_PREP');
           }
           
           // Get the current fuel type
@@ -1283,16 +1385,19 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
           if (fuelType) {
             // Update status with progress information
             processedIterations++;
-            updateStatus('running', `Processing fuel type: ${fuelType} (${processedIterations}/${totalIterations})`);
+            updateStatus('running', `Processing fuel type: ${fuelType} (${processedIterations}/${totalIterations}) - Dispenser #${dispenser.dispenserNumber || dispenser.title || 'Unknown'}`);
             
             logger.info(`Processing fuel type: ${fuelType} (iteration ${currentIteration}, ${processedIterations}/${totalIterations})`);
-            console.log(`Processing fuel type: ${fuelType} (iteration ${currentIteration}, ${processedIterations}/${totalIterations})`);
+            logger.info(`Processing fuel type: ${fuelType} (iteration ${currentIteration}, ${processedIterations}/${totalIterations})`, 'FORM_PREP');
             
             // Log details of fuel grades before processing
             logger.info(`FUEL GRADES DEBUG: About to process ${fuelType}`);
+            logger.info(`FUEL GRADES DEBUG: About to process ${fuelType}`, 'FORM_PREP');
             logger.info(`FUEL GRADES DEBUG: All fuel grades available: ${JSON.stringify(fuelGrades)}`);
+            logger.info(`FUEL GRADES DEBUG: All fuel grades available: ${JSON.stringify(fuelGrades)}`, 'FORM_PREP');
             // Make sure we're passing the correct fuel type information for dispenser meter determination
             logger.info(`FUEL GRADES DEBUG: Raw fuelGrades array type: ${Array.isArray(fuelGrades) ? 'Array' : typeof fuelGrades}`);
+            logger.info(`FUEL GRADES DEBUG: Raw fuelGrades array type: ${Array.isArray(fuelGrades) ? 'Array' : typeof fuelGrades}`, 'FORM_PREP');
             
             // Fill out the form for this fuel type
             await fillFuelTypeForm(page, fuelType, fuelGrades, proverPreferences, isSpecificDispensers, formType);
@@ -1307,18 +1412,22 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
               if (saveButtonExists) {
                 await page.click(`#iteration-${currentIteration} button.save-section`);
                 logger.info(`Saved form for fuel type: ${fuelType}`);
+                logger.info(`Saved form for fuel type: ${fuelType}`, 'FORM_PREP');
                 console.log(`Saved form for fuel type: ${fuelType}`);
                 await page.waitForTimeout(1000); // Wait for save to complete
               } else {
                 logger.warn(`Save button not found for iteration ${currentIteration}`);
+                logger.warn(`Save button not found for iteration ${currentIteration}`, 'FORM_PREP');
                 console.log(`Save button not found for iteration ${currentIteration}`);
               }
             } catch (error) {
               logger.warn(`Error saving form for fuel type ${fuelType}: ${error.message}`);
+              logger.warn(`Error saving form for fuel type ${fuelType}: ${error.message}`, 'FORM_PREP');
               console.log(`Error saving form for fuel type ${fuelType}: ${error.message}`);
             }
           } else {
             logger.warn(`Could not determine fuel type for iteration ${currentIteration}`);
+            logger.warn(`Could not determine fuel type for iteration ${currentIteration}`, 'FORM_PREP');
             console.log(`Could not determine fuel type for iteration ${currentIteration}`);
           }
           
@@ -1327,7 +1436,7 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
           
         } catch (error) {
           logger.warn(`Error processing iteration ${currentIteration}: ${error.message}`);
-          console.log(`Error processing iteration ${currentIteration}: ${error.message}`);
+          logger.warn(`Error processing iteration ${currentIteration}: ${error.message}`, 'FORM_PREP');
           moreIterationsExist = false;
         }
       }
@@ -1363,7 +1472,7 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
 async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE) {
   try {
     logger.info(`=== FILLING FUEL TYPE FORM: ${fuelType} (isSpecificDispensers=${isSpecificDispensers}, formType=${formType}) ===`);
-    console.log(`=== FILLING FUEL TYPE FORM: ${fuelType} (isSpecificDispensers=${isSpecificDispensers}, formType=${formType}) ===`);
+    logger.info(`=== FILLING FUEL TYPE FORM: ${fuelType} (isSpecificDispensers=${isSpecificDispensers}, formType=${formType}) ===`, 'FORM_PREP');
     
     // We intentionally skip entering fuel price as requested
     logger.info('Skipping fuel price entry as requested');
@@ -1394,7 +1503,9 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
           // Multiple selectors to handle different field name patterns
           const selectors = [
             `input[type="radio"][value="${shouldHaveMeter ? '1' : '2'}"]`,
-            // Add field name if we know it
+            // Add field IDs based on form type (5438 for AccuMeasure, 5462 for Open Neck Prover)
+            `input[name="field[${formType === FORM_TYPES.OPEN_NECK_PROVER ? '5462' : '5438'}]"][value="${shouldHaveMeter ? '1' : '2'}"]`,
+            // Fallback to old field ID for backward compatibility
             `input[name="field[4857]"][value="${shouldHaveMeter ? '1' : '2'}"]`,
             `input[name="field[Has Meter]"][value="${shouldHaveMeter ? '1' : '2'}"]`
           ];
@@ -1498,14 +1609,32 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
       
       if (radiosSelected.success) {
         logger.info(`Has Meter selection successful - Method: ${radiosSelected.method}`);
+        logger.info(`Has Meter selection successful - Method: ${radiosSelected.method}`, 'FORM_PREP');
         console.log(`Has Meter selection successful - Method: ${radiosSelected.method}`);
       } else {
         logger.warn(`Has Meter selection failed: ${radiosSelected.error}`);
+        logger.warn(`Has Meter selection failed: ${radiosSelected.error}`, 'FORM_PREP');
         console.log(`Has Meter selection failed: ${radiosSelected.error}`);
+        
+        // Enhanced logging for radio button failures
+        logger.info(`Form type: ${formType}, Fuel type: ${fuelType}`);
+        logger.info(`Attempting to select: ${hasMeters ? 'Yes' : 'No'}`);
         
         if (radiosSelected.availableOptions) {
           logger.info(`Available radio options: ${JSON.stringify(radiosSelected.availableOptions)}`);
+          logger.info(`Available radio options: ${JSON.stringify(radiosSelected.availableOptions)}`, 'FORM_PREP');
           console.log(`Available radio options: ${JSON.stringify(radiosSelected.availableOptions)}`);
+          
+          // Log the HTML structure of the radio section for debugging
+          try {
+            const radioHTML = await page.evaluate(() => {
+              const radioGroup = document.querySelector('.radio');
+              return radioGroup ? radioGroup.outerHTML : 'Radio group not found';
+            });
+            logger.info(`Radio HTML structure: ${radioHTML}`);
+          } catch (htmlError) {
+            logger.warn(`Could not extract radio HTML: ${htmlError.message}`);
+          }
           
           // If we found radio options, try one more direct approach with Playwright
           try {
@@ -1603,9 +1732,11 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
       
       if (verification.success) {
         logger.info(`Has Meter verification: ${verification.status}`);
+        logger.info(`Has Meter verification: ${verification.status}`, 'FORM_PREP');
         console.log(`Has Meter verification: ${verification.status}`);
       } else {
         logger.warn(`Has Meter verification failed: ${verification.status}`);
+        logger.warn(`Has Meter verification failed: ${verification.status}`, 'FORM_PREP');
         console.log(`Has Meter verification failed: ${verification.status}`);
       }
       
@@ -1614,188 +1745,157 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
       console.log('Waiting for form to update after Has Meter selection');
       await page.waitForTimeout(2000);
       
-      // For Regular fuel type and service code 2861/3002 specifically, check one more time
-      if (fuelType.includes('Regular')) {
-        logger.info('Special check for Regular fuel type (service codes 2861/3002) - confirming has meter is set to Yes');
+      // Apply aggressive approach to all fuel types to ensure proper selection
+      logger.info(`Applying aggressive selection confirmation for ${fuelType}`);
+      
+      // ULTRA AGGRESSIVE APPROACH FOR ALL FUEL TYPES
+      try {
+        // First attempt: Direct click approach with Playwright
+        await page.waitForTimeout(300); // Small pause to ensure DOM is stable
         
-        // ULTRA AGGRESSIVE APPROACH FOR REGULAR FUEL TYPE
         try {
-          // First attempt: Direct click approach with Playwright
-          await page.waitForTimeout(300); // Small pause to ensure DOM is stable
+          // Get the radio button through multiple selectors
+          const radioSelectors = [
+            `input[type="radio"][value="${hasMeters ? '1' : '2'}"]`, 
+            `input[name="field[${formType === FORM_TYPES.OPEN_NECK_PROVER ? '5462' : '5438'}]"][value="${hasMeters ? '1' : '2'}"]`,
+            `input[name="field[4857]"][value="${hasMeters ? '1' : '2'}"]`,
+            `input[name="field[Has Meter]"][value="${hasMeters ? '1' : '2'}"]`
+          ];
           
-          try {
-            // Get the Yes radio button through multiple selectors
-            const radioSelectors = [
-              'input[type="radio"][value="1"]', 
-              'input[name="field[4857]"][value="1"]',
-              'input[name="field[Has Meter]"][value="1"]'
-            ];
-            
-            // Try clicking directly with Playwright
-            for (const selector of radioSelectors) {
-              const exists = await page.$(selector);
-              if (exists) {
-                logger.info(`Found Regular fuel Has Meter Yes radio with selector: ${selector}, clicking directly`);
-                await page.click(selector, { force: true });
-                await page.waitForTimeout(200);
-                break;
-              }
+          // Try clicking directly with Playwright
+          for (const selector of radioSelectors) {
+            const exists = await page.$(selector);
+            if (exists) {
+              logger.info(`Found ${fuelType} Has Meter ${hasMeters ? 'Yes' : 'No'} radio with selector: ${selector}, clicking directly`);
+              await page.click(selector, { force: true });
+              await page.waitForTimeout(200);
+              break;
             }
-          } catch (clickErr) {
-            logger.warn(`Direct click attempt failed: ${clickErr.message}`);
           }
+        } catch (clickErr) {
+          logger.warn(`Direct click attempt failed: ${clickErr.message}`);
+        }
+        
+        // Second attempt: Label-based approach with Playwright
+        try {
+          // Find and click the Yes/No label
+          const labelText = hasMeters ? 'Yes' : 'No';
+          const labelSelectors = [
+            `label.ks-radio >> text=${labelText}`,
+            `label:has-text("${labelText}")`,
+            `label.ks-radio-wrapper >> text=${labelText}`
+          ];
           
-          // Second attempt: Label-based approach with Playwright
-          try {
-            // Find and click the Yes label
-            const labelSelectors = [
-              'label.ks-radio >> text=Yes',
-              'label:has-text("Yes")',
-              'label.ks-radio-wrapper >> text=Yes'
-            ];
-            
-            for (const selector of labelSelectors) {
-              const exists = await page.$(selector);
-              if (exists) {
-                logger.info(`Found Regular fuel Has Meter Yes label with selector: ${selector}, clicking directly`);
-                await page.click(selector, { force: true });
-                await page.waitForTimeout(200);
-                break;
-              }
+          for (const selector of labelSelectors) {
+            const exists = await page.$(selector);
+            if (exists) {
+              logger.info(`Found ${fuelType} Has Meter ${labelText} label with selector: ${selector}, clicking directly`);
+              await page.click(selector, { force: true });
+              await page.waitForTimeout(200);
+              break;
             }
-          } catch (labelErr) {
-            logger.warn(`Label click attempt failed: ${labelErr.message}`);
           }
+        } catch (labelErr) {
+          logger.warn(`Label click attempt failed: ${labelErr.message}`);
+        }
+        
+        // Third attempt: Brute force with JavaScript
+        await page.evaluate((shouldHaveMeter) => {
+          // Force the correct value for this fuel type
+          console.log(`BRUTE FORCE: Setting all possible ${shouldHaveMeter ? 'Yes' : 'No'} radios`);
           
-          // Third attempt: Brute force with JavaScript
-          await page.evaluate(() => {
-            // Force Yes for Regular - this is critical for service codes 2861 and 3002
-            console.log('BRUTE FORCE: Setting all possible Yes radios for Regular fuel type');
+          // Clear all radio first
+          document.querySelectorAll('input[type="radio"]').forEach(radio => {
+            radio.checked = false;
+          });
+          
+          // Find and check radios by value
+          document.querySelectorAll(`input[type="radio"][value="${shouldHaveMeter ? '1' : '2'}"]`).forEach(radio => {
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+            radio.dispatchEvent(new Event('input', { bubbles: true }));
+            radio.dispatchEvent(new Event('click', { bubbles: true }));
             
-            // Clear all radio first
-            document.querySelectorAll('input[type="radio"]').forEach(radio => {
-              radio.checked = false;
-            });
+            // Also click the label if possible
+            const label = radio.closest('label');
+            if (label) {
+              label.click();
+            }
             
-            // Find and check Yes radios by value
-            document.querySelectorAll('input[type="radio"][value="1"]').forEach(radio => {
+            console.log('Set radio to checked state:', radio);
+          });
+          
+          // Find anything else that looks like a Yes/No radio
+          const targetText = shouldHaveMeter ? 'Yes' : 'No';
+          const targetLabels = Array.from(document.querySelectorAll('label'))
+            .filter(label => label.textContent.trim() === targetText);
+            
+          targetLabels.forEach(label => {
+            label.click();
+            const input = label.querySelector('input[type="radio"]');
+            if (input) {
+              input.checked = true;
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('click', { bubbles: true }));
+              console.log(`Set ${targetText} radio via label:`, input);
+            }
+          });
+        }, hasMeters);
+        
+        // Fourth attempt: Direct DOM method to force selection
+        await page.waitForTimeout(300);
+        const fullVerification = await page.evaluate((shouldHaveMeter) => {
+          // Final check
+          const allRadios = document.querySelectorAll('input[type="radio"]');
+          console.log(`Found ${allRadios.length} total radio buttons on page`);
+          
+          const targetRadios = Array.from(document.querySelectorAll(`input[type="radio"][value="${shouldHaveMeter ? '1' : '2'}"]`));
+          console.log(`Found ${targetRadios.length} ${shouldHaveMeter ? 'Yes' : 'No'} radio buttons (value="${shouldHaveMeter ? '1' : '2'}")`);
+          
+          // If any target radio is not checked, check it
+          let changed = false;
+          targetRadios.forEach(radio => {
+            if (!radio.checked) {
+              // One last brute force attempt
+              console.log(`FINAL ATTEMPT: Forcing ${shouldHaveMeter ? 'Yes' : 'No'} radio checked state:`, radio);
               radio.checked = true;
               radio.dispatchEvent(new Event('change', { bubbles: true }));
               radio.dispatchEvent(new Event('input', { bubbles: true }));
-              radio.dispatchEvent(new Event('click', { bubbles: true }));
-              
-              // Also click the label if possible
-              const label = radio.closest('label');
-              if (label) {
-                label.click();
-              }
-              
-              console.log('Set radio to checked state:', radio);
-            });
-            
-            // Find anything else that looks like a Yes radio
-            const yesLabels = Array.from(document.querySelectorAll('label'))
-              .filter(label => label.textContent.trim() === 'Yes');
-              
-            yesLabels.forEach(label => {
-              label.click();
-              const input = label.querySelector('input[type="radio"]');
-              if (input) {
-                input.checked = true;
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('click', { bubbles: true }));
-                console.log('Set Yes radio via label:', input);
-              }
-            });
+              changed = true;
+            }
           });
           
-          // Fourth attempt: Direct DOM method to force Yes selection
-          await page.waitForTimeout(300);
-          const fullVerification = await page.evaluate(() => {
-            // Final check
-            const allRadios = document.querySelectorAll('input[type="radio"]');
-            console.log(`Found ${allRadios.length} total radio buttons on page`);
-            
-            const yesRadios = Array.from(document.querySelectorAll('input[type="radio"][value="1"]'));
-            console.log(`Found ${yesRadios.length} Yes radio buttons (value="1")`);
-            
-            // If any Yes radio is not checked, check it
-            let changed = false;
-            yesRadios.forEach(radio => {
-              if (!radio.checked) {
-                // One last brute force attempt
-                console.log('FINAL ATTEMPT: Forcing Yes radio checked state:', radio);
-                radio.checked = true;
-                radio.dispatchEvent(new Event('change', { bubbles: true }));
-                radio.dispatchEvent(new Event('input', { bubbles: true }));
-                changed = true;
-              }
-            });
-            
-            // Take a detailed inventory of all radio buttons for debugging
-            const radioInventory = Array.from(allRadios).map((radio, idx) => {
-              const label = radio.closest('label');
-              return {
-                index: idx,
-                name: radio.name || 'unnamed',
-                value: radio.value,
-                checked: radio.checked,
-                labelText: label ? label.textContent.trim() : 'no label',
-                id: radio.id || 'no-id'
-              };
-            });
-            
+          // Take a detailed inventory of all radio buttons for debugging
+          const radioInventory = Array.from(allRadios).map((radio, idx) => {
+            const label = radio.closest('label');
             return {
-              success: yesRadios.some(radio => radio.checked),
-              changed,
-              radioCount: allRadios.length,
-              yesRadioCount: yesRadios.length,
-              radioInventory: radioInventory
+              index: idx,
+              name: radio.name || 'unnamed',
+              value: radio.value,
+              checked: radio.checked,
+              labelText: label ? label.textContent.trim() : 'no label',
+              id: radio.id || 'no-id'
             };
           });
           
-          if (fullVerification.success) {
-            logger.info(`SUCCESSFUL Radio verification for Regular fuel: ${fullVerification.yesRadioCount} Yes radios, ${fullVerification.radioCount} total radios`);
-          } else {
-            logger.warn(`FAILED Radio verification for Regular fuel: ${JSON.stringify(fullVerification)}`);
-          }
-          
-        } catch (aggressiveError) {
-          logger.error(`Ultra-aggressive approach failed: ${aggressiveError.message}`);
+          return {
+            success: targetRadios.some(radio => radio.checked),
+            changed,
+            radioCount: allRadios.length,
+            targetRadioCount: targetRadios.length,
+            radioInventory: radioInventory
+          };
+        }, hasMeters);
+        
+        if (fullVerification.success) {
+          logger.info(`SUCCESSFUL Radio verification for ${fuelType}: ${fullVerification.targetRadioCount} ${hasMeters ? 'Yes' : 'No'} radios, ${fullVerification.radioCount} total radios`);
+        } else {
+          logger.warn(`FAILED Radio verification for ${fuelType}: ${JSON.stringify(fullVerification)}`);
         }
         
-        // Original approach also kept for safety
-        await page.evaluate(() => {
-          // Force Yes for Regular - this is critical for service codes 2861 and 3002
-          const yesRadio = document.querySelector('input[type="radio"][value="1"]');
-          if (yesRadio && !yesRadio.checked) {
-            yesRadio.checked = true;
-            yesRadio.dispatchEvent(new Event('change', { bubbles: true }));
-            yesRadio.dispatchEvent(new Event('input', { bubbles: true }));
-            console.log('Forced Yes for Regular fuel type (service codes 2861/3002)');
-          } else if (yesRadio && yesRadio.checked) {
-            console.log('Confirmed Yes already selected for Regular fuel type (service codes 2861/3002)');
-          }
-        });
-        
-        // Double-verify that it's actually set
-        await page.waitForTimeout(500);
-        const finalVerification = await page.evaluate(() => {
-          const yesRadio = document.querySelector('input[type="radio"][value="1"]');
-          if (yesRadio && yesRadio.checked) {
-            return true;
-          } else if (yesRadio) {
-            // One final attempt if somehow it's still not checked
-            yesRadio.checked = true;
-            yesRadio.dispatchEvent(new Event('change', { bubbles: true }));
-            yesRadio.dispatchEvent(new Event('input', { bubbles: true }));
-            return yesRadio.checked;
-          }
-          return false;
-        });
-        
-        logger.info(`Final verification for Regular fuel type (service codes 2861/3002): ${finalVerification ? 'Success' : 'Failed'}`);
+      } catch (aggressiveError) {
+        logger.error(`Ultra-aggressive approach failed for ${fuelType}: ${aggressiveError.message}`);
       }
     } catch (error) {
       logger.warn(`Error selecting Has Meter option: ${error.message}`);
@@ -1864,14 +1964,17 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
           console.log('Top already selected for Type of fill');
         } else {
           logger.info(`Selected Top for Type of fill using ${typeOfFillSelected.method}`);
+          logger.info(`Selected Top for Type of fill using ${typeOfFillSelected.method}`, 'FORM_PREP');
           console.log(`Selected Top for Type of fill using ${typeOfFillSelected.method}`);
         }
       } else {
         logger.warn(`Type of fill radio options issue: ${typeOfFillSelected.error}`);
+        logger.warn(`Type of fill radio options issue: ${typeOfFillSelected.error}`, 'FORM_PREP');
         console.log(`Type of fill radio options issue: ${typeOfFillSelected.error}`);
       }
     } catch (error) {
       logger.warn(`Error selecting Type of fill: ${error.message}`);
+      logger.warn(`Error selecting Type of fill: ${error.message}`, 'FORM_PREP');
       console.log(`Error selecting Type of fill: ${error.message}`);
     }
     
@@ -2067,11 +2170,14 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
         
         if (directFillResult.success) {
           logger.info(`Successfully filled blend ratio fields: ${directFillResult.filled.join(', ')}`);
+          logger.info(`Successfully filled blend ratio fields: ${directFillResult.filled.join(', ')}`, 'FORM_PREP');
           console.log(`Successfully filled blend ratio fields: ${directFillResult.filled.join(', ')}`);
         } else {
           logger.warn(`Failed to set Blend Ratio: ${directFillResult.error || 'No fields found'}`);
+          logger.warn(`Failed to set Blend Ratio: ${directFillResult.error || 'No fields found'}`, 'FORM_PREP');
           console.log(`Failed to set Blend Ratio: ${directFillResult.error || 'No fields found'}`);
           logger.warn(`Found ${directFillResult.inputsFound} input fields but couldn't identify blend ratio fields`);
+          logger.warn(`Found ${directFillResult.inputsFound} input fields but couldn't identify blend ratio fields`, 'FORM_PREP');
           console.log(`Found ${directFillResult.inputsFound} input fields but couldn't identify blend ratio fields`);
           if (directFillResult.stack) {
             logger.warn(`Error stack: ${directFillResult.stack}`);
@@ -2079,6 +2185,7 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
         }
       } catch (error) {
         logger.warn(`Error setting Blend Ratio values: ${error.message}`);
+        logger.warn(`Error setting Blend Ratio values: ${error.message}`, 'FORM_PREP');
         console.log(`Error setting Blend Ratio values: ${error.message}`);
         if (error.stack) {
           logger.warn(`Error stack: ${error.stack}`);
@@ -2093,6 +2200,7 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
       
       if (proverId) {
         logger.info(`Found preferred prover ${proverId} for fuel type ${fuelType}`);
+        logger.info(`Found preferred prover ${proverId} for fuel type ${fuelType}`, 'FORM_PREP');
         console.log(`Found preferred prover ${proverId} for fuel type ${fuelType}`);
         
         try {
@@ -2179,6 +2287,7 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
           
           if (proverSelected.success) {
             logger.info(`Selected prover: ${proverSelected.selected} for fuel type: ${fuelType}`);
+            logger.info(`Selected prover: ${proverSelected.selected} for fuel type: ${fuelType}`, 'FORM_PREP');
             console.log(`Selected prover: ${proverSelected.selected} for fuel type: ${fuelType}`);
             
             // Verify the selection
@@ -2189,31 +2298,38 @@ async function fillFuelTypeForm(page, fuelType, allFuelTypes, proverPreferences,
             });
             
             logger.info(`Prover selection verification: "${selectionVerified}"`);
+            logger.info(`Prover selection verification: "${selectionVerified}"`, 'FORM_PREP');
             console.log(`Prover selection verification: "${selectionVerified}"`);
           } else {
             logger.warn(`Could not find prover with ID: ${proverId}, leaving prover unselected`);
+            logger.warn(`Could not find prover with ID: ${proverId}, leaving prover unselected`, 'FORM_PREP');
             console.log(`Could not find prover with ID: ${proverId}, leaving prover unselected`);
             // Close the dropdown without selecting anything
             await page.keyboard.press('Escape');
           }
         } catch (error) {
           logger.warn(`Error selecting prover: ${error.message}`);
+          logger.warn(`Error selecting prover: ${error.message}`, 'FORM_PREP');
           console.log(`Error selecting prover: ${error.message}`);
         }
       } else {
         logger.info(`No preferred prover found for ${fuelType}, leaving prover unselected`);
+        logger.info(`No preferred prover found for ${fuelType}, leaving prover unselected`, 'FORM_PREP');
         console.log(`No preferred prover found for ${fuelType}, leaving prover unselected`);
       }
     } else {
       logger.info(`No prover preferences available for ${fuelType}, using default behavior`);
+      logger.info(`No prover preferences available for ${fuelType}, using default behavior`, 'FORM_PREP');
       console.log(`No prover preferences available for ${fuelType}, using default behavior`);
     }
     
     logger.info(`=== COMPLETED FILLING FUEL TYPE FORM: ${fuelType} ===`);
+    logger.info(`=== COMPLETED FILLING FUEL TYPE FORM: ${fuelType} ===`, 'FORM_PREP');
     console.log(`=== COMPLETED FILLING FUEL TYPE FORM: ${fuelType} ===`);
     return true;
   } catch (error) {
     logger.error(`Error filling fuel type form for ${fuelType}: ${error.message}`);
+    logger.error(`Error filling fuel type form for ${fuelType}: ${error.message}`, 'FORM_PREP');
     console.log(`Error filling fuel type form for ${fuelType}: ${error.message}`);
     return false;
   }
@@ -2258,6 +2374,7 @@ function shouldHaveMeter(fuelType, allFuelTypes) {
   
   // Log available fuel types for debugging
   logger.info(`shouldHaveMeter: Available fuel types on this dispenser: ${allFuelTypes.join(', ')}`);
+  logger.info(`shouldHaveMeter: Available fuel types on this dispenser: ${Array.isArray(allFuelTypes) ? allFuelTypes.join(', ') : allFuelTypes}`, 'FORM_PREP');
   
   // Special case for Premium
   if (baseFuelType === 'Premium') {
@@ -2273,28 +2390,33 @@ function shouldHaveMeter(fuelType, allFuelTypes) {
     // If any super variants exist, Premium doesn't have a meter
     if (hasSuperVariants) {
       logger.info('shouldHaveMeter: Premium with Super variant detected - selecting No for meter');
+      logger.info('shouldHaveMeter: Premium with Super variant detected - selecting No for meter', 'FORM_PREP');
       return false;
     }
     
     // Otherwise Premium has a meter
     logger.info('shouldHaveMeter: Premium without Super variants - selecting Yes for meter');
+    logger.info('shouldHaveMeter: Premium without Super variants - selecting Yes for meter', 'FORM_PREP');
     return true;
   }
   
   // Check if it's in the types with meters
   if (typesWithMeters.some(type => baseFuelType.includes(type))) {
     logger.info(`shouldHaveMeter: "${baseFuelType}" matches a type with meters - selecting Yes`);
+    logger.info(`shouldHaveMeter: "${baseFuelType}" matches a type with meters - selecting Yes`, 'FORM_PREP');
     return true;
   }
   
   // Check if it's in the types without meters
   if (typesWithoutMeters.some(type => baseFuelType.includes(type))) {
     logger.info(`shouldHaveMeter: "${baseFuelType}" matches a type without meters - selecting No`);
+    logger.info(`shouldHaveMeter: "${baseFuelType}" matches a type without meters - selecting No`, 'FORM_PREP');
     return false;
   }
   
   // Default to Yes if we're not sure
   logger.info(`shouldHaveMeter: Fuel type "${baseFuelType}" not in known lists, defaulting to Yes for meter`);
+  logger.info(`shouldHaveMeter: Fuel type "${baseFuelType}" not in known lists, defaulting to Yes for meter`, 'FORM_PREP');
   return true;
 }
 
@@ -2304,7 +2426,7 @@ function shouldHaveMeter(fuelType, allFuelTypes) {
  */
 async function loadProverPreferences() {
   try {
-    const preferencesPath = path.join(process.cwd(), 'data', 'prover_preferences.json');
+    const preferencesPath = resolveUserFilePath('prover_preferences.json');
     if (fs.existsSync(preferencesPath)) {
       const data = fs.readFileSync(preferencesPath, 'utf8');
       return JSON.parse(data);
@@ -2332,6 +2454,44 @@ function getPreferredProver(fuelType, proverPreferences, allFuelTypes = []) {
   
   // Extract the base fuel type
   const baseFuelType = fuelType.split(':').pop().trim();
+
+  // Special case for Ethanol-Free or Rec Fuel 90
+  // Check if auto positioning is enabled (default to true if not specified)
+  const autoPositionEthanolFree = proverPreferences.autoPositionEthanolFree !== false;
+  
+  // Check if this is Ethanol-Free or similar fuel type - use includes() instead of exact match
+  const isEthanolFree = 
+    baseFuelType.includes('Ethanol-Free') || 
+    baseFuelType.includes('Ethanol-Free Gasoline Plus') || 
+    baseFuelType.includes('Rec Fuel 90');
+  
+  // Check if Diesel is present on this dispenser
+  const hasDiesel = allFuelTypes.some(type => {
+    const normalizedType = type.split(':').pop().trim();
+    return normalizedType.includes('Diesel');
+  });
+
+  // Check if there are multiple fuel grades on this dispenser
+  const hasMultipleGrades = allFuelTypes.length > 1;
+
+  // Only apply special position rule when:
+  // 1. Auto-positioning is enabled
+  // 2. This is an Ethanol-Free type fuel
+  // 3. Diesel is NOT present
+  // 4. There are multiple grades on the dispenser (if it's the only grade, keep it in position 1)
+  if (autoPositionEthanolFree && isEthanolFree && !hasDiesel && hasMultipleGrades) {
+    logger.info(`${baseFuelType} found with other non-Diesel fuels - using Position 3 prover (auto-positioning enabled)`);
+    console.log(`${baseFuelType} found with other non-Diesel fuels - using Position 3 prover (auto-positioning enabled)`);
+    
+    // Find prover with priority 3
+    for (const prover of proverPreferences.provers) {
+      if (prover.priority === 3) {
+        logger.info(`Using Position 3 prover ${prover.prover_id} for ${baseFuelType}`);
+        console.log(`Using Position 3 prover ${prover.prover_id} for ${baseFuelType}`);
+        return prover.prover_id;
+      }
+    }
+  }
   
   // Special case for Premium when Super/Ultra/Super Premium exists
   if (baseFuelType === 'Premium') {
@@ -2501,15 +2661,45 @@ function extractSpecificDispensers(instructions) {
  * @param {string} visitUrl - URL of the visit to process
  * @param {boolean} headless - Whether to run browser in headless mode
  * @param {string} workOrderId - Optional work order ID to get dispenser data
+ * @param {string} externalJobId - Job ID passed from API route (optional)
  * @returns {Promise<object>} - Result of the operation
  */
-async function processVisit(visitUrl, headless = true, workOrderId = null) {
+async function processVisit(visitUrl, headless = true, workOrderId = null, externalJobId = null) {
+  // Use provided job ID if available, otherwise generate one
+  currentJobId = externalJobId || Date.now().toString();
+  activeJobIds.add(currentJobId); // Add to active job IDs set
+  isCancelled = false;
+  
+  // Log job tracking for debugging
+  logger.info(`Processing visit with job ID: ${currentJobId}`);
+  logger.info(`Current active job IDs: ${Array.from(activeJobIds).join(', ')}`);
+  
   let browser = null;
   let page = null;
   
   try {
-    logger.info(`Processing visit: ${visitUrl}`);
+    logger.info(`Processing visit: ${visitUrl} (Job ID: ${currentJobId})`);
     updateStatus('running', `Processing visit: ${visitUrl}`);
+    
+    // Log active user info
+    const activeUser = getActiveUser();
+    logger.info(`Active User: ${activeUser || 'None'}`);
+    
+    // Log file paths for debugging
+    const scraperDataPath = resolveUserFilePath('scraped_content.json');
+    const dispenserStorePath = resolveUserFilePath('dispenser_store.json');
+    const proverPreferencesPath = resolveUserFilePath('prover_preferences.json');
+    
+    logger.info(`User file paths:`);
+    logger.info(`- scraped_content.json: ${scraperDataPath}`);
+    logger.info(`- dispenser_store.json: ${dispenserStorePath}`);
+    logger.info(`- prover_preferences.json: ${proverPreferencesPath}`);
+    
+    // Check if files exist
+    logger.info(`File existence check:`);
+    logger.info(`- scraped_content.json exists: ${fs.existsSync(scraperDataPath)}`);
+    logger.info(`- dispenser_store.json exists: ${fs.existsSync(dispenserStorePath)}`);
+    logger.info(`- prover_preferences.json exists: ${fs.existsSync(proverPreferencesPath)}`);
     
     // Use the improved loginToFossa function from login.js
     const loginResult = await loginToFossa({ headless });
@@ -2518,15 +2708,44 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
       throw new Error('Failed to login to Fossa');
     }
     
+    // Check for cancellation after login
+    if (isCancelled) {
+      logger.info('Job cancelled, stopping process after login');
+      updateStatus('completed', 'Job cancelled by user');
+      await loginResult.browser.close();
+      return;
+    }
+    
     // Get the browser and page objects from the login result
     browser = loginResult.browser;
     page = loginResult.page;
     
+    // Store browser instance globally for cancellation access
+    global.activeBrowser = browser;
+    
     // Navigate to the visit page
     logger.info(`Navigating to visit: ${visitUrl}`);
     updateStatus('running', `Navigating to visit: ${visitUrl}`);
-    await page.goto(visitUrl);
+    
+    // Ensure the URL is absolute by adding domain if it's a relative URL
+    const absoluteUrl = visitUrl.startsWith('/') 
+      ? `https://app.workfossa.com${visitUrl}` 
+      : visitUrl.startsWith('http') 
+        ? visitUrl 
+        : `https://app.workfossa.com/${visitUrl}`;
+    
+    logger.info(`Using absolute URL: ${absoluteUrl}`);
+    
+    await page.goto(absoluteUrl);
     await page.waitForLoadState('networkidle');
+    
+    // Check for cancellation after navigation
+    if (isCancelled) {
+      logger.info('Job cancelled, stopping process after navigation');
+      updateStatus('completed', 'Job cancelled by user');
+      await browser.close();
+      return;
+    }
     
     // Get dispenser data and form count
     let dispensers = [];
@@ -2540,20 +2759,35 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
     // Extract work order ID from the URL or passed workOrderId
     let workOrderIdFromUrl = workOrderId;
     if (!workOrderIdFromUrl) {
-      // Try to extract from URL if not provided
-      const visitUrlParts = visitUrl.split('/');
-      const workIndex = visitUrlParts.indexOf('work');
-      if (workIndex > 0 && workIndex < visitUrlParts.length - 1) {
-        workOrderIdFromUrl = visitUrlParts[workIndex + 1];
+      // Try to extract from URL using regex which is more reliable
+      const workOrderMatch = visitUrl.match(/\/work\/(\d+)/);
+      if (workOrderMatch && workOrderMatch[1]) {
+        workOrderIdFromUrl = workOrderMatch[1];
+        logger.info(`Extracted work order ID using regex: ${workOrderIdFromUrl}`);
         
         // Add W- prefix if needed for consistency
         if (!workOrderIdFromUrl.startsWith('W-')) {
           workOrderIdFromUrl = `W-${workOrderIdFromUrl}`;
         }
-      } 
+      } else {
+        // Fallback to the old method
+        const visitUrlParts = visitUrl.split('/');
+        const workIndex = visitUrlParts.indexOf('work');
+        if (workIndex > 0 && workIndex < visitUrlParts.length - 1) {
+          workOrderIdFromUrl = visitUrlParts[workIndex + 1];
+          
+          logger.info(`Extracted work order ID from URL parts: ${workOrderIdFromUrl}`);
+          
+          // Add W- prefix if needed for consistency
+          if (!workOrderIdFromUrl.startsWith('W-')) {
+            workOrderIdFromUrl = `W-${workOrderIdFromUrl}`;
+          }
+        }
+      }
       
       // If we still don't have it, try to extract from page
       if (!workOrderIdFromUrl) {
+        logger.info('Could not extract work order ID from URL, trying to extract from page');
         workOrderIdFromUrl = await page.evaluate(() => {
           const workOrderElement = document.querySelector('a[href*="/work/"]');
           if (workOrderElement) {
@@ -2563,19 +2797,45 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
           }
           return null;
         });
+        
+        if (workOrderIdFromUrl) {
+          logger.info(`Extracted work order ID from page: ${workOrderIdFromUrl}`);
+        } else {
+          logger.warn('Could not extract work order ID from page');
+        }
       }
     }
     
-    logger.info(`Work Order ID: ${workOrderIdFromUrl || 'Unknown'}`);
+    // The work order ID should be the one in the URL after /work/ and before /visits/
+    // This is a critical fix to ensure we're always using the correct ID
+    if (visitUrl.includes('/work/') && visitUrl.includes('/visits/')) {
+      const originalId = workOrderIdFromUrl;
+      const correctIdMatch = visitUrl.match(/\/work\/(\d+)\/visits\//);
+      
+      if (correctIdMatch && correctIdMatch[1]) {
+        const correctId = correctIdMatch[1];
+        if (correctId !== workOrderIdFromUrl.replace(/^W-/, '')) {
+          logger.info(`Correcting work order ID from ${workOrderIdFromUrl} to W-${correctId}`);
+          workOrderIdFromUrl = `W-${correctId}`;
+        }
+      }
+    }
+    
+    logger.info(`Final work order ID for lookup: ${workOrderIdFromUrl}`);
     updateStatus('running', 'Analyzing visit details...');
     
     // Step 1: Try to get service code and dispenser data from scraped_content.json
     if (workOrderIdFromUrl) {
       try {
-        const scraperDataPath = path.join(process.cwd(), 'data', 'scraped_content.json');
+        const scraperDataPath = resolveUserFilePath('scraped_content.json');
         
         if (fs.existsSync(scraperDataPath)) {
           const data = JSON.parse(fs.readFileSync(scraperDataPath, 'utf8'));
+          
+          // Log available work order IDs for debugging
+          const availableIds = data.workOrders ? data.workOrders.map(wo => wo.id).slice(0, 10) : [];
+          logger.info(`Available work order IDs in scraped_content.json (first 10): ${availableIds.join(', ')}`);
+          logger.info(`Looking for work order ID: ${workOrderIdFromUrl} (also checking without W- prefix: ${workOrderIdFromUrl.replace(/^W-/, '')})`);
           
           // Find the work order
           const normalizedWorkOrderId = workOrderIdFromUrl.replace(/^W-/, '');
@@ -2687,7 +2947,7 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
       if (!dispensersFound) {
         logger.info(`No dispensers found in scraped_content.json, checking dispenser_store.json`);
         
-        const dispenserStorePath = path.join(process.cwd(), 'data', 'dispenser_store.json');
+        const dispenserStorePath = resolveUserFilePath('dispenser_store.json');
         if (fs.existsSync(dispenserStorePath)) {
           try {
             const dispenserStoreData = JSON.parse(fs.readFileSync(dispenserStorePath, 'utf8'));
@@ -2711,7 +2971,8 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
     
     // Only try getting dispensers from the page if we didn't find any from data files
     if (!dispensersFound) {
-      // Get dispenser data from the page as a last resort
+      // Get dispenser data from the page as a last resort - but don't rely on it
+      logger.info('No dispensers found in data files - attempting basic page check but this will likely not work');
       dispensers = await page.evaluate(() => {
         // Try multiple possible selectors for dispensers
         const selectors = ['div.line-item', 'div.equipment-item', 'div.dispenser-item', 'tr.line-item'];
@@ -2762,6 +3023,58 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
       
       logger.info(`Found ${dispensers.length} dispensers on page`);
     }
+
+    // Now check dispenser_store.json more thoroughly if we haven't found dispensers yet
+    if (dispensers.length === 0) {
+      logger.info(`No dispensers found yet. Double-checking dispenser_store.json with work order ID: ${workOrderIdFromUrl}`);
+      
+      try {
+        const dispenserStorePath = resolveUserFilePath('dispenser_store.json');
+        if (fs.existsSync(dispenserStorePath)) {
+          logger.info(`dispenser_store.json exists, reading content`);
+          
+          const dispenserStoreData = JSON.parse(fs.readFileSync(dispenserStorePath, 'utf8'));
+          
+          // Log available work order IDs in dispenser_store.json
+          const workOrderIds = dispenserStoreData.dispenserData ? Object.keys(dispenserStoreData.dispenserData).slice(0, 10) : [];
+          logger.info(`Available work order IDs in dispenser_store.json (first 10): ${workOrderIds.join(', ')}`);
+          
+          // Try different variations of the work order ID
+          const idVariations = [
+            workOrderIdFromUrl,
+            workOrderIdFromUrl.replace(/^W-/, ''),
+            `W-${workOrderIdFromUrl.replace(/^W-/, '')}`
+          ];
+          
+          logger.info(`Trying these ID variations: ${idVariations.join(', ')}`);
+          
+          // Check for the work order with any of the variations
+          for (const idVariation of idVariations) {
+            if (dispenserStoreData.dispenserData && dispenserStoreData.dispenserData[idVariation]) {
+              const workOrderData = dispenserStoreData.dispenserData[idVariation];
+              
+              if (workOrderData.dispensers && workOrderData.dispensers.length > 0) {
+                dispensers = workOrderData.dispensers;
+                logger.info(`Found ${dispensers.length} dispensers for work order ${idVariation} in dispenser_store.json`);
+                dispensers.forEach((disp, idx) => {
+                  logger.info(`Dispenser ${idx+1}: ${disp.title || 'No title'}`);
+                });
+                dispensersFound = true;
+                break;
+              }
+            }
+          }
+          
+          if (!dispensersFound) {
+            logger.warn(`No dispensers found in dispenser_store.json for any ID variation of ${workOrderIdFromUrl}`);
+          }
+        } else {
+          logger.warn(`dispenser_store.json file does not exist at ${dispenserStorePath}`);
+        }
+      } catch (error) {
+        logger.warn(`Error processing dispenser_store.json: ${error.message}`);
+      }
+    }
     
     // If we need to filter out DEF dispensers for Open Neck Prover
     if (formType === FORM_TYPES.OPEN_NECK_PROVER && dispensers.length > 0) {
@@ -2797,6 +3110,18 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
     logger.info(`Dispensers Found: ${dispensers.length}`);
     logger.info(`Form Count: ${formCount}`);
     
+    // Check if we have any dispensers before continuing
+    if (dispensers.length === 0) {
+      const errorMessage = `No dispensers found for work order ID: ${workOrderIdFromUrl}. Please ensure:
+1. You are connected to the correct user profile
+2. You have run "Get Work Order Data" for this work order
+3. The work order contains dispenser information`;
+      
+      logger.error(errorMessage);
+      updateStatus('error', errorMessage);
+      throw new Error(errorMessage);
+    }
+    
     // Prepare forms
     updateStatus('running', `Preparing ${formType} forms...`);
     const formsAdded = await prepareForm(page, dispensers, formCount, isSpecificDispensers, formType);
@@ -2812,28 +3137,51 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
       return formLinks.map(link => link.href);
     }, formType);
     
-    logger.info(`Found ${formUrls.length} form URLs to fill`);
+    // Ensure all form URLs are absolute
+    const absoluteFormUrls = formUrls.map(url => {
+      if (url.startsWith('/')) {
+        return `https://app.workfossa.com${url}`;
+      } else if (!url.startsWith('http')) {
+        return `https://app.workfossa.com/${url}`;
+      }
+      return url;
+    });
+    
+    logger.info(`Found ${absoluteFormUrls.length} form URLs to fill`);
     
     // Fill form details
     updateStatus('running', `Filling ${formType} form details...`);
-    const success = await fillFormDetails(page, formUrls, dispensers, isSpecificDispensers, formType);
+    const success = await fillFormDetails(page, absoluteFormUrls, dispensers, isSpecificDispensers, formType);
     
     if (!success) {
+      // Check if the failure was due to cancellation
+      if (isCancelled) {
+        logger.info('Form filling was cancelled by user');
+        return { success: false, message: 'Process cancelled by user', jobId: currentJobId };
+      }
       throw new Error('Failed to fill form details');
     }
     
     // Update status
-    updateStatus('completed', `Successfully processed visit: ${visitUrl}`);
+    updateStatus('running', `Processing complete, closing browser...`);
     
-    return { success: true, message: `Visit processed successfully: ${visitUrl}` };
+    return { success: true, message: `Visit processed successfully: ${visitUrl}`, jobId: currentJobId };
     
   } catch (error) {
     logger.error(`Error processing visit: ${error.message}`);
     updateStatus('error', `Error processing visit: ${error.message}`);
-    return { success: false, message: `Error: ${error.message}` };
+    return { success: false, message: `Error: ${error.message}`, jobId: currentJobId };
   } finally {
     if (browser) {
+      // Close browser and update final status
       await browser.close();
+      global.activeBrowser = null; // Clear the global reference
+      updateStatus('completed', `Successfully processed visit: ${visitUrl}`);
+      
+      // When job is complete (success or error), remove it from active jobs
+      if (currentJobId === currentJobId) { // This check is redundant but kept for clarity
+        activeJobIds.delete(currentJobId);
+      }
     }
   }
 }
@@ -2842,9 +3190,12 @@ async function processVisit(visitUrl, headless = true, workOrderId = null) {
  * Process a batch of visits
  * @param {string} filePath - Path to the batch data file
  * @param {boolean} headless - Whether to run browser in headless mode
+ * @param {Object} options - Additional options
+ * @param {string[]} options.selectedVisits - Array of visit IDs to process
+ * @param {string} options.resumeFromBatchId - Batch ID to resume from
  * @returns {Promise<object>} - Result of the operation
  */
-async function processBatch(filePath, headless = true) {
+async function processBatch(filePath, headless = true, options = {}) {
   let browser = null;
   let page = null;
   
@@ -2858,8 +3209,22 @@ async function processBatch(filePath, headless = true) {
       startTime: new Date().toISOString()
     });
     
+    // Log active user info
+    const activeUser = getActiveUser();
+    logger.info(`Active User for batch processing: ${activeUser || 'None'}`);
+    
     // Load the data file
-    const dataPath = path.join(process.cwd(), filePath);
+    // Check if filePath is a relative path inside the user directory
+    // or an absolute path
+    let dataPath;
+    if (path.isAbsolute(filePath)) {
+      dataPath = filePath;
+    } else {
+      dataPath = resolveUserFilePath(filePath);
+    }
+    
+    logger.info(`Batch data file path: ${dataPath}`);
+    
     if (!fs.existsSync(dataPath)) {
       throw new Error(`Data file not found: ${filePath}`);
     }
@@ -2867,7 +3232,7 @@ async function processBatch(filePath, headless = true) {
     const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
     
     // Extract visits that need processing
-    const visitsToProcess = [];
+    let visitsToProcess = [];
     
     for (const workOrder of data.workOrders) {
       if (
@@ -2923,6 +3288,36 @@ async function processBatch(filePath, headless = true) {
       }
     }
     
+    // If selectedVisits is provided, filter the visits
+    if (options.selectedVisits && Array.isArray(options.selectedVisits) && options.selectedVisits.length > 0) {
+      logger.info(`Filtering to ${options.selectedVisits.length} selected visits`);
+      visitsToProcess = visitsToProcess.filter(visit => 
+        options.selectedVisits.includes(visit.id)
+      );
+    }
+    
+    // If resumeFromBatchId is provided, get the previously completed visits
+    if (options.resumeFromBatchId) {
+      logger.info(`Attempting to resume batch from ID: ${options.resumeFromBatchId}`);
+      // Check for a stored batch status with this ID
+      const previousBatchStatus = await getBatchStatusById(options.resumeFromBatchId);
+      
+      if (previousBatchStatus && previousBatchStatus.completedVisits > 0) {
+        // Get completed visit IDs
+        const completedVisitIds = previousBatchStatus.completedVisitIds || [];
+        logger.info(`Found ${completedVisitIds.length} completed visits to skip`);
+        
+        // Filter out the already completed visits
+        visitsToProcess = visitsToProcess.filter(visit => !completedVisitIds.includes(visit.id));
+        
+        // Update the current batch status to reflect the resumed state
+        updateBatchStatus('running', `Resuming batch processing. Skipping ${completedVisitIds.length} completed visits.`, {
+          completedVisits: completedVisitIds.length,
+          totalVisits: previousBatchStatus.totalVisits
+        });
+      }
+    }
+    
     // Update batch status with total visits
     updateBatchStatus('running', `Found ${visitsToProcess.length} visits to process`, {
       totalVisits: visitsToProcess.length
@@ -2946,14 +3341,21 @@ async function processBatch(filePath, headless = true) {
       const visitStartTime = new Date();
       
       try {
-        logger.info(`Processing visit ${i + 1}/${visitsToProcess.length}: ${visit.url}`);
+        // Ensure the URL is absolute by adding domain if it's a relative URL
+        const visitUrl = visit.url.startsWith('/') 
+          ? `https://app.workfossa.com${visit.url}` 
+          : visit.url.startsWith('http') 
+            ? visit.url 
+            : `https://app.workfossa.com/${visit.url}`;
+        
+        logger.info(`Processing visit ${i + 1}/${visitsToProcess.length}: ${visitUrl}`);
         updateBatchStatus('running', `Processing visit ${i + 1}/${visitsToProcess.length}: Work Order ${visit.id}`, {
           currentVisit: visit.id,
           currentVisitStatus: "Starting"
         });
         
-        // Navigate to the visit page
-        await page.goto(visit.url);
+        // Navigate to the visit page with absolute URL
+        await page.goto(visitUrl);
         await page.waitForLoadState('networkidle');
         
         // Reset the current status to running before starting this visit
@@ -2978,19 +3380,32 @@ async function processBatch(filePath, headless = true) {
           return formLinks.map(link => link.href);
         }, visit.formType);
         
+        // Ensure all form URLs are absolute
+        const absoluteFormUrls = formUrls.map(url => {
+          if (url.startsWith('/')) {
+            return `https://app.workfossa.com${url}`;
+          } else if (!url.startsWith('http')) {
+            return `https://app.workfossa.com/${url}`;
+          }
+          return url;
+        });
+        
+        logger.info(`Found ${absoluteFormUrls.length} forms to fill`);
+        
         // Fill form details
         await fillFormDetails(
           page, 
-          formUrls, 
+          absoluteFormUrls, 
           visit.dispensers, 
           visit.isSpecificDispensers, 
           visit.formType
         );
         
-        // Update completed count
+        // Update completed count and store the completed visit ID
         updateBatchStatus('running', `Completed visit ${i + 1}/${visitsToProcess.length}: Work Order ${visit.id}`, {
-          completedVisits: i + 1,
-          currentVisitStatus: 'Completed'
+          completedVisits: batchStatus.completedVisits + 1,
+          currentVisitStatus: 'Completed',
+          completedVisitIds: [...(batchStatus.completedVisitIds || []), visit.id]
         });
         
         // Calculate and log time taken
@@ -3007,12 +3422,8 @@ async function processBatch(filePath, headless = true) {
       }
     }
     
-    // Update batch status
-    updateBatchStatus('completed', `Batch processing completed. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.`, {
-      endTime: new Date().toISOString()
-    });
-    
-    logger.info(`Batch processing completed. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.`);
+    // Log batch completion but don't set status to completed yet - will be set after browser closes
+    logger.info(`Batch processing finished. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.`);
     
     return { 
       success: true, 
@@ -3026,8 +3437,20 @@ async function processBatch(filePath, headless = true) {
     });
     return { success: false, message: `Error: ${error.message}` };
   } finally {
+    // First update status to "closing" to indicate we're in the process of closing
     if (browser) {
+      updateBatchStatus('running', `Closing browser and completing automation...`, {
+        currentVisitStatus: 'Closing browser'
+      });
+      
+      // Close the browser
       await browser.close();
+      
+      // Only now that the browser is closed, update to completed
+      updateBatchStatus('completed', `Batch processing completed. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.`, {
+        endTime: new Date().toISOString(),
+        currentVisitStatus: 'Complete'
+      });
     }
   }
 }
@@ -3037,10 +3460,10 @@ async function processBatch(filePath, headless = true) {
  * @returns {object} - Current status
  */
 function getStatus() {
-  // Ensure the status object always has the required properties
+  // Ensure the status object always has the required properties and backward compatibility
   return {
-    ...currentStatus,
-    lastStatusUpdate: currentStatus.lastStatusUpdate || new Date().toISOString()
+    ...jobStatus,
+    lastStatusUpdate: new Date().toISOString()
   };
 }
 
@@ -3049,10 +3472,15 @@ function getStatus() {
  * @returns {object} - Current batch status
  */
 function getBatchStatus() {
-  // Ensure the batch status object always has the required properties
+  // Ensure the batch status object always has the required properties and backward compatibility
   return {
     ...batchStatus,
-    lastStatusUpdate: batchStatus.lastStatusUpdate || new Date().toISOString()
+    totalVisits: batchStatus.totalItems,
+    completedVisits: batchStatus.currentItem,
+    currentVisit: batchStatus.currentItem > 0 ? `Visit ${batchStatus.currentItem}` : null,
+    currentVisitStatus: batchStatus.message,
+    startTime: batchStatus.startTime || new Date().toISOString(),
+    lastStatusUpdate: new Date().toISOString()
   };
 }
 
@@ -3068,11 +3496,242 @@ function testExtractSpecificDispensers(instructionsText) {
   return result;
 }
 
+/**
+ * Preview a batch file without processing it
+ * @param {string} filePath - Path to the batch data file
+ * @returns {Promise<object>} - Preview data
+ */
+async function previewBatchFile(filePath) {
+  try {
+    logger.info(`Previewing batch file: ${filePath}`);
+    
+    // Check if there's an active user
+    const activeUser = getActiveUser();
+    if (!activeUser) {
+      throw new Error('No active user found. Please select a user before previewing batch files.');
+    }
+    
+    // Resolve the file path using the active user
+    let dataPath;
+    if (path.isAbsolute(filePath)) {
+      dataPath = filePath;
+    } else {
+      // In ES modules, we need to use fileURLToPath with import.meta.url instead of __dirname
+      const currentDir = path.dirname(fileURLToPath(import.meta.url));
+      const projectRoot = path.resolve(currentDir, '../..');
+      const userDir = path.join(projectRoot, 'data', 'users', activeUser);
+      
+      // Remove 'data/' prefix if it exists to avoid path duplication
+      const cleanedFilePath = filePath.replace(/^data\//, '');
+      dataPath = path.join(userDir, cleanedFilePath);
+      
+      logger.info(`User-specific batch file path: ${dataPath}`);
+    }
+    
+    if (!fs.existsSync(dataPath)) {
+      throw new Error(`Data file not found: ${filePath} for active user`);
+    }
+    
+    const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+    
+    // Extract visit information for preview
+    const visits = [];
+    
+    for (const workOrder of data.workOrders) {
+      if (
+        workOrder.visits && 
+        workOrder.visits.nextVisit && 
+        workOrder.visits.nextVisit.url
+      ) {
+        // Get basic visit information
+        const serviceCode = workOrder.serviceType && workOrder.serviceType.code;
+        const serviceType = getServiceTypeLabel(serviceCode);
+        const dispensers = workOrder.dispensers || [];
+        
+        // Calculate dispenser count more accurately - check both dispensers array and services
+        let dispenserCount = 0;
+        
+        // First check if dispensers array is available and has content
+        if (Array.isArray(dispensers) && dispensers.length > 0) {
+          dispenserCount = dispensers.length;
+        } 
+        // Fallback to services if dispensers array is empty/missing
+        else if (workOrder.services && Array.isArray(workOrder.services)) {
+          // Look for meter calibration services as fallback
+          const meterCalibrationService = workOrder.services.find(
+            service => service.type === "Meter Calibration" || 
+                      (service.description && service.description.toLowerCase().includes("dispenser")) ||
+                      (service.description && service.description.toLowerCase().includes("meter"))
+          );
+          
+          if (meterCalibrationService && meterCalibrationService.quantity) {
+            dispenserCount = meterCalibrationService.quantity;
+          }
+        }
+        
+        visits.push({
+          id: workOrder.id,
+          storeName: workOrder.customer ? workOrder.customer.name : 'Unknown Store',
+          storeNumber: workOrder.customer ? workOrder.customer.storeNumber : 'N/A',
+          visitId: workOrder.visits.nextVisit.visitId,
+          date: workOrder.visits.nextVisit.date,
+          url: workOrder.visits.nextVisit.url,
+          serviceType,
+          serviceCode,
+          dispenserCount: dispenserCount
+        });
+      }
+    }
+    
+    logger.info(`Found ${visits.length} visits in batch file`);
+    
+    return { 
+      visits,
+      totalVisits: visits.length
+    };
+  } catch (error) {
+    logger.error(`Error previewing batch file: ${error.message}`);
+    throw error;
+  }
+}
+
+/**
+ * Get a human-readable service type label
+ * @param {string} serviceCode - The service code
+ * @returns {string} - Human-readable service type
+ */
+function getServiceTypeLabel(serviceCode) {
+  const codeLabels = {
+    '3146': 'Open Neck Prover',
+    '2862': 'Specific Dispensers',
+    // Add more mappings as needed
+  };
+  
+  return codeLabels[serviceCode] || 'AccuMeasure';
+}
+
+/**
+ * Get a stored batch status by ID
+ * @param {string} batchId - The batch ID to retrieve
+ * @returns {Promise<object|null>} - The batch status or null if not found
+ */
+async function getBatchStatusById(batchId) {
+  try {
+    const batchHistoryPath = resolveUserFilePath('batch_history.json');
+    
+    if (!fs.existsSync(batchHistoryPath)) {
+      return null;
+    }
+    
+    const batchHistory = JSON.parse(fs.readFileSync(batchHistoryPath, 'utf8'));
+    
+    return batchHistory.find(batch => batch.timestamp === batchId) || null;
+  } catch (error) {
+    logger.error(`Error getting batch status by ID: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Cancel an ongoing form automation job
+ * @param {string} jobId - The ID of the job to cancel (optional)
+ * @returns {Promise<object>} - Status of the cancellation
+ */
+async function cancelJob(jobId) {
+  logger.info(`Server: Attempting to cancel job: ${jobId}`);
+  
+  // IMPORTANT: Always accept cancellation requests, even if job ID doesn't match
+  // This ensures we can recover from desynchronized state between client and server
+  logger.info('SERVER: Accepting cancellation request');
+  
+  // Set the cancellation flag - this is critical
+  isCancelled = true;
+  
+  // Log cancellation more explicitly
+  logger.info('SERVER: CANCELLATION FLAG SET TO TRUE');
+  
+  let browserClosed = false;
+  
+  // Force a complete stop of active browser instance
+  if (global.activeBrowser) {
+    logger.info('SERVER: Attempting to close active browser instance');
+    try {
+      // Directly await the browser closure instead of using a self-executing async function
+      await global.activeBrowser.close().catch(e => 
+        logger.error(`Failed to close browser: ${e.message}`)
+      );
+      global.activeBrowser = null;
+      logger.info('SERVER: Successfully closed browser instance');
+      browserClosed = true;
+    } catch (error) {
+      logger.error(`SERVER: Error closing browser: ${error.message}`);
+      // Even if there's an error, we should continue with the cancellation
+    }
+  } else {
+    logger.info('SERVER: No active browser instance found to close');
+    browserClosed = true; // No browser to close means "success" for this step
+  }
+  
+  // Update status to reflect cancellation request
+  updateStatus('completed', 'Cancellation requested by user - process terminated');
+  
+  // Clean up job tracking
+  if (jobId) {
+    activeJobIds.delete(jobId);
+    
+    // If this was the active job, clear it
+    if (currentJobId === jobId) {
+      currentJobId = null;
+    }
+  } else {
+    // If no specific job ID provided, clear all job tracking
+    activeJobIds.clear();
+    currentJobId = null;
+  }
+  
+  // Force garbage collection if possible to free up resources
+  if (global.gc) {
+    try {
+      global.gc();
+      logger.info('SERVER: Forced garbage collection after cancellation');
+    } catch (err) {
+      logger.warn('SERVER: Failed to force garbage collection');
+    }
+  }
+  
+  // Verify cancellation success by checking status
+  const currentStatus = getStatus();
+  const isFullyStopped = currentStatus.status !== 'running' && browserClosed;
+  
+  logger.info(`SERVER: Job cancellation verification - Status: ${currentStatus.status}, Browser closed: ${browserClosed}`);
+  
+  if (!isFullyStopped) {
+    logger.error('SERVER: Cancellation was not fully successful');
+    return {
+      success: false,
+      message: 'Cancellation was partially successful but some processes may still be running'
+    };
+  }
+  
+  logger.info('SERVER: Job cancellation complete and verified');
+  return {
+    success: true,
+    message: 'Job cancellation completed and resources cleaned up'
+  };
+}
+
 // Export functions for use in API routes
 export {
   processVisit,
   processBatch,
   getStatus,
   getBatchStatus,
-  testExtractSpecificDispensers
+  testExtractSpecificDispensers,
+  previewBatchFile,
+  cancelJob,
+  // Export these for direct access in case cancelJob isn't recognized
+  isCancelled,
+  updateStatus,
+  // Also export activeJobIds for direct manipulation in route handlers
+  activeJobIds
 };

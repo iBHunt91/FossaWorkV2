@@ -31,6 +31,17 @@ const currentLogLevel = process.env.LOG_LEVEL
   ? LOG_LEVELS[process.env.LOG_LEVEL.toUpperCase()] || LOG_LEVELS.INFO
   : LOG_LEVELS.INFO;
 
+// Function to register for capturing logs to the UI logging system
+let logToUiCallback = null;
+
+/**
+ * Register a callback function to capture logs to UI
+ * @param {Function} callback - Function that takes log type and message
+ */
+const registerLogToUiCallback = (callback) => {
+  logToUiCallback = callback;
+};
+
 /**
  * Format log message with timestamp
  * @param {string} level - Log level
@@ -42,44 +53,92 @@ const formatLog = (level, message) => {
   return `[${timestamp}] [${level}] ${message}`;
 };
 
+// Helper to log to UI if callback is registered
+const logToUi = (level, component, message) => {
+  if (logToUiCallback) {
+    logToUiCallback('server', `[${level}] ${component ? `[${component}] ` : ''}${message}`);
+  }
+};
+
 /**
  * Log a debug message
+ * @param {string} component - Component name
  * @param {string} message - Message to log
  */
-const debug = (message) => {
+const debug = (component, message) => {
   if (currentLogLevel <= LOG_LEVELS.DEBUG) {
-    console.debug(formatLog('DEBUG', message));
+    const formattedMsg = component ? `[${component}] ${message}` : message;
+    console.debug(formatLog('DEBUG', formattedMsg));
+    logToUi('DEBUG', component, message);
   }
 };
 
 /**
  * Log an info message
+ * @param {string} component - Component name
  * @param {string} message - Message to log
  */
-const info = (message) => {
+const info = (component, message) => {
   if (currentLogLevel <= LOG_LEVELS.INFO) {
-    console.info(formatLog('INFO', message));
+    const formattedMsg = component ? `[${component}] ${message}` : message;
+    console.info(formatLog('INFO', formattedMsg));
+    logToUi('INFO', component, message);
   }
 };
 
 /**
  * Log a warning message
+ * @param {string} component - Component name
  * @param {string} message - Message to log
  */
-const warn = (message) => {
+const warn = (component, message) => {
   if (currentLogLevel <= LOG_LEVELS.WARN) {
-    console.warn(formatLog('WARN', message));
+    const formattedMsg = component ? `[${component}] ${message}` : message;
+    console.warn(formatLog('WARN', formattedMsg));
+    logToUi('WARN', component, message);
   }
 };
 
 /**
  * Log an error message
+ * @param {string} component - Component name
  * @param {string} message - Message to log
  */
-const error = (message) => {
+const error = (component, message) => {
   if (currentLogLevel <= LOG_LEVELS.ERROR) {
-    console.error(formatLog('ERROR', message));
+    const formattedMsg = component ? `[${component}] ${message}` : message;
+    console.error(formatLog('ERROR', formattedMsg));
+    logToUi('ERROR', component, message);
   }
+};
+
+/**
+ * Log a success message (using INFO level with success tag)
+ * @param {string} component - Component name
+ * @param {string} message - Message to log
+ */
+const success = (component, message) => {
+  if (currentLogLevel <= LOG_LEVELS.INFO) {
+    const formattedMsg = component ? `[${component}] ${message}` : message;
+    console.info(formatLog('SUCCESS', formattedMsg));
+    logToUi('SUCCESS', component, message);
+  }
+};
+
+/**
+ * Log an HTTP access
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {number} responseTime - Response time in ms
+ */
+const access = (req, res, responseTime) => {
+  // Skip logging for static assets
+  if (req.url.startsWith('/static/') || req.url.includes('.')) {
+    return;
+  }
+
+  const message = `${req.method} ${req.url} ${res.statusCode} ${responseTime}ms`;
+  info('HTTP', message);
 };
 
 // Export the logger functions
@@ -87,5 +146,8 @@ export {
   debug,
   info,
   warn,
-  error
+  error,
+  success,
+  access,
+  registerLogToUiCallback
 }; 

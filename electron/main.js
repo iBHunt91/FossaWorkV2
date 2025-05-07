@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
 import fs from 'fs';
+import { promises as fsPromises } from 'fs';
 import cron from 'node-cron';
 import { analyzeScheduleChanges } from '../scripts/utils/scheduleComparator.js';
 import { sendScheduleChangeEmail } from '../scripts/email/emailService.js';
@@ -14,6 +15,7 @@ import fetch from 'node-fetch';
 import { getProverPreferences, updateProverPreference } from '../scripts/utils/prover_info.js';
 import { loginToFossa } from '../scripts/utils/login.js';
 import { runScrape } from '../scripts/unified_scrape.js';
+import { setupAllApis } from './api/index.js';
 
 // Configure logger based on environment
 logger.configure({
@@ -21,6 +23,10 @@ logger.configure({
   useColors: process.platform !== 'win32',
   useSimpleFormat: process.platform === 'win32'
 });
+
+// Set environment variables for the main process
+process.env.IS_SERVER_PROCESS = 'false';
+process.env.SERVER_HANDLES_NOTIFICATIONS = 'true';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +37,35 @@ let frontendProcess;
 let isScraping = false;
 let tray = null;
 let isQuitting = false;
+
+// Add a global variable to track browser instances
+let activeFossaBrowser = null;
+
+// Function to ensure only one browser instance exists
+const ensureSingleBrowser = async () => {
+  if (activeFossaBrowser && activeFossaBrowser.browser) {
+    logger.info('Browser Management', 'Closing existing browser before opening new one');
+    try {
+      await activeFossaBrowser.browser.close();
+      logger.info('Browser Management', 'Successfully closed existing browser');
+    } catch (error) {
+      logger.warn('Browser Management', `Error closing browser: ${error.message}`);
+    }
+    activeFossaBrowser = null;
+  }
+};
+
+// Add function to log browser state for debugging
+const logBrowserState = () => {
+  logger.info(
+    'Browser State', 
+    `Active browser: ${activeFossaBrowser ? 'YES' : 'NO'}, ` + 
+    (activeFossaBrowser ? 
+      `Debug mode: ${activeFossaBrowser.isDebugMode ? 'YES' : 'NO'}, ` +
+      `Age: ${Math.round((Date.now() - activeFossaBrowser.timestamp) / 1000)}s` : 
+      '')
+  );
+};
 
 // Setup auto-launch
 function setupAutoLaunch() {
@@ -92,55 +127,99 @@ function createTray() {
     tray.setToolTip('Fossa Monitor - Running in Background');
     
     const contextMenu = Menu.buildFromTemplate([
-      { 
+      {
         label: 'Fossa Monitor',
         type: 'normal',
         enabled: false
       },
       { type: 'separator' },
-      { 
+      {
         label: 'Open Dashboard',
         click: () => {
           mainWindow.show();
-        } 
+          mainWindow.webContents.send('navigate-to-dashboard');
+        }
       },
-      { 
-        label: 'Actions',
-        submenu: [
-          { 
-            label: 'View History', 
-            click: () => {
-              mainWindow.show();
-              mainWindow.webContents.send('navigate-to-history');
-            } 
-          },
-          { 
-            label: 'View Scraping Logs', 
-            click: () => {
-              mainWindow.show();
-              mainWindow.webContents.send('navigate-to-logs');
-            } 
-          },
-          { 
-            label: 'Send Test Notification', 
-            click: async () => {
-              try {
-                const result = await sendTestNotifications();
-                mainWindow.webContents.send('test-notification-result', { 
-                  success: result.success, 
-                  message: `Email: ${result.results.email?.success ? 'Success' : 'Failed'}, Pushover: ${result.results.pushover?.success ? 'Success' : 'Failed'}`
-                });
-              } catch (error) {
-                logger.error('Notification Test', error);
-                mainWindow.webContents.send('test-notification-result', { success: false, error: error.message });
+      { type: 'separator' },
+      {
+        label: 'Run Manual Scrape',
+        click: async () => {
+          try {
+            logger.info('Tray Menu', 'Triggering manual scrape');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              const result = await ipcMain.invoke('start-scrape');
+              if (result.success) {
+                  logger.success('Tray Menu', 'Manual scrape initiated successfully via tray.');
+              } else {
+                  logger.error('Tray Menu', `Manual scrape failed to start: ${result.error}`);
+                  showNotification('Error', `Failed to start manual scrape: ${result.error}`);
               }
-            } 
+            } else {
+              logger.warn('Tray Menu', 'Main window not available to trigger manual scrape.');
+              showNotification('Error', 'Dashboard window must be open to start scrape.');
+            }
+          } catch (error) {
+            logger.error('Tray Menu', `Error triggering manual scrape: ${error}`);
+            showNotification('Error', `Error starting scrape: ${error.message}`);
           }
-        ]
+        }
       },
-      { 
+      {
+        label: 'View Schedule Changes',
+        click: () => {
+          mainWindow.show();
+          mainWindow.webContents.send('navigate-to-history');
+        }
+      },
+      {
+        label: 'View Scraping Logs',
+        click: () => {
+          mainWindow.show();
+          mainWindow.webContents.send('navigate-to-logs');
+        }
+      },
+      { type: 'separator' },
+      {
         label: 'Settings',
         submenu: [
+          {
+            label: 'User Accounts...',
+            click: () => {
+              mainWindow.show();
+              mainWindow.webContents.send('navigate-to-settings', 'users');
+            }
+          },
+          {
+            label: 'Notification Settings...',
+            click: () => {
+              mainWindow.show();
+              mainWindow.webContents.send('navigate-to-settings', 'notifications');
+            }
+          },
+          {
+            label: 'Prover Preferences...',
+            click: () => {
+              mainWindow.show();
+              mainWindow.webContents.send('navigate-to-settings', 'provers');
+            }
+          },
+          { type: 'separator' },
+          {
+            label: 'Open Data Folder',
+            click: () => {
+              const dataPath = path.join(app.getPath('userData'), 'data');
+               try {
+                 if (!fs.existsSync(dataPath)) {
+                   fs.mkdirSync(dataPath, { recursive: true });
+                   logger.info('Data Folder', `Created data directory at: ${dataPath}`);
+                 }
+                 shell.openPath(dataPath);
+               } catch (error) {
+                 logger.error('Data Folder', `Failed to open or create data folder at ${dataPath}: ${error}`);
+                 showNotification('Error', `Could not open data folder: ${error.message}`);
+               }
+            }
+          },
           {
             label: 'Start at Login',
             type: 'checkbox',
@@ -149,26 +228,21 @@ function createTray() {
               const settings = app.getLoginItemSettings();
               app.setLoginItemSettings({
                 openAtLogin: !settings.openAtLogin,
-                path: process.execPath
+                path: process.execPath,
+                args: []
               });
+              logger.info('Auto Launch', `Start at login set to: ${!settings.openAtLogin}`);
             }
-          },
-          { 
-            label: 'Open Data Folder', 
-            click: () => {
-              shell.openPath(path.join(__dirname, '../data'));
-            } 
           }
         ]
       },
       { type: 'separator' },
-      { 
+      {
         label: 'About',
         click: () => {
-          // Create and show about window
           const aboutWindow = new BrowserWindow({
             width: 400,
-            height: 300,
+            height: 350,
             resizable: false,
             minimizable: false,
             maximizable: false,
@@ -176,25 +250,51 @@ function createTray() {
             modal: true,
             webPreferences: {
               nodeIntegration: false,
-              contextIsolation: true
-            }
+              contextIsolation: true,
+              preload: path.join(__dirname, 'preload_about.js')
+            },
+            icon: path.join(__dirname, '../src/assets/images/FossaFoxIco.ico'),
+            show: false
           });
+
+          const aboutHtmlPath = path.join(__dirname, '../src/about.html');
+          if (fs.existsSync(aboutHtmlPath)) {
+             aboutWindow.loadFile(aboutHtmlPath);
+          } else {
+             aboutWindow.loadURL(`data:text/html;charset=utf-8,<html><body><h2>About Fossa Monitor</h2><p>Version: ${app.getVersion()}</p><p>About file not found.</p></body></html>`);
+             logger.warn('About Window', `About HTML file not found at ${aboutHtmlPath}`);
+          }
           
-          // Load about page
-          aboutWindow.loadURL(`file://${path.join(__dirname, '../about.html')}`);
           aboutWindow.setMenu(null);
+          
+          aboutWindow.once('ready-to-show', () => {
+            aboutWindow.show();
+          });
+        }
+      },
+      {
+        label: 'Reload Application',
+        accelerator: 'CmdOrCtrl+Alt+R',
+        click: () => {
+           logger.info('Tray Menu', 'Reloading application via tray menu');
+           if (mainWindow && !mainWindow.isDestroyed()) {
+               mainWindow.reload();
+           } else {
+               logger.warn('Tray Menu', 'Main window not available for reload.');
+           }
         }
       },
       { type: 'separator' },
-      { 
-        label: 'Quit', 
+      {
+        label: 'Quit',
+        accelerator: 'CmdOrCtrl+Q',
         click: () => {
           isQuitting = true;
           app.quit();
-        } 
+        }
       }
     ]);
-    
+
     tray.setContextMenu(contextMenu);
     
     // Double-click to show window
@@ -207,6 +307,11 @@ function createTray() {
 }
 
 function createWindow() {
+  logger.info('Window Setup', 'Creating main application window...');
+
+  // Set up all API endpoints
+  setupAllApis();
+  
   logger.info('Application Startup', 'Creating application window...');
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -229,7 +334,7 @@ function createWindow() {
 
   // Load the frontend URL
   mainWindow.loadURL(process.env.NODE_ENV === 'development' 
-    ? 'http://localhost:5173' // Vite dev server port 
+    ? `http://localhost:${process.env.VITE_PORT || 5173}` // Use env var with fallback to default Vite port
     : `file://${path.join(__dirname, '../dist/index.html')}`);
 
   // Register keyboard shortcuts for DevTools
@@ -271,119 +376,60 @@ function registerDevToolsShortcuts() {
 function startBackend() {
   logger.info('Backend', 'Starting backend server...');
   
+  // Set up environment for the server
+  const env = {
+    ...process.env,
+    NODE_ENV: process.env.NODE_ENV || 'development',
+    PORT: process.env.PORT || 3001,
+    SERVER_SCRAPE_DISABLED: 'false', // Indicate server should handle scraping
+    SERVER_HANDLES_NOTIFICATIONS: 'true', // Indicate server should handle notifications
+    IS_SERVER_PROCESS: 'true' // Mark the server as the server process
+  };
+  
+  // Set a global variable for the server port
+  global.serverPort = parseInt(env.PORT, 10);
+  
+  // Path to the server script
+  const serverPath = path.join(__dirname, '../server/server.js');
+  
   try {
-    // Improved environment path handling
-    const serverPath = path.join(__dirname, '../server/server.js');
-    logger.info('Backend', `Server path: ${serverPath}`);
-    
-    // Check if server script exists
-    if (!fs.existsSync(serverPath)) {
-      logger.error('Backend', `Server script not found at: ${serverPath}`);
-      throw new Error(`Server script not found at: ${serverPath}`);
-    }
-    
-    // First try to terminate any existing processes on port 3001
-    try {
-      const tcpProcesses = spawn('powershell', ['-Command', 
-        `Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue | 
-         Select-Object -ExpandProperty OwningProcess | 
-         ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }`]);
-      
-      tcpProcesses.on('close', (code) => {
-        logger.info('Backend', `TCP connection cleanup completed with code ${code}`);
-      });
-    } catch (err) {
-      logger.warn('Backend', `Error cleaning up port: ${err.message}`);
-    }
-    
-    // Make sure we use the right port
-    const PORT = 3001;
-    process.env.PORT = PORT;
-    
-    // Launch server with improved error handling
+    // Start the server as a child process
     backendProcess = spawn('node', [serverPath], {
-      env: {
-        ...process.env,
-        PORT: PORT.toString(),
-        // Add a small random offset to the port if we're in development mode
-        PORT_FALLBACK: (PORT + 1).toString() 
-      },
-      stdio: 'pipe'
+      env,
+      stdio: 'pipe' // Capture stdio for logging
     });
     
-    // Enable better logging for backend process
+    // Handle stdout
     backendProcess.stdout.on('data', (data) => {
       const output = data.toString().trim();
-      logger.log('[Server]', output);
-      
-      if (output.includes('Server running on port')) {
-        const portMatch = output.match(/Server running on port (\d+)/);
-        const actualPort = portMatch ? portMatch[1] : PORT;
-        logger.success('Backend', `Server started successfully on port ${actualPort}`);
-        
-        // Store the actual port in use for the renderer to connect to
-        global.serverPort = actualPort;
-        
-        // Notify renderer
-        if (mainWindow) {
-          mainWindow.webContents.send('backend-status', {
-            running: true,
-            port: actualPort
-          });
-        }
-      }
+      logger.backend(output);
     });
     
+    // Handle stderr
     backendProcess.stderr.on('data', (data) => {
       const error = data.toString().trim();
-      logger.error('[Server Error]', error);
-      
-      if (mainWindow) {
-        // Notify renderer of errors
-        mainWindow.webContents.send('backend-error', { error });
-      }
+      logger.backendError(error);
     });
     
+    // Handle process exit
     backendProcess.on('close', (code) => {
-      logger.warn('Backend', `Server process exited with code ${code}`);
-      
-      if (mainWindow && code !== 0) {
-        mainWindow.webContents.send('backend-status', {
-          running: false,
-          error: `Server crashed with code ${code}`
-        });
+      if (code !== 0) {
+        logger.error('Backend', `Server process exited with code ${code}`);
+      } else {
+        logger.info('Backend', 'Server process exited');
       }
       
-      // Don't restart if app is quitting
+      // Restart the server if it crashes
       if (!isQuitting) {
-        logger.info('Backend', 'Attempting to restart server...');
-        setTimeout(() => {
-          startBackend();
-        }, 3000); // Wait 3 seconds before restart attempt
+        logger.info('Backend', 'Restarting server...');
+        setTimeout(startBackend, 1000);
       }
     });
     
-    backendProcess.on('error', (error) => {
-      logger.error('Backend', `Failed to start server: ${error.message}`);
-      if (mainWindow) {
-        mainWindow.webContents.send('backend-status', {
-          running: false,
-          error: error.message
-        });
-      }
-    });
-    
-    logger.info('Backend', 'Server process started');
-    
+    logger.success('Backend', `Server started on port ${global.serverPort}`);
     return true;
   } catch (error) {
-    logger.error('Backend', `Error starting server: ${error.message}`);
-    if (mainWindow) {
-      mainWindow.webContents.send('backend-status', {
-        running: false,
-        error: error.message
-      });
-    }
+    logger.error('Backend', `Failed to start server: ${error.message}`);
     return false;
   }
 }
@@ -612,7 +658,10 @@ ipcMain.handle('test-fossa-credentials', async (event, { email, password }) => {
 async function scrapeAllWorkOrders() {
   logger.info('Scraping', 'Starting automated work order scrape...');
   try {
-    const result = await runScrape({ isManual: false });
+    const result = await runScrape({ 
+      isManual: false,
+      sendNotifications: true // Enable notifications so manual scrapes will trigger alerts
+    });
     logger.success('Scraping', `Completed work order scrape successfully. Found ${result.count || 0} work orders.`);
     return result;
   } catch (error) {
@@ -648,7 +697,15 @@ app.whenReady().then(() => {
   ipcMain.handle('start-scrape', async (event) => {
     try {
       logger.info('Manual Scrape', 'Starting manual scrape job');
-      const result = await scrapeAllWorkOrders();
+      
+      // Import runScrape directly to control notification behavior
+      const { runScrape } = await import('../scripts/unified_scrape.js');
+      
+      // Run manual scrape with notifications explicitly enabled
+      const result = await runScrape({ 
+        isManual: true,
+        sendNotifications: true // Enable notifications for manual scrapes
+      });
       
       // Notify the renderer process about the manual scrape completion
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -660,7 +717,7 @@ app.whenReady().then(() => {
         logger.info('Manual Scrape', 'Notified UI about manual scrape completion');
       }
       
-      return { success: true, message: 'Manual scrape completed successfully' };
+      return { success: true, message: 'Manual scrape completed successfully', count: result.count || 0 };
     } catch (error) {
       logger.error('Manual Scrape Error', error);
       return { success: false, error: error.message };
@@ -700,132 +757,152 @@ app.whenReady().then(() => {
       logger.info('Schedule Change Test', `Testing with options: ${JSON.stringify(options)}`);
       
       // Validate options
-      if (!options || !options.changeType || typeof options.count !== 'number') {
+      if (!options || (!options.changeType && !options.changeTypes) || typeof options.count !== 'number') {
         return { success: false, message: 'Invalid options provided' };
+      }
+      
+      // Support both legacy 'changeType' and new 'changeTypes' array format
+      const changeTypes = options.changeTypes || [options.changeType];
+      
+      if (!changeTypes.length) {
+        return { success: false, message: 'No change types specified' };
       }
       
       // Generate simulated changes based on options - no need for site-clone
       const changes = {
-        critical: [],
-        high: [],
-        medium: [],
-        low: [],
+        allChanges: [],
         summary: {
           removed: 0,
           added: 0,
           modified: 0,
-          swapped: 0
+          swapped: 0,
+          replaced: 0
         }
       };
       
-      // Add simulated changes to the appropriate severity level
-      switch (options.changeType) {
-        case 'add':
-          // Add jobs (critical changes)
-          for (let i = 0; i < options.count; i++) {
-            changes.critical.push({
-              type: 'added',
-              jobId: `W-${100000 + i}`,
-              store: `#${1000 + i}`,
-              storeName: `Test Store ${i}`,
-              dispensers: Math.floor(Math.random() * 8) + 1,
-              location: 'Test Location, FL',
-              date: new Date(Date.now() + (i * 86400000)).toLocaleDateString()
-            });
-          }
-          changes.summary.added = options.count;
-          break;
-          
-        case 'remove':
-          // Remove jobs (critical changes)
-          for (let i = 0; i < options.count; i++) {
-            changes.critical.push({
-              type: 'removed',
-              jobId: `W-${100000 + i}`,
-              store: `#${1000 + i}`,
-              storeName: `Test Store ${i}`,
-              dispensers: Math.floor(Math.random() * 8) + 1,
-              location: 'Test Location, FL',
-              date: new Date(Date.now() + (i * 86400000)).toLocaleDateString()
-            });
-          }
-          changes.summary.removed = options.count;
-          break;
-          
-        case 'replace':
-          // Replace jobs (high priority)
-          for (let i = 0; i < options.count; i++) {
-            changes.high.push({
-              type: 'replacement',
-              old_dispenser_id: `D-${1000 + i}`,
-              new_dispenser_id: `D-${2000 + i}`,
-              store: `#${1000 + i}`,
-              storeName: `Test Store ${i}`,
-              dispensers: Math.floor(Math.random() * 8) + 1,
-              location: 'Test Location, FL',
-              date: new Date(Date.now() + (i * 86400000)).toLocaleDateString()
-            });
-          }
-          changes.summary.modified = options.count;
-          break;
-          
-        case 'date':
-          // Date changes (medium priority)
-          for (let i = 0; i < options.count; i++) {
-            const oldDate = new Date();
-            oldDate.setDate(oldDate.getDate() + i);
+      // Calculate how many changes to generate for each type
+      const changesPerType = Math.ceil(options.count / changeTypes.length);
+      
+      // Add simulated changes for each selected type
+      for (const changeType of changeTypes) {
+        switch (changeType) {
+          case 'add':
+            // Add jobs
+            for (let i = 0; i < changesPerType; i++) {
+              changes.allChanges.push({
+                type: 'added',
+                jobId: `W-${100000 + i}`,
+                store: `#${1000 + i}`,
+                storeName: `Test Store ${i}`,
+                dispensers: Math.floor(Math.random() * 8) + 1,
+                location: 'Test Location, FL',
+                date: new Date(Date.now() + (i * 86400000)).toLocaleDateString()
+              });
+            }
+            changes.summary.added += changesPerType;
+            break;
             
-            const newDate = new Date();
-            newDate.setDate(newDate.getDate() + i + 7); // Moved a week later
+          case 'remove':
+            // Remove jobs
+            for (let i = 0; i < changesPerType; i++) {
+              changes.allChanges.push({
+                type: 'removed',
+                jobId: `W-${100000 + i}`,
+                store: `#${1000 + i}`,
+                storeName: `Test Store ${i}`,
+                dispensers: Math.floor(Math.random() * 8) + 1,
+                location: 'Test Location, FL',
+                date: new Date(Date.now() + (i * 86400000)).toLocaleDateString()
+              });
+            }
+            changes.summary.removed += changesPerType;
+            break;
             
-            changes.medium.push({
-              type: 'date_changed',
-              jobId: `W-${100000 + i}`,
-              store: `#${1000 + i}`,
-              storeName: `Test Store ${i}`,
-              dispensers: Math.floor(Math.random() * 8) + 1,
-              location: 'Test Location, FL',
-              oldDate: oldDate.toLocaleDateString(),
-              newDate: newDate.toLocaleDateString()
-            });
-          }
-          changes.summary.modified = options.count;
-          break;
-          
-        case 'swap':
-          // Job swaps (high priority)
-          const swapPairs = Math.ceil(options.count / 2);
-          for (let i = 0; i < swapPairs; i++) {
-            // Create a pair of jobs that have swapped dates
-            const today = new Date();
-            const date1 = new Date(today);
-            date1.setDate(today.getDate() + 3);
-            const date2 = new Date(today);
-            date2.setDate(today.getDate() + 5);
+          case 'replace':
+            // Replace jobs
+            for (let i = 0; i < changesPerType; i++) {
+              changes.allChanges.push({
+                type: 'replacement',
+                removedJobId: `W-${100000 + i}`,
+                removedStore: `#${1000 + i}`,
+                removedStoreName: `Test Store ${i}`,
+                removedDispensers: Math.floor(Math.random() * 8) + 1,
+                removedLocation: 'Test Location A, FL',
+                addedJobId: `W-${200000 + i}`,
+                addedStore: `#${2000 + i}`,
+                addedStoreName: `Test Store New ${i}`,
+                addedDispensers: Math.floor(Math.random() * 8) + 1,
+                addedLocation: 'Test Location B, FL',
+                date: new Date(Date.now() + (i * 86400000)).toLocaleDateString()
+              });
+            }
+            changes.summary.replaced += changesPerType;
+            break;
             
-            changes.high.push({
-              type: 'swap',
-              job1Id: `W-${100000 + i*2}`,
-              job1Store: `#${1000 + i*2}`,
-              job1StoreName: `Store A${i}`,
-              job1Dispensers: Math.floor(Math.random() * 4) + 1,
-              job1Location: 'Location A, FL',
-              oldDate1: date1.toLocaleDateString(),
-              newDate1: date2.toLocaleDateString(),
+          case 'date':
+            // Date changes
+            for (let i = 0; i < changesPerType; i++) {
+              const oldDate = new Date();
+              oldDate.setDate(oldDate.getDate() + i);
               
-              job2Id: `W-${100000 + i*2 + 1}`,
-              job2Store: `#${1000 + i*2 + 1}`,
-              job2StoreName: `Store B${i}`,
-              job2Dispensers: Math.floor(Math.random() * 4) + 1,
-              job2Location: 'Location B, FL',
-              oldDate2: date2.toLocaleDateString(),
-              newDate2: date1.toLocaleDateString()
-            });
-          }
-          changes.summary.swapped = options.count;
-          break;
+              const newDate = new Date();
+              newDate.setDate(newDate.getDate() + i + 7); // Moved a week later
+              
+              changes.allChanges.push({
+                type: 'date_changed',
+                jobId: `W-${100000 + i}`,
+                store: `#${1000 + i}`,
+                storeName: `Test Store ${i}`,
+                dispensers: Math.floor(Math.random() * 8) + 1,
+                location: 'Test Location, FL',
+                oldDate: oldDate.toLocaleDateString(),
+                newDate: newDate.toLocaleDateString()
+              });
+            }
+            changes.summary.modified += changesPerType;
+            break;
+            
+          case 'swap':
+            // Job swaps
+            const swapPairs = Math.ceil(changesPerType / 2);
+            for (let i = 0; i < swapPairs; i++) {
+              // Create a pair of jobs that have swapped dates
+              const today = new Date();
+              const date1 = new Date(today);
+              date1.setDate(today.getDate() + 3);
+              const date2 = new Date(today);
+              date2.setDate(today.getDate() + 5);
+              
+              changes.allChanges.push({
+                type: 'swap',
+                job1Id: `W-${100000 + i*2}`,
+                job1Store: `#${1000 + i*2}`,
+                job1StoreName: `Store A${i}`,
+                job1Dispensers: Math.floor(Math.random() * 4) + 1,
+                job1Location: 'Location A, FL',
+                oldDate1: date1.toLocaleDateString(),
+                newDate1: date2.toLocaleDateString(),
+                
+                job2Id: `W-${100000 + i*2 + 1}`,
+                job2Store: `#${1000 + i*2 + 1}`,
+                job2StoreName: `Store B${i}`,
+                job2Dispensers: Math.floor(Math.random() * 4) + 1,
+                job2Location: 'Location B, FL',
+                oldDate2: date2.toLocaleDateString(),
+                newDate2: date1.toLocaleDateString()
+              });
+            }
+            changes.summary.swapped += changesPerType;
+            break;
+        }
       }
       
+      // For backward compatibility, also add to the critical and high arrays
+      changes.critical = changes.allChanges.filter(c => c.type === 'added' || c.type === 'removed');
+      changes.high = changes.allChanges.filter(c => c.type === 'date_changed' || c.type === 'swap' || c.type === 'replacement');
+      changes.medium = [];
+      changes.low = [];
+
       // Import the unified notification service
       const { sendScheduleChangeNotifications } = await import('../scripts/notifications/notificationService.js');
       
@@ -882,10 +959,14 @@ app.whenReady().then(() => {
       }
       
       if (!testUser) {
+        // Get email settings for default recipient
+        const { getUserEmailSettings } = await import('../scripts/notifications/emailService.js');
+        const emailSettings = await getUserEmailSettings();
+        
         // Create a default test user if no current user
         testUser = {
           id: 'test-user',
-          email: process.env.TEST_EMAIL || '',
+          email: process.env.TEST_EMAIL || emailSettings.recipientEmail || 'bruce.hunt@owlservices.com',
           pushoverKey: process.env.PUSHOVER_USER_KEY || '',
           notificationSettings: {
             enabled: true,
@@ -921,9 +1002,14 @@ app.whenReady().then(() => {
         `Email: ${emailStatus}, Pushover: ${pushoverStatus}`
       );
       
+      // Create a formatted list of change types for the response message
+      const changeTypesText = changeTypes.length > 1 
+        ? changeTypes.join(', ') 
+        : changeTypes[0];
+      
       return { 
         success: true, 
-        message: `Successfully sent notifications for ${options.count} ${options.changeType} schedule change(s)`,
+        message: `Successfully sent notifications for ${options.count} ${changeTypesText} schedule change(s)`,
         results: notificationResults
       };
     } catch (error) {
@@ -943,7 +1029,7 @@ app.whenReady().then(() => {
       }
       
       // Import alert notification service
-      const { sendAlertPushover } = await import('../scripts/notifications/pushoverService.js');
+      const { sendAlertPushover } = await import('../scripts/notifications/pushoverService.js/index.js');
       
       // Generate test alerts
       const alerts = [];
@@ -1113,13 +1199,23 @@ app.whenReady().then(() => {
       }
       
       // Update each prover with new fuel type preferences
-      const { provers } = preferencesData;
+      const { provers, autoPositionEthanolFree } = preferencesData;
       for (const prover of provers) {
         await updateProverPreference(prover.prover_id, prover.preferred_fuel_type, prover.priority, prover.preferred_fuel_types);
       }
       
       // Get the updated data
       const updatedPreferences = await getProverPreferences();
+      
+      // Save the autoPositionEthanolFree setting
+      if (typeof autoPositionEthanolFree === 'boolean') {
+        updatedPreferences.autoPositionEthanolFree = autoPositionEthanolFree;
+        
+        // Save the updated preferences with the autoPositionEthanolFree setting
+        const dataPath = await proversScripts.getDataPath();
+        await fs.promises.writeFile(dataPath, JSON.stringify(updatedPreferences, null, 2));
+        logger.info('Prover Preferences', `Updated autoPositionEthanolFree setting to: ${autoPositionEthanolFree}`);
+      }
       
       logger.success('Prover Preferences', 'Successfully updated prover preferences');
       return { success: true, data: updatedPreferences };
@@ -1129,10 +1225,108 @@ app.whenReady().then(() => {
     }
   });
 
-  // Handle IPC for opening URLs with authenticated login
-  ipcMain.handle('open-url-with-login', async (event, { url }) => {
+  // Handle IPC for opening URLs with active user's authenticated credentials
+  ipcMain.handle('open-url-with-active-user', async (event, { url, email, password, isDebugMode = false }) => {
     try {
-      logger.info('Authentication', `Attempting to log in and navigate to: ${url}`);
+      logger.info('Authentication', `Attempting to log in with active user credentials and navigate to: ${url}${isDebugMode ? ' (DEBUG MODE)' : ''}`);
+      
+      if (!email || !password) {
+        throw new Error('Missing email or password for active user');
+      }
+      
+      // Mask email for logging
+      const maskedEmail = email.replace(/^(.{3})(.*)(@.*)$/, (_, start, middle, end) => 
+        `${start}${'*'.repeat(Math.max(1, middle.length))}${end}`);
+      logger.info('Authentication', `Using credentials for user: ${maskedEmail}`);
+      
+      // Get the primary display's dimensions
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { width, height } = primaryDisplay.workAreaSize;
+      
+      logger.info('Browser Setup', `Using screen resolution: ${width}x${height}`);
+      
+      // Log current browser state
+      logBrowserState();
+      
+      // Ensure single browser approach - close any existing browser
+      await ensureSingleBrowser();
+      
+      // Create a new browser instance
+      logger.info('Browser', 'Creating new browser instance');
+      const result = await loginToFossa({ 
+        headless: false,
+        email,
+        password,
+        browserOptions: {
+          // Setting key to make it look like a normal browser
+          defaultViewport: null
+        }
+      });
+      
+      if (!result || !result.success) {
+        throw new Error(result?.error || 'Login failed with active user credentials');
+      }
+      
+      // Get browser and page from successful login
+      const { browser, page } = result;
+      logger.success('Browser', 'Successfully created new browser and logged in');
+      
+      try {
+        // Store browser instance for tracking
+        activeFossaBrowser = { 
+          browser,
+          isDebugMode,
+          timestamp: Date.now()
+        };
+        logger.info('Browser', 'Stored browser instance for tracking');
+        
+        // Handle browser close to clear our reference
+        browser.on('disconnected', () => {
+          logger.info('Browser', 'Browser instance closed or disconnected');
+          if (activeFossaBrowser && activeFossaBrowser.browser === browser) {
+            activeFossaBrowser = null;
+            logBrowserState();
+          }
+        });
+        
+        logBrowserState();
+        
+        // Navigate to the requested URL with a longer timeout
+        logger.info('Navigation', `Navigating to: ${url}`);
+        await page.goto(url, { timeout: 30000, waitUntil: 'load' });
+        
+        // Add a small delay to ensure the page is fully loaded before giving control to the user
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Return success to renderer
+        return { 
+          success: true, 
+          message: `Successfully logged in with active user credentials and navigated to URL${isDebugMode ? ' in debug mode' : ''}`
+        };
+      } catch (navError) {
+        logger.error('Navigation Error', navError);
+        // If navigation fails, clear our browser reference
+        activeFossaBrowser = null;
+        logBrowserState();
+        // Even if navigation fails, don't throw - return a more specific error
+        return { 
+          success: false, 
+          message: `Navigation error: ${navError.message}` 
+        };
+      }
+    } catch (error) {
+      logger.error('URL Login Error with Active User', error);
+      return { 
+        success: false, 
+        message: `Error: ${error.message || 'Unknown error'}` 
+      };
+    }
+  });
+
+  // Handle IPC for opening URLs with authenticated login
+  ipcMain.handle('open-url-with-login', async (event, { url, isDebugMode = false }) => {
+    try {
+      logger.info('Authentication', `Attempting to log in and navigate to: ${url}${isDebugMode ? ' (DEBUG MODE)' : ''}`);
       
       // Get the primary display's dimensions - access screen directly instead of using require
       const primaryDisplay = screen.getPrimaryDisplay();
@@ -1140,7 +1334,14 @@ app.whenReady().then(() => {
       
       logger.info('Browser Setup', `Using screen resolution: ${width}x${height}`);
       
-      // Log in using the login script with browser-like settings
+      // Log current browser state
+      logBrowserState();
+      
+      // Ensure single browser approach - close any existing browser
+      await ensureSingleBrowser();
+      
+      // Create a new browser instance
+      logger.info('Browser', 'Creating new browser instance');
       const result = await loginToFossa({ 
         headless: false,
         browserOptions: {
@@ -1155,16 +1356,51 @@ app.whenReady().then(() => {
       
       // Get browser and page from successful login
       const { browser, page } = result;
+      logger.success('Browser', 'Successfully created new browser and logged in');
       
-      // Navigate to the requested URL
-      logger.info('Navigation', `Navigating to: ${url}`);
-      await page.goto(url);
-      
-      // Return success to renderer
-      return { 
-        success: true, 
-        message: 'Successfully logged in and navigated to URL' 
-      };
+      try {
+        // Store browser instance for tracking
+        activeFossaBrowser = { 
+          browser,
+          isDebugMode,
+          timestamp: Date.now()
+        };
+        logger.info('Browser', 'Stored browser instance for tracking');
+        
+        // Handle browser close to clear our reference
+        browser.on('disconnected', () => {
+          logger.info('Browser', 'Browser instance closed or disconnected');
+          if (activeFossaBrowser && activeFossaBrowser.browser === browser) {
+            activeFossaBrowser = null;
+            logBrowserState();
+          }
+        });
+        
+        logBrowserState();
+        
+        // Navigate to the requested URL with a longer timeout
+        logger.info('Navigation', `Navigating to: ${url}`);
+        await page.goto(url, { timeout: 30000, waitUntil: 'load' });
+        
+        // Add a small delay to ensure the page is fully loaded before giving control to the user
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Return success to renderer
+        return { 
+          success: true, 
+          message: `Successfully logged in and navigated to URL${isDebugMode ? ' in debug mode' : ''}` 
+        };
+      } catch (navError) {
+        logger.error('Navigation Error', navError);
+        // If navigation fails, clear our browser reference
+        activeFossaBrowser = null;
+        logBrowserState();
+        // Even if navigation fails, don't throw - return a more specific error
+        return { 
+          success: false, 
+          message: `Navigation error: ${navError.message}` 
+        };
+      }
       
       // Note: We don't close the browser - it stays open for the user to interact with
     } catch (error) {
@@ -1178,25 +1414,31 @@ app.whenReady().then(() => {
 
   // Schedule the automation to run every hour
   cron.schedule('0 * * * *', async () => {
-    console.log('Starting scheduled scrape job...');
-    try {
-      await scrapeAllWorkOrders();
-      console.log('Scheduled scrape completed successfully');
-      
-      // Notify the renderer process about the automatic scrape completion
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('scrape-complete', {
-          type: 'automatic',
-          timestamp: new Date().toISOString(),
-          success: true
-        });
-        logger.info('Automatic Scrape', 'Notified UI about scheduled scrape completion');
-      }
+    // Check if we're running in an environment where the server might also be running
+    // Only run scraping if we're not running the full server stack (which has its own cron job)
+    if (process.env.RUNNING_ELECTRON_DEV || process.env.SERVER_SCRAPE_DISABLED === 'true') {
+      console.log('Starting scheduled scrape job...');
+      try {
+        await scrapeAllWorkOrders();
+        console.log('Scheduled scrape completed successfully');
+        
+        // Notify the renderer process about the automatic scrape completion
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('scrape-complete', {
+            type: 'automatic',
+            timestamp: new Date().toISOString(),
+            success: true
+          });
+          logger.info('Automatic Scrape', 'Notified UI about scheduled scrape completion');
+        }
 
-      // Analyze schedule changes after each scrape
-      console.log('Analyzing schedule changes...');
-    } catch (error) {
-      logger.error('Scheduled Scrape Error', error);
+        // Analyze schedule changes after each scrape
+        console.log('Analyzing schedule changes...');
+      } catch (error) {
+        logger.error('Scheduled Scrape Error', error);
+      }
+    } else {
+      logger.info('Automatic Scrape', 'Skipping scheduled scrape in Electron main process as the server is handling scraping');
     }
   });
 
@@ -1226,5 +1468,101 @@ app.whenReady().then(() => {
       frontendProcess.kill();
     }
     app.quit();
+  });
+
+  // Add a handler for testing schedule change notifications
+  ipcMain.handle('test-schedule-notification', async (event) => {
+    try {
+      logger.info('Test Schedule Notification', 'Starting scrape with notifications enabled');
+      
+      // Import runScrape directly
+      const { runScrape } = await import('../scripts/unified_scrape.js');
+      
+      // Run scrape with notifications explicitly enabled
+      const result = await runScrape({ 
+        isManual: true,
+        sendNotifications: true // Explicitly enable notifications for testing
+      });
+      
+      logger.success('Test Schedule Notification', 'Completed scrape with notifications enabled');
+      
+      // Notify the renderer process about completion
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('notification-test-complete', {
+          timestamp: new Date().toISOString(),
+          success: true
+        });
+      }
+      
+      return { success: true, message: 'Completed scrape with notifications enabled' };
+    } catch (error) {
+      logger.error('Test Schedule Notification Error', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Add file system IPC handlers
+  ipcMain.handle('fs-read-file', async (event, { filePath, options }) => {
+    try {
+      return await fsPromises.readFile(filePath, options);
+    } catch (error) {
+      console.error(`Error reading file ${filePath}:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('fs-write-file', async (event, { filePath, data, options }) => {
+    try {
+      await fsPromises.writeFile(filePath, data, options);
+      return true;
+    } catch (error) {
+      console.error(`Error writing file ${filePath}:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('fs-exists', async (event, { filePath }) => {
+    try {
+      return fs.existsSync(filePath);
+    } catch (error) {
+      console.error(`Error checking if file exists ${filePath}:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('fs-mkdir', async (event, { dirPath, options }) => {
+    try {
+      await fsPromises.mkdir(dirPath, options);
+      return true;
+    } catch (error) {
+      console.error(`Error creating directory ${dirPath}:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('fs-stat', async (event, { filePath }) => {
+    try {
+      const stat = await fsPromises.stat(filePath);
+      return {
+        isFile: stat.isFile(),
+        isDirectory: stat.isDirectory(),
+        size: stat.size,
+        mtime: stat.mtime,
+        ctime: stat.ctime,
+        // Convert non-serializable parts to something that can be transferred over IPC
+        mode: stat.mode,
+      };
+    } catch (error) {
+      console.error(`Error getting stats for ${filePath}:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('fs-join-path', (event, { paths }) => {
+    return path.join(...paths);
+  });
+
+  ipcMain.handle('fs-dirname', (event, { filePath }) => {
+    return path.dirname(filePath);
   });
 }); 

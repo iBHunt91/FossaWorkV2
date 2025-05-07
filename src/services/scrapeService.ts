@@ -160,7 +160,7 @@ export const forceRescrapeDispenserData = async (storeId: string): Promise<{ mes
 /**
  * Get the logs for a specific job type
  */
-export const getScrapeLogs = async (type: 'workOrder' | 'dispenser'): Promise<LogEntry[]> => {
+export const getScrapeLogs = async (type: 'workOrder' | 'dispenser' | 'server' | 'formPrep'): Promise<LogEntry[]> => {
   const url = await ENDPOINTS.SCRAPE_LOGS(type);
   const response = await fetch(url);
 

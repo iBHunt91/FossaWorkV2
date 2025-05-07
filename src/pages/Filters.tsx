@@ -1,47 +1,44 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   FiFilter, 
-  FiCalendar, 
-  FiChevronLeft, 
-  FiChevronRight, 
-  FiSearch, 
-  FiDownload, 
-  FiArrowUp, 
-  FiArrowDown, 
-  FiInfo, 
-  FiExternalLink, 
-  FiMapPin, 
-  FiClock, 
-  FiTool, 
-  FiGrid, 
-  FiEye,
-  FiAlertCircle,
-  FiPrinter, 
-  FiCheck, 
-  FiBox, 
-  FiLayers, 
-  FiAlertTriangle,
-  FiRefreshCw,
-  FiBarChart2,
-  FiCheckCircle,
-  FiActivity,
+  FiDownload,
+  FiArrowLeft,
   FiArrowRight,
-  FiChevronDown,
-  FiSliders,
+  FiCheck,
+  FiAlertCircle,
+  FiAlertTriangle,
   FiX,
-  FiEdit
+  FiInfo,
+  FiEdit,
+  FiRefreshCw,
+  FiChevronRight,
+  FiChevronLeft,
+  FiArrowUp,
+  FiArrowDown,
+  FiSearch,
+  FiExternalLink,
+  FiCheckCircle,
+  FiSliders,
+  FiCalendar,
+  FiMapPin,
+  FiTool,
+  FiBox,
+  FiBarChart2,
+  FiGrid,
+  FiEye
 } from 'react-icons/fi';
 import { CSVLink } from 'react-csv';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import scrapedData from '../data/scraped_content.json';
-import DispenserInfo from '../components/DispenserInfo';
+import DispenserModal from '../components/DispenserModal';
 import { WorkOrder, FilterNeed } from '../types';
 import { calculateFiltersForWorkOrder, FilterWarning } from '../utils/filterCalculation';
-import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
+import { useTheme } from '../context/ThemeContext';
 import { useDispenserData } from '../context/DispenserContext';
 import { format, startOfWeek as dateStartOfWeek, endOfWeek as dateEndOfWeek, subDays, addDays, isSameDay, parseISO } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 // Add custom styles for the date picker
 import "./datePickerStyles.css";
@@ -60,45 +57,58 @@ const getWorkWeekDateRanges = (
   workWeekEnd: number = 5,
   selectedDate: Date = new Date()
 ): WorkWeekDateRanges => {
-  // Use the selectedDate as the base date instead of new Date()
-  const today = selectedDate;
+  // Ensure selectedDate is a proper Date object
+  const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
   
-  // Always calculate first day of current week
-  const currentWeekStart = new Date(today);
+  // Use the selectedDate as the base date
+  const today = dateObj;
+  
+  // Get current day of week and hour
   const currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
   const currentHour = today.getHours();
   
   // Check if we're at the end of the work week after 5:00pm (17:00)
   // If it's workWeekEnd day and after 5pm, we'll treat it as weekend mode
   const isAfterWorkWeekEnd = (currentDayOfWeek === workWeekEnd && currentHour >= 17) || 
-                            currentDayOfWeek > workWeekEnd || 
-                            currentDayOfWeek < workWeekStart;
+                           currentDayOfWeek > workWeekEnd || 
+                           currentDayOfWeek < workWeekStart;
+  
+  // Always calculate first day of current week
+  const currentWeekStart = new Date(today);
   
   // Calculate days to add/subtract to get to start day
-  const diffToStart = isAfterWorkWeekEnd ?
-    (workWeekStart + 7 - currentDayOfWeek) % 7 : // Next week's work start if after work week
-    (currentDayOfWeek === 0) ?
-      workWeekStart - 7 : // If today is Sunday, go back to previous week's start day
-      workWeekStart - currentDayOfWeek; // Otherwise calculate normally
+  let diffToStart;
   
-  currentWeekStart.setDate(today.getDate() + diffToStart);
-  currentWeekStart.setHours(0, 0, 0, 0); // Start of day
+  if (isAfterWorkWeekEnd) {
+    // If in weekend mode, current week becomes next week
+    diffToStart = (workWeekStart + 7 - currentDayOfWeek) % 7;
+    if (diffToStart === 0) diffToStart = 7; // If today is the start day of next week, we need to move forward a full week
+  } else {
+    // Normal mode - calculate days to subtract to get to current week's start
+    diffToStart = ((currentDayOfWeek - workWeekStart) + 7) % 7;
+    currentWeekStart.setDate(today.getDate() - diffToStart);
+  }
   
-  // Calculate end of work week (use direct workWeekEnd value)
+  // Apply the calculated difference
+  currentWeekStart.setDate(today.getDate() + (isAfterWorkWeekEnd ? diffToStart : -diffToStart));
+  
+  // Set time to start of day
+  currentWeekStart.setHours(0, 0, 0, 0);
+  
+  // Calculate end of current week
   const currentWeekEnd = new Date(currentWeekStart);
-  // Number of days to add = difference between end day and start day
-  // If workWeekEnd is less than workWeekStart, it means end is in the next week
   const daysToAdd = workWeekEnd < workWeekStart ? 
-    7 - workWeekStart + workWeekEnd : // Wrap around to next week
-    workWeekEnd - workWeekStart;
+    (7 - workWeekStart + workWeekEnd) : // Wrap around to next week if end day is before start day
+    (workWeekEnd - workWeekStart);     // Otherwise calculate normally
   
   currentWeekEnd.setDate(currentWeekStart.getDate() + daysToAdd);
   currentWeekEnd.setHours(17, 0, 0, 0); // End at 5:00pm on the end day
   
-  // Now calculate next week's range
+  // Calculate next week (start of next week)
   const nextWeekStart = new Date(currentWeekStart);
   nextWeekStart.setDate(currentWeekStart.getDate() + 7);
   
+  // Calculate end of next week
   const nextWeekEnd = new Date(currentWeekEnd);
   nextWeekEnd.setDate(currentWeekEnd.getDate() + 7);
   
@@ -187,6 +197,22 @@ const STATION_FILTERS = {
   }
 };
 
+// Debounce utility to prevent multiple rapid calls
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  
+  return function(this: any, ...args: Parameters<T>) {
+    const context = this;
+    
+    if (timeout) clearTimeout(timeout);
+    
+    timeout = setTimeout(() => {
+      timeout = null;
+      func.apply(context, args);
+    }, wait);
+  };
+}
+
 const FiltersRedesign: React.FC = () => {
   const { isDarkMode } = useTheme();
   const { addToast } = useToast();
@@ -203,6 +229,10 @@ const FiltersRedesign: React.FC = () => {
   const [dispenserToastShown, setDispenserToastShown] = useState(() => {
     return sessionStorage.getItem('dispenserToastShown') === 'true';
   });
+  
+  // Use ref to prevent recursive loading
+  const isLoadingRef = useRef(false);
+  const lastLoadTimeRef = useRef(Date.now());
   
   // Define default work week as Monday (1) to Friday (5)
   const workWeekStart = 1; // Monday
@@ -379,9 +409,15 @@ const FiltersRedesign: React.FC = () => {
 
   // Main useEffect for loading data
   useEffect(() => {
-    let isMounted = true;
-    
-    const loadData = async () => {
+    // Only run this effect once when the component mounts
+    const loadInitialData = async () => {
+      if (isLoadingRef.current) {
+        console.log('Initial data load already in progress, skipping');
+        return;
+      }
+      
+      console.log('Starting initial data load');
+      isLoadingRef.current = true;
       setIsLoading(true);
       
       try {
@@ -402,32 +438,19 @@ const FiltersRedesign: React.FC = () => {
             await loadDispenserData();
           }
           
-          // Merge the data
+          // Get the dispenser data and merge
+          const currentDispenserData = dispenserData.dispenserData || {};
           const enhancedWorkOrders = apiData.workOrders.map((order: WorkOrder) => {
-            // If order already has dispenser data, use it
-            if (order.dispensers && order.dispensers.length > 0) {
-              return order;
-            }
-            
-            // If dispenser data exists in the store, add it to the order
-            if (dispenserData.dispenserData && dispenserData.dispenserData[order.id]) {
-              const dispenserInfo = dispenserData.dispenserData[order.id] as { dispensers: Dispenser[] };
+            if (currentDispenserData[order.id]) {
+              const dispenserInfo = currentDispenserData[order.id] as { dispensers: Dispenser[] };
               const dispensers = dispenserInfo.dispensers || [];
-              return {
-                ...order,
-                dispensers
-              };
+              return { ...order, dispensers };
             }
-            
-            // No dispenser data available
             return order;
           });
           
           // Update the state with the merged data
-          if (isMounted) {
-            setWorkOrders(enhancedWorkOrders);
-          }
-          return;
+          setWorkOrders(enhancedWorkOrders);
         } else {
           throw new Error('Invalid API data format');
         }
@@ -446,139 +469,135 @@ const FiltersRedesign: React.FC = () => {
           const fileData = await fileResponse.json();
           console.log('Successfully loaded local JSON file with', fileData.workOrders?.length || 0, 'work orders');
           
-          if (isMounted && fileData.workOrders) {
-            setWorkOrders(fileData.workOrders);
-          }
+          setWorkOrders(fileData.workOrders);
         } catch (localError) {
           console.error('Error loading local work order data:', localError);
           
           // Fall back to imported data if all else fails
           console.log('Using static imported data as final fallback');
-          if (isMounted) {
-            setWorkOrders(scrapedData.workOrders);
-          }
+          setWorkOrders(scrapedData.workOrders);
         }
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
+        isLoadingRef.current = false;
+        lastLoadTimeRef.current = Date.now();
       }
     };
     
-    loadData();
+    // Use a small timeout to ensure everything is properly initialized
+    setTimeout(() => {
+      loadInitialData();
+    }, 100);
     
-    // Cleanup function
-    return () => {
-      isMounted = false;
-    };
-  }, [isLoaded, loadDispenserData, dispenserData]);
+    // Empty dependency array means this only runs once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Listen for fossa-data-updated events to refresh data automatically
   useEffect(() => {
-    let isMounted = true;
+    // Create a local reference to avoid stale closure issues
+    const currentLoadDispenserData = loadDispenserData;
+    const currentDispenserData = dispenserData; // Capture current value for reference
     
-    const handleDataUpdated = (event: CustomEvent) => {
-      // Extract details from the event
-      const detail = event.detail || {};
-      const isSilent = detail.silent || false;
-      const isAutomatic = detail.automatic || false;
+    // Function to handle data reloading
+    const reloadData = async () => {
+      // Set the loading flag to prevent other calls
+      if (isLoadingRef.current) {
+        console.log('Data reload already in progress, skipping');
+        return;
+      }
       
-      console.log(`Filter data update event detected: ${isAutomatic ? 'Automatic' : 'Manual'} ${isSilent ? '(Silent)' : ''}`);
+      console.log('Reloading Filter data...');
+      isLoadingRef.current = true;
       
-      const silentReload = async () => {
-        if (!isMounted) return;
+      try {
+        // Try loading from API first with cache prevention headers
+        const apiResponse = await fetch('/api/workorders', {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          },
+          cache: 'no-store'
+        });
+        
+        if (!apiResponse.ok) {
+          throw new Error(`Failed to reload work orders: ${apiResponse.status}`);
+        }
+        
+        const apiData = await apiResponse.json();
+        
+        if (!apiData.workOrders || !Array.isArray(apiData.workOrders)) {
+          throw new Error('Invalid API data format');
+        }
+        
+        console.log('Successfully loaded work orders data with', apiData.workOrders.length, 'work orders');
+        
+        // Load fresh dispenser data without updating loading state
+        await currentLoadDispenserData(true, false);
+        
+        // Create enhanced work orders with dispenser data - get fresh data from context
+        const latestDispenserData = dispenserData.dispenserData || {};
+        const enhancedWorkOrders = apiData.workOrders.map((order: WorkOrder) => {
+          if (latestDispenserData[order.id]) {
+            const dispenserInfo = latestDispenserData[order.id] as { dispensers: Dispenser[] };
+            const dispensers = dispenserInfo.dispensers || [];
+            return { ...order, dispensers };
+          }
+          return order;
+        });
+        
+        // Update work orders state
+        setWorkOrders(enhancedWorkOrders);
+        
+      } catch (error) {
+        console.error('Error reloading work order data:', error);
         
         try {
-          // Try loading from API first
-          const apiResponse = await fetch('/api/workorders', {
+          // Fall back to local file
+          const fileResponse = await fetch('/src/data/scraped_content.json', {
             headers: {
               'Cache-Control': 'no-cache, no-store, must-revalidate',
               'Pragma': 'no-cache',
               'Expires': '0'
-            },
-            cache: 'no-store'
+            }
           });
           
-          if (!apiResponse.ok) {
-            throw new Error(`Failed to reload work orders: ${apiResponse.status}`);
-          }
-          
-          const apiData = await apiResponse.json();
-          
-          if (!apiData.workOrders || !Array.isArray(apiData.workOrders)) {
-            throw new Error('Invalid API data format');
-          }
-          
-          console.log('Silently reloaded work orders data with', apiData.workOrders.length, 'work orders');
-          
-          // Load fresh dispenser data without updating loading state
-          await loadDispenserData(true, false);
-          
-          // Merge the data with the latest dispenser data
-          const enhancedWorkOrders = apiData.workOrders.map((order: WorkOrder) => {
-            // If dispenser data exists in the store, add it to the order
-            if (dispenserData.dispenserData && dispenserData.dispenserData[order.id]) {
-              const dispenserInfo = dispenserData.dispenserData[order.id] as { dispensers: Dispenser[] };
-              const dispensers = dispenserInfo.dispensers || [];
-              return {
-                ...order,
-                dispensers
-              };
-            }
-            
-            // No dispenser data available
-            return order;
-          });
-          
-          // Update the state without triggering loading indicators
-          if (isMounted) {
-            setWorkOrders(enhancedWorkOrders);
-            console.log(`Filter data silently refreshed from ${isAutomatic ? 'automatic' : 'manual'} scrape:`, enhancedWorkOrders.length);
-          }
-        } catch (error) {
-          console.error('Error silently reloading work order data:', error);
-          
-          // Fall back to local file if API fails
-          try {
-            const fileResponse = await fetch('/src/data/scraped_content.json', {
-              headers: {
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0'
-              },
-              cache: 'no-store'
-            });
-            
-            if (!fileResponse.ok) {
-              throw new Error(`Failed to reload local data: ${fileResponse.status}`);
-            }
-            
+          if (fileResponse.ok) {
             const fileData = await fileResponse.json();
-            
-            if (isMounted && fileData.workOrders) {
-              // Update without merging dispenser data since it's just a fallback
+            if (fileData.workOrders) {
               setWorkOrders(fileData.workOrders);
-              console.log(`Filter data refreshed from local file:`, fileData.workOrders.length);
+              console.log('Fallback: loaded data from local file');
             }
-          } catch (localError) {
-            console.error('Error silently reloading local work order data:', localError);
-            // Just log the error, don't fall back to imported data since this is a silent reload
           }
+        } catch (fallbackError) {
+          console.error('Failed to load fallback data:', fallbackError);
         }
-      };
-      
-      silentReload();
+      } finally {
+        // Reset the loading flag
+        isLoadingRef.current = false;
+        lastLoadTimeRef.current = Date.now();
+      }
     };
-
+    
+    // Create a debounced version that only executes after 1 second of inactivity
+    const debouncedReload = debounce(reloadData, 1000);
+    
+    // Event handler that uses the debounced reload function
+    const handleDataUpdated = (event: CustomEvent) => {
+      // Call the debounced function - it will only execute once even if called multiple times
+      debouncedReload();
+    };
+    
     // Add event listener
     window.addEventListener('fossa-data-updated', handleDataUpdated as EventListener);
     
-    // Remove event listener on cleanup
+    // Clean up
     return () => {
-      isMounted = false;
       window.removeEventListener('fossa-data-updated', handleDataUpdated as EventListener);
     };
-  }, [dispenserData, loadDispenserData]);
+  // Only depend on loadDispenserData which should be stable
+  }, [loadDispenserData]);
   
   // Separate useEffect for toast notifications
   useEffect(() => {
@@ -2049,7 +2068,7 @@ const FiltersRedesign: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
+    <div className="container mx-auto max-w-7xl">
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <div className="flex flex-col items-center">
@@ -2499,13 +2518,32 @@ const FiltersRedesign: React.FC = () => {
 
           {/* Dispenser Info Modal */}
           {currentDispenserInfo && (
-            <DispenserInfo
-              dispenserHtml={workOrders.find(order => order.id === selectedOrderId)?.dispenserHtml || ''}
-              dispensers={workOrders.find(order => order.id === selectedOrderId)?.dispensers || []}
+            <DispenserModal
               isOpen={currentDispenserInfo === 'show'}
               onClose={() => {
                 setCurrentDispenserInfo(null);
                 setSelectedOrderId(null);
+              }}
+              dispensers={workOrders.find(order => order.id === selectedOrderId)?.dispensers as any[] || []}
+              orderId={selectedOrderId}
+              sortFuelTypes={(gradeString: string) => {
+                if (!gradeString) return [];
+                // Split by commas and sort by fuel grade priority
+                return gradeString.split(',').map(g => g.trim()).sort((a, b) => {
+                  const aLower = a.toLowerCase();
+                  const bLower = b.toLowerCase();
+                  
+                  if (aLower.includes('regular') && !bLower.includes('regular')) return -1;
+                  if (!aLower.includes('regular') && bLower.includes('regular')) return 1;
+                  if (aLower.includes('plus') && !bLower.includes('plus')) return -1;
+                  if (!aLower.includes('plus') && bLower.includes('plus')) return 1;
+                  if (aLower.includes('premium') && !bLower.includes('premium')) return -1;
+                  if (!aLower.includes('premium') && bLower.includes('premium')) return 1;
+                  if (aLower.includes('diesel') && !bLower.includes('diesel')) return -1;
+                  if (!aLower.includes('diesel') && bLower.includes('diesel')) return 1;
+                  
+                  return a.localeCompare(b);
+                });
               }}
             />
           )}

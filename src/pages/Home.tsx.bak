@@ -32,14 +32,18 @@ import {
   FiDownload,
   FiSun,
   FiMoon,
-  FiHash
+  FiHash,
+  FiClipboard,
+  FiDroplet,
+  FiGlobe  // Add FiGlobe icon for our new button
 } from 'react-icons/fi'
+import { GiGasPump } from 'react-icons/gi'
 import LastScrapedTime from '../components/LastScrapedTime'
 import NextScrapeTime from '../components/NextScrapeTime'
-import DispenserInfo from '../components/DispenserInfo'
 import ScrapeLogsConsole from '../components/ScrapeLogsConsole'
+import DispenserModal from '../components/DispenserModal'
 import { useNavigate } from 'react-router-dom'
-import { clearDispenserData, forceRescrapeDispenserData, getDispenserScrapeStatus } from '../services/scrapeService'
+import { clearDispenserData, forceRescrapeDispenserData, getDispenserScrapeStatus, getWorkOrders } from '../services/scrapeService'
 import { useToast } from '../context/ToastContext'
 import { useTheme } from '../context/ThemeContext'
 import { useDispenserData } from '../context/DispenserContext'
@@ -47,9 +51,6 @@ import {
   SkeletonDashboardStats, 
   SkeletonJobsList 
 } from '../components/Skeleton'
-
-// Import work order data
-import workOrderData from '../../data/scraped_content.json'
 
 // Import fuel grades list for proper ordering
 import fuelGrades from '../data/fuel_grades';
@@ -165,50 +166,60 @@ const getWorkWeekDateRanges = (
   workWeekEnd: number = 5,
   selectedDate: Date = new Date()
 ): WorkWeekDateRanges => {
-  // Use the selectedDate as the base date instead of new Date()
-  const today = selectedDate;
+  // Ensure selectedDate is a proper Date object
+  const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
   
-  // Always calculate first day of current week
-  const currentWeekStart = new Date(today);
+  // Use the selectedDate as the base date
+  const today = dateObj;
+  
+  // Get current day of week and hour
   const currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
   const currentHour = today.getHours();
   
   // Check if we're at the end of the work week after 5:00pm (17:00)
   // If it's workWeekEnd day and after 5pm, we'll treat it as weekend mode
   const isAfterWorkWeekEnd = (currentDayOfWeek === workWeekEnd && currentHour >= 17) || 
-                            currentDayOfWeek > workWeekEnd || 
-                            currentDayOfWeek < workWeekStart;
+                           currentDayOfWeek > workWeekEnd || 
+                           currentDayOfWeek < workWeekStart;
+  
+  // Always calculate first day of current week
+  const currentWeekStart = new Date(today);
   
   // Calculate days to add/subtract to get to start day
-  const diffToStart = isAfterWorkWeekEnd ?
-    (workWeekStart + 7 - currentDayOfWeek) % 7 : // Next week's work start if after work week
-    (currentDayOfWeek === 0) ?
-      workWeekStart - 7 : // If today is Sunday, go back to previous week's start day
-      workWeekStart - currentDayOfWeek; // Otherwise calculate normally
+  let diffToStart;
   
-  currentWeekStart.setDate(today.getDate() + diffToStart);
-  currentWeekStart.setHours(0, 0, 0, 0); // Start of day
+  if (isAfterWorkWeekEnd) {
+    // If in weekend mode, current week becomes next week
+    diffToStart = (workWeekStart + 7 - currentDayOfWeek) % 7;
+    if (diffToStart === 0) diffToStart = 7; // If today is the start day of next week, we need to move forward a full week
+  } else {
+    // Normal mode - calculate days to subtract to get to current week's start
+    diffToStart = ((currentDayOfWeek - workWeekStart) + 7) % 7;
+    currentWeekStart.setDate(today.getDate() - diffToStart);
+  }
   
-  // Calculate end of work week (use direct workWeekEnd value)
+  // Apply the calculated difference
+  currentWeekStart.setDate(today.getDate() + (isAfterWorkWeekEnd ? diffToStart : -diffToStart));
+  
+  // Set time to start of day
+  currentWeekStart.setHours(0, 0, 0, 0);
+  
+  // Calculate end of current week
   const currentWeekEnd = new Date(currentWeekStart);
-  // Number of days to add = difference between end day and start day
-  // If workWeekEnd is less than workWeekStart, it means end is in the next week
   const daysToAdd = workWeekEnd < workWeekStart ? 
-    7 - workWeekStart + workWeekEnd : // Wrap around to next week
-    workWeekEnd - workWeekStart;
+    (7 - workWeekStart + workWeekEnd) : // Wrap around to next week if end day is before start day
+    (workWeekEnd - workWeekStart);     // Otherwise calculate normally
   
   currentWeekEnd.setDate(currentWeekStart.getDate() + daysToAdd);
   currentWeekEnd.setHours(17, 0, 0, 0); // End at 5:00pm on the end day
   
-  // Next week's start is one week after current week start
+  // Calculate next week (start of next week)
   const nextWeekStart = new Date(currentWeekStart);
-  nextWeekStart.setDate(currentWeekStart.getDate() + 7); // Exactly one week later
-  nextWeekStart.setHours(0, 0, 0, 0); // Start of day
+  nextWeekStart.setDate(currentWeekStart.getDate() + 7);
   
-  // Next week's end is the same pattern as current week
-  const nextWeekEnd = new Date(nextWeekStart);
-  nextWeekEnd.setDate(nextWeekStart.getDate() + daysToAdd);
-  nextWeekEnd.setHours(17, 0, 0, 0); // End at 5:00pm
+  // Calculate end of next week
+  const nextWeekEnd = new Date(currentWeekEnd);
+  nextWeekEnd.setDate(currentWeekEnd.getDate() + 7);
   
   return {
     currentWeekStart,
@@ -218,37 +229,59 @@ const getWorkWeekDateRanges = (
   };
 };
 
+import PersistentView, { usePersistentViewContext } from '../components/PersistentView';
+
+// Simplified Home component to just render PersistentView wrapper
 const Home: React.FC = () => {
+  return (
+    <PersistentView id="home-dashboard" persistScrollPosition={true}>
+      <HomeContent />
+    </PersistentView>
+  );
+};
+
+export default Home;
+
+// HomeContent component uses the persistence context
+const HomeContent: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const { theme, setTheme, isDarkMode } = useTheme();
-  const { dispenserData, loadDispenserData, isLoaded } = useDispenserData();
+  const { isDarkMode } = useTheme();
+  const { dispenserData, loadDispenserData } = useDispenserData();
   
-  // State
-  const [activeView, setActiveView] = useState<ViewType>('weekly');
-  const [activeFilter, setActiveFilter] = useState<StoreFilter>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  // Get the context from PersistentView
+  const { createState, createDateState } = usePersistentViewContext();
+  
+  // State for managing work orders and loading - don't persist these
+  const [workOrdersData, setWorkOrdersData] = useState<{workOrders: WorkOrder[], metadata: any}>({
+    workOrders: [],
+    metadata: {}
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // UI state that should persist - use createState
+  const [activeView, setActiveView] = createState<ViewType>('activeView', 'weekly');
+  const [activeFilter, setActiveFilter] = createState<StoreFilter>('activeFilter', 'all');
+  const [searchQuery, setSearchQuery] = createState<string>('searchQuery', '');
   
   // Calendar view state
   const today = new Date();
-  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
-  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [currentMonth, setCurrentMonth] = createState<number>('currentMonth', today.getMonth());
+  const [currentYear, setCurrentYear] = createState<number>('currentYear', today.getFullYear());
   
-  // Work orders data state
-  const [workOrdersData, setWorkOrdersData] = useState(workOrderData);
-  const { workOrders, metadata } = workOrdersData;
-  const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrder[]>(workOrders as WorkOrder[]);
+  // Work orders data state - don't persist these as they're loaded from API
+  const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrder[]>(workOrdersData.workOrders as WorkOrder[]);
   const [loading, setLoading] = useState(true);
-  const [selectedTab, setSelectedTab] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTab, setSelectedTab] = createState<string>('selectedTab', 'all');
+  const [searchTerm, setSearchTerm] = createState<string>('searchTerm', '');
   const [countsByCategory, setCountsByCategory] = useState<{[key: string]: number}>({});
   
-  // State for modals and dispenser operations
+  // State for modals and dispenser operations - transient states, don't persist
   const [clearingDispenserId, setClearingDispenserId] = useState<string | null>(null);
   const [reScrapeDispenserId, setReScrapeDispenserId] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
   const [showLogsModal, setShowLogsModal] = useState<boolean>(false);
-  const [logConsoleType, setLogConsoleType] = useState<'workOrder' | 'dispenser'>('dispenser');
+  const [logConsoleType, setLogConsoleType] = useState<'workOrder' | 'dispenser' | 'server'>('workOrder');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [currentDispenserInfo, setCurrentDispenserInfo] = useState<string | null>(null);
   const [currentDispenserData, setCurrentDispenserData] = useState<any[]>([]);
@@ -257,58 +290,125 @@ const Home: React.FC = () => {
   const [showDispenserModal, setShowDispenserModal] = useState<boolean>(false);
   const [selectedDispensers, setSelectedDispensers] = useState<any[]>([]);
   
-  // UI state
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [isFullscreenMode, setIsFullscreenMode] = useState(false);
-  const [chartType, setChartType] = useState<'pie' | 'bar'>('pie');
+  // UI state - persist these across reloads
+  const [favorites, setFavorites] = createState<string[]>('favorites', []);
+  const [showWelcome, setShowWelcome] = createState<boolean>('showWelcome', true);
+  const [isFullscreenMode, setIsFullscreenMode] = createState<boolean>('isFullscreenMode', false);
+  const [chartType, setChartType] = createState<'pie' | 'bar'>('chartType', 'pie');
   const chartRef = useRef<HTMLDivElement>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertType, setAlertType] = useState<'success' | 'error' | 'info'>('info');
 
-  // Loading state (consolidating duplicate state)
-  const [isLoading, setIsLoading] = useState(true);
-  // Track if dispenser toast notification has been shown
+  // Track if dispenser toast notification has been shown - already using sessionStorage
   const [dispenserToastShown, setDispenserToastShown] = useState(() => {
     return sessionStorage.getItem('dispenserToastShown') === 'true';
   });
 
-  // New work week preferences state
-  const [workWeekStart, setWorkWeekStart] = useState<number>(1); // 1 = Monday
-  const [workWeekEnd, setWorkWeekEnd] = useState<number>(5);   // 5 = Friday
+  // New work week preferences state - persist these
+  const [workWeekStart, setWorkWeekStart] = createState<number>('workWeekStart', 1); // 1 = Monday
+  const [workWeekEnd, setWorkWeekEnd] = createState<number>('workWeekEnd', 5);   // 5 = Friday
   const [showWorkWeekSettings, setShowWorkWeekSettings] = useState<boolean>(false);
-  const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    const storedDate = localStorage.getItem('selectedDate');
-    return storedDate ? new Date(storedDate) : new Date();
-  });
+  const [recentScrapedOrders, setRecentScrapedOrders] = useState<string[]>([]);
+  
+  // Sort order references
+  const [sortOrder, setSortOrder] = createState<'asc' | 'desc'>('sortOrder', 'asc');
+  const [sortField, setSortField] = createState<'date' | 'customer'>('sortField', 'date');
+  
+  // Expandable panel state
+  const [expandedPanels, setExpandedPanels] = createState<Record<string, boolean>>('expandedPanels', {});
+  
+  // Work orders state
+  const [selectedMarketArea, setSelectedMarketArea] = createState<string>('selectedMarketArea', 'all');
+  const [storeFilter, setStoreFilter] = createState<StoreFilter>('storeFilter', 'all');
+  
+  // Date calculation state
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [workWeekDateRanges, setWorkWeekDateRanges] = useState<WorkWeekDateRanges>(() => 
+    getWorkWeekDateRanges(workWeekStart, workWeekEnd)
+  );
+
+  // Use the date-specific hook for better date handling
+  const [selectedDate, setSelectedDate] = createDateState('selectedDate', new Date());
   const [refreshTimestamp, setRefreshTimestamp] = useState<number>(Date.now());
 
   // Add a state to track which dispensers have expanded technical details
-  const [expandedTechnicalDetails, setExpandedTechnicalDetails] = useState<number[]>([]);
-
+  const [expandedTechnicalDetails, setExpandedTechnicalDetails] = createState<number[]>('expandedTechnicalDetails', []);
+  
   // Flag to prevent duplicate distribution logs
   const [distributionLogged, setDistributionLogged] = useState<boolean>(false);
 
+  // Add a state to track if the 5pm transition has been processed for the current window
+  const [transitionProcessed, setTransitionProcessed] = useState<boolean>(false);
+  // Add a state to track whether the initial weekend mode has been shown
+  const [initialWeekendModeShown, setInitialWeekendModeShown] = useState<boolean>(() => {
+    // Check if we've already shown this notification today
+    const today = new Date().toDateString();
+    const lastShownDay = localStorage.getItem('weekendModeNotificationDate');
+    return lastShownDay === today;
+  });
+
+  // Helper function to mark the weekend mode notification as shown
+  const markWeekendModeAsShown = () => {
+    const today = new Date().toDateString();
+    localStorage.setItem('weekendModeNotificationDate', today);
+    setInitialWeekendModeShown(true);
+  };
+
   // Log data for debugging
   useEffect(() => {
-    console.log('Loaded work orders:', workOrders);
-    console.log('Orders with dispenser data:', (workOrders as WorkOrder[]).filter(order => order.dispensers && order.dispensers.length > 0).length);
+    console.log('Loaded work orders:', workOrdersData.workOrders);
+    console.log('Orders with dispenser data:', (workOrdersData.workOrders as WorkOrder[]).filter(order => order.dispensers && order.dispensers.length > 0).length);
     // Check for first work order with dispenser data
-    const orderWithDispenser = (workOrders as WorkOrder[]).find(order => order.dispensers && order.dispensers.length > 0);
+    const orderWithDispenser = (workOrdersData.workOrders as WorkOrder[]).find(order => order.dispensers && order.dispensers.length > 0);
     if (orderWithDispenser) {
       console.log('Sample dispenser data:', orderWithDispenser.dispensers);
     } else {
       console.warn('No orders found with dispenser data');
     }
-  }, [workOrders]);
+  }, [workOrdersData.workOrders]);
 
-  // The main loadData function
+  // Load the data from API
   const loadData = async (forceRefreshDispenser = false) => {
+    setIsLoading(true);
     try {
+      // Check if there's an active user
+      const activeUserId = localStorage.getItem('activeUserId');
+      
+      if (!activeUserId) {
+        console.warn('No active user found, cannot load work orders');
+        addToast('warning', 'Please select a user to view work orders', 5000);
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log(`Loading work orders for user: ${activeUserId}`);
+      
+      // Load work orders from the API
+      const workOrdersResponse = await getWorkOrders();
+      
+      // Verify the response contains the work orders
+      if (workOrdersResponse.error) {
+        console.error('Error loading work orders:', workOrdersResponse.error);
+        addToast('error', `Failed to load work orders: ${workOrdersResponse.error}`, 5000);
+        setIsLoading(false);
+        return;
+      }
+      
+      setWorkOrdersData(workOrdersResponse);
+      
+      console.log('Loaded work orders:', workOrdersResponse.workOrders);
+      
+      // Continue with existing dispenser data loading
+      if (forceRefreshDispenser) {
+        await loadDispenserData(true);
+      } else {
+        await loadDispenserData();
+      }
+      
       // Use local data instead of API call
       if (process.env.NODE_ENV === 'development') {
-        console.log(`Using local work orders data: ${workOrders.length} items`);
+        console.log(`Using local work orders data: ${workOrdersResponse.workOrders.length} items`);
       }
       
       // Check if there's dispenser data from the context
@@ -321,11 +421,11 @@ const Home: React.FC = () => {
         const dispenserDataIds = Object.keys(dispenserData.dispenserData);
         console.log("Dispenser data IDs (first 5):", dispenserDataIds.slice(0, 5));
         
-        if (workOrders.length > 0) {
-          console.log("Work order IDs sample (first 5):", workOrders.slice(0, 5).map(o => o.id));
+        if (workOrdersResponse.workOrders.length > 0) {
+          console.log("Work order IDs sample (first 5):", workOrdersResponse.workOrders.slice(0, 5).map((o: WorkOrder) => o.id));
         }
         
-        const mergedOrders = [...workOrders].map(order => {
+        const mergedOrders = [...workOrdersResponse.workOrders].map(order => {
           // Get ID and remove any leading/trailing whitespace
           const orderId = order.id?.trim();
           // Use optional chaining to safely access workOrderId which might not exist on all orders
@@ -370,7 +470,7 @@ const Home: React.FC = () => {
         // Update work orders with merged data - use type assertion to handle the expanded properties
         setWorkOrdersData({
           workOrders: mergedOrders as any, // Use type assertion to avoid TypeScript errors
-          metadata: metadata
+          metadata: workOrdersResponse.metadata
         });
         
         // Also update filtered work orders to reflect the changes
@@ -411,25 +511,143 @@ const Home: React.FC = () => {
         console.warn('No dispenser data available from context');
       }
       
-      // Set loading state to false
-      setIsLoading(false);
-      
     } catch (error) {
       console.error('Error loading data:', error);
+      addToast('error', `Failed to load data: ${error instanceof Error ? error.message : 'Unknown error'}`, 5000);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  // Call loadData on component mount only
+  // Use the loaded work orders throughout the component
+  const { workOrders, metadata } = workOrdersData;
+
+  // Load data on component mount
   useEffect(() => {
-    // First, make sure dispenser data is loaded
-    loadDispenserData(true).then(() => {
-      // Then load and merge the data
-      loadData();
-    });
-    // We're intentionally excluding other dependencies to avoid excess re-renders
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  
+  // Add this new effect to reload data when the active user changes
+  useEffect(() => {
+    // Get the active user ID from localStorage
+    const activeUserId = localStorage.getItem('activeUserId');
+    
+    // Create a function to reload data when active user changes
+    const handleUserChange = () => {
+      console.log('Active user changed, reloading work orders data');
+      loadData(true); // Force refresh including dispensers
+    };
+    
+    // Add event listener for storage changes (for user switching)
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'activeUserId' && event.newValue !== activeUserId) {
+        console.log(`User changed from ${activeUserId} to ${event.newValue}`);
+        handleUserChange();
+      }
+    };
+    
+    // Initial load of data
+    loadData();
+    
+    // Listen for storage changes
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for a custom event that could be dispatched after user switching
+    window.addEventListener('user-switched', handleUserChange);
+    
+    // Cleanup listeners
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('user-switched', handleUserChange);
+    };
+  }, []);
+  
+  // Listen for fossa-data-updated events to refresh data automatically
+  useEffect(() => {
+    const handleDataUpdated = (event: CustomEvent) => {
+      // Extract details from the event
+      const detail = event.detail || {};
+      const isSilent = detail.silent || false;
+      const isAutomatic = detail.automatic || false;
+      
+      console.log(`Data update event detected: ${isAutomatic ? 'Automatic' : 'Manual'} ${isSilent ? '(Silent)' : ''}`);
+      
+      // Define a silent data reload function
+      const silentReload = async () => {
+        try {
+          // Load new dispenser data without setting loading state
+          await loadDispenserData(true, false);
+          
+          // Load work order data without triggering loading indicators
+          try {
+            // Use the API endpoint which handles user-specific data retrieval
+            const response = await fetch('/api/work-orders', {
+              headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+              },
+              cache: 'no-store'
+            });
+            
+            if (!response.ok) {
+              throw new Error(`Failed to load data: ${response.status}`);
+            }
+            
+            // Check if content type is JSON before parsing
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+              throw new Error(`Invalid content type: ${contentType}. Expected JSON.`);
+            }
+            
+            const data = await response.json();
+            
+            // Merge dispenser data with work orders
+            const merged = data.workOrders.map((order: any) => {
+              // Check if dispenser data exists in context
+              if (dispenserData?.dispenserData && dispenserData.dispenserData[order.id]) {
+                const dispenserInfo = dispenserData.dispenserData[order.id] as any;
+                return {
+                  ...order,
+                  dispensers: dispenserInfo.dispensers || []
+                };
+              }
+              return order;
+            });
+            
+            // Update state without triggering loading indicators
+            setWorkOrdersData({
+              workOrders: merged,
+              metadata: data.metadata || {}
+            });
+            
+            if (!isSilent) {
+              // Only show toast for non-silent updates
+              addToast('success', `${isAutomatic ? 'Scheduled' : 'Manual'} data refresh completed`);
+            }
+            
+            console.log('Work orders silently refreshed:', merged.length);
+          } catch (error) {
+            console.error('Error during silent data refresh:', error);
+          }
+        } catch (error) {
+          console.error('Error during silent data refresh:', error);
+        }
+      };
+      
+      // Execute the silent reload
+      silentReload();
+    };
+
+    // Add event listener
+    window.addEventListener('fossa-data-updated', handleDataUpdated as EventListener);
+    
+    // Remove event listener on cleanup
+    return () => {
+      window.removeEventListener('fossa-data-updated', handleDataUpdated as EventListener);
+    };
+  }, [dispenserData, loadDispenserData, addToast]);
 
   // Update filtered work orders whenever workOrders or filters change
   useEffect(() => {
@@ -737,8 +955,8 @@ const Home: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700 transition-all hover:shadow-md">
+            <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 px-5 py-4 flex justify-between items-center">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
                 <FiCalendar className="mr-2 text-blue-500" />
                 This Week
@@ -748,32 +966,41 @@ const Home: React.FC = () => {
               </span>
             </div>
             
-            {Object.keys(storeDistribution.currentWeek).length > 0 ? (
-              <div className="grid grid-cols-3 gap-4">
-                {Object.entries(storeDistribution.currentWeek).map(([storeType, count], index) => {
-                  const storeStyle = getStoreStyles(storeType);
-                  
-                  return (
-                    <div key={storeType} className={`rounded-md p-4 ${storeStyle.boxBg} flex flex-col items-center justify-between`}>
-                      <span className="text-sm font-medium text-center text-white">
-                        {storeStyle.name}
-                      </span>
-                      <span className="text-2xl font-bold text-white mt-1">{count}</span>
-                      <span className="text-xs text-gray-300 mt-1">visits</span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <FiCalendar className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p>No visits scheduled for this week</p>
-              </div>
-            )}
+            <div className="p-5">
+              {Object.keys(storeDistribution.currentWeek).length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {Object.entries(storeDistribution.currentWeek).map(([storeType, count], index) => {
+                    const storeStyle = getStoreStyles(storeType);
+                    
+                    return (
+                      <div 
+                        key={storeType} 
+                        className={`${storeStyle.boxBg} rounded-lg shadow-sm overflow-hidden transition-transform transform hover:scale-105`}
+                      >
+                        <div className="p-4 flex flex-col items-center justify-center text-center">
+                          <span className="text-lg font-medium text-white mb-1">
+                            {storeStyle.name}
+                          </span>
+                          <span className="text-3xl font-bold text-white mb-1">{count}</span>
+                          <span className="text-xs text-gray-200">visits</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-lg flex flex-col items-center justify-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-3">
+                    <FiCalendar className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+                  </div>
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">No visits scheduled for this week</p>
+                </div>
+              )}
+            </div>
           </div>
           
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-between items-center mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700 transition-all hover:shadow-md">
+            <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 px-5 py-4 flex justify-between items-center">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
                 <FiCalendar className="mr-2 text-green-500" />
                 Next Week
@@ -783,238 +1010,244 @@ const Home: React.FC = () => {
               </span>
             </div>
             
-            {Object.keys(storeDistribution.nextWeek).length > 0 ? (
-              <div className="grid grid-cols-3 gap-4">
-                {Object.entries(storeDistribution.nextWeek).map(([storeType, count], index) => {
-                  const storeStyle = getStoreStyles(storeType);
-                  
-                  return (
-                    <div key={storeType} className={`rounded-md p-4 ${storeStyle.boxBg} flex flex-col items-center justify-between`}>
-                      <span className="text-sm font-medium text-center text-white">
-                        {storeStyle.name}
-                      </span>
-                      <span className="text-2xl font-bold text-white mt-1">{count}</span>
-                      <span className="text-xs text-gray-300 mt-1">visits</span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                <FiCalendar className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p>No visits scheduled for next week</p>
-              </div>
-            )}
+            <div className="p-5">
+              {Object.keys(storeDistribution.nextWeek).length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {Object.entries(storeDistribution.nextWeek).map(([storeType, count], index) => {
+                    const storeStyle = getStoreStyles(storeType);
+                    
+                    return (
+                      <div 
+                        key={storeType} 
+                        className={`${storeStyle.boxBg} rounded-lg shadow-sm overflow-hidden transition-transform transform hover:scale-105`}
+                      >
+                        <div className="p-4 flex flex-col items-center justify-center text-center">
+                          <span className="text-lg font-medium text-white mb-1">
+                            {storeStyle.name}
+                          </span>
+                          <span className="text-3xl font-bold text-white mb-1">{count}</span>
+                          <span className="text-xs text-gray-200">visits</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-gray-50 dark:bg-gray-800/50 rounded-lg flex flex-col items-center justify-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 mb-3">
+                    <FiCalendar className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+                  </div>
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">No visits scheduled for next week</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
-        {/* Add work week settings button */}
+        {/* Comment out the original work week settings button block */}
+        {/*
         <div className="flex justify-end mb-3">
           <button
             onClick={() => setShowWorkWeekSettings(!showWorkWeekSettings)}
-            className="flex items-center text-sm text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+            className="flex items-center text-sm px-3 py-1.5 rounded-md text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800 transition-colors duration-150"
+            aria-expanded={showWorkWeekSettings}
+            aria-controls="work-week-settings-panel" // Add ARIA control for accessibility
           >
-            <FiSettings className="mr-1 h-4 w-4" />
+            <FiSettings className="mr-1.5 h-4 w-4" />
             <span>Work Week Settings</span>
           </button>
         </div>
-        
-        {/* Work Week Settings Panel */}
-        {showWorkWeekSettings && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 border border-gray-200 dark:border-gray-700 shadow-sm">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Work Week Preferences</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Start of Work Week</label>
-                <select
-                  value={workWeekStart}
-                  onChange={(e) => setWorkWeekStart(Number(e.target.value))}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                >
-                  <option value={0}>Sunday</option>
-                  <option value={1}>Monday</option>
-                  <option value={2}>Tuesday</option>
-                  <option value={3}>Wednesday</option>
-                  <option value={4}>Thursday</option>
-                  <option value={5}>Friday</option>
-                  <option value={6}>Saturday</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">End of Work Week</label>
-                <select
-                  value={workWeekEnd}
-                  onChange={(e) => setWorkWeekEnd(Number(e.target.value))}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                >
-                  <option value={0}>Sunday</option>
-                  <option value={1}>Monday</option>
-                  <option value={2}>Tuesday</option>
-                  <option value={3}>Wednesday</option>
-                  <option value={4}>Thursday</option>
-                  <option value={5}>Friday</option>
-                  <option value={6}>Saturday</option>
-                </select>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              These settings define which days are considered part of your work week for planning purposes.
-            </p>
-          </div>
-        )}
+        */}
+
       </>
     );
   };
 
+  // Add a new function to organize work orders by date within each time period
+  const organizeWorkOrdersByDate = (orders: WorkOrder[]) => {
+    // Group orders by their date
+    const byDate: Record<string, WorkOrder[]> = {};
+    
+    orders.forEach(order => {
+      const visitDate = order.visits?.nextVisit?.date ||
+                        order.nextVisitDate ||
+                        order.visitDate ||
+                        order.date;
+      
+      if (!visitDate) return;
+      
+      // Format the date as a string key
+      const dateKey = new Date(visitDate).toLocaleDateString();
+      
+      if (!byDate[dateKey]) {
+        byDate[dateKey] = [];
+      }
+      
+      byDate[dateKey].push(order);
+    });
+    
+    // Convert to array of date groups, sorted by date
+    return Object.entries(byDate)
+      .sort(([dateKeyA], [dateKeyB]) => {
+        return new Date(dateKeyA).getTime() - new Date(dateKeyB).getTime();
+      })
+      .map(([dateKey, orders]) => ({
+        date: dateKey,
+        orders
+      }));
+  };
+
   // Update the renderJobRow function with improved instructions display
-  const renderJobRow = (order: any) => {
+  const renderJobRow = (order: any, dateGroupClass?: string) => {
     // Get meter calibration quantity (renamed to getDispenserQuantity for consistency)
     const getDispenserQuantity = (order: any) => {
       const meterCalibration = order.services.find((s: any) => s.type === "Meter Calibration");
       return meterCalibration ? meterCalibration.quantity : 0;
     };
 
-    // Get store type for styling
-    const getStoreType = (order: any) => {
-      const customerName = order.customer.name.toLowerCase();
-      
-      if (customerName.includes('7-eleven') || customerName.includes('speedway')) {
-        return '7-eleven';
-      } else if (customerName.includes('circle k')) {
-        return 'circle-k';
-      } else if (customerName.includes('wawa')) {
-        return 'wawa';
-      } else {
-        return 'other';
-      }
-    };
-
     // Get store display name
     const getDisplayName = (order: any) => {
       if (!order || !order.customer) return 'Unknown';
-      
-      // Start with the customer name
       let displayName = order.customer.name;
-      
-      // Add store number if available, ensuring only one # symbol
       if (order.customer.storeNumber) {
-        const storeNumber = order.customer.storeNumber.startsWith('#') 
-          ? order.customer.storeNumber 
-          : `#${order.customer.storeNumber}`;
-        displayName += ` ${storeNumber}`;
+        const storeNumberClean = order.customer.storeNumber.replace(/#/g, '');
+        displayName += ` #${storeNumberClean}`;
       }
-      
       return displayName;
     };
 
-    // Get work order URL
-    const getWorkOrderUrl = (order: any) => {
-      if (!order) return '#';
-      return `https://portal.forssafuel.com/app/work/${order.id}/overview`;
-    };
-
     // Determine store type and apply appropriate styling
-    const storeType = getStoreTypeForFiltering(order);
-    const visitId = extractVisitId(order);
+    const storeType = getStoreTypeForFiltering(order); // Ensure this function is accessible
+    const visitId = extractVisitId(order); // Ensure this function is accessible
     const dispenserQty = getDispenserQuantity(order);
     const hasDispenserData = order.dispensers && order.dispensers.length > 0;
     const hasNextVisit = order.visits && order.visits.nextVisit && order.visits.nextVisit.date;
     const nextVisitDate = hasNextVisit ? new Date(order.visits.nextVisit.date) : null;
     const formattedVisitDate = nextVisitDate ? nextVisitDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'No visit scheduled';
-    
+
     // Process instructions safely
-    const instructions = order.instructions ? processInstructions(order.instructions) : '';
+    const instructions = order.instructions ? processInstructions(order.instructions) : ''; // Ensure this function is accessible
 
     // Check if this order is a favorite
     const isFavorite = favorites.includes(order.id.toString());
 
-    // Get card color styling based on store type
-    const getCardColorStyles = (storeType: string) => {
-      switch (storeType) {
-        case '7-eleven':
-          return 'border-l-4 border-green-500 dark:border-green-700';
-        case 'circle-k':
-          return 'border-l-4 border-orange-500 dark:border-orange-700';
-        case 'wawa':
-          return 'border-l-4 border-purple-500 dark:border-purple-700';
-        default:
-          return 'border-l-4 border-gray-500 dark:border-gray-700';
-      }
-    };
-
     // Get store styling
-    const storeStyle = getStoreStyles(storeType);
+    const storeStyle = getStoreStyles(storeType); // Ensure this function is accessible
 
     return (
-      <div 
-        key={order.id} 
-        className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4 hover:shadow-md transition-all-300 hover-lift ${storeStyle.cardBorder}`}
+      <div
+        key={order.id}
+        className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200 ${storeStyle.cardBorder} ${dateGroupClass ? 'date-grouped-card' : ''}`}
       >
-        <div className="flex flex-wrap md:flex-nowrap gap-3">
-          {/* Left Section */}
-          <div className="w-full flex-1">
-            <div className="flex items-center mb-2">
-              <button
-                onClick={(e) => toggleFavorite(order.id.toString(), e)}
-                className={`mr-2 transition-colors focus:outline-none ${
-                  isFavorite ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 dark:text-gray-600 hover:text-amber-400 dark:hover:text-amber-400'
-                }`}
-                title={isFavorite ? "Remove from favorites" : "Add to favorites"}
-              >
-                <FiStar className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
-              </button>
-              
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{getDisplayName(order)}</h3>
+        <div className="flex justify-between items-center px-4 py-3 bg-gray-50 dark:bg-gray-750 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={(e) => toggleFavorite(order.id.toString(), e)} // Ensure this function is accessible
+              className={`transition-colors focus:outline-none ${
+                isFavorite ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 dark:text-gray-600 hover:text-amber-400 dark:hover:text-amber-400'
+              }`}
+              title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              <FiStar className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+            </button>
+
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-xs">
+              {getDisplayName(order)}
+            </h3>
+          </div>
+
+          <div className="flex items-center space-x-1">
+            <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+              {visitId}
             </div>
-            
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 items-center mb-2">
-              <div className="flex items-center text-blue-600 dark:text-blue-400 font-medium">
-                <FiFileText className="h-4 w-4 mr-1" />
-                <span>{visitId}</span>
-              </div>
-              
-              <div className="flex items-center text-green-600 dark:text-green-400 font-medium">
-                <FiHash className="h-4 w-4 mr-1" />
-                <span>Visit #{extractVisitNumber(order)}</span>
-              </div>
-              
-              {hasNextVisit && (
-                <div className="flex items-center text-gray-600 dark:text-gray-400">
-                  <FiCalendar className="h-4 w-4 mr-1" />
-                  <span>{formattedVisitDate}</span>
+            <div className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+              #{extractVisitNumber(order)} {/* Ensure this function is accessible */}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+            {hasNextVisit && (
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mt-0.5 mr-2">
+                  <FiCalendar className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                 </div>
-              )}
-              
-              {dispenserQty > 0 && (
-                <div className="flex items-center text-purple-600 dark:text-purple-400">
-                  <FiActivity className="h-4 w-4 mr-1" />
-                  <span>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Visit Date</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">{formattedVisitDate}</div>
+                </div>
+              </div>
+            )}
+
+            {dispenserQty > 0 && (
+              <div className="flex items-start">
+                <div className="flex-shrink-0 mt-0.5 mr-2">
+                  <GiGasPump className="h-4 w-4 text-purple-500 dark:text-purple-400" /> {/* Change FiActivity to GiGasPump */}
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-0.5">Equipment</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
                     {dispenserQty} {dispenserQty === 1 ? 'Dispenser' : 'Dispensers'}
-                  </span>
+                  </div>
                 </div>
-              )}
-            </div>
-            
-            {/* Improved instructions display - more compact with icon */}
-            {instructions && (
-              <div className="mt-2 flex items-start space-x-2">
-                <div className="flex-shrink-0 mt-0.5">
-                  <FiInfo className="h-4 w-4 text-blue-500" />
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-1 hover:line-clamp-none transition-all duration-200">
-                  {instructions}
-                </p>
               </div>
             )}
           </div>
-          
-          {/* Right Section - Action Buttons */}
-          <div className="flex items-center gap-3">
-            {renderDispenserButton(order)}
+
+          {/* Instructions with improved visibility */}
+          {instructions && (
+            <div className="mt-2 bg-gray-50 dark:bg-gray-750 rounded p-3 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-start space-x-2">
+                <div className="flex-shrink-0 mt-0.5">
+                  <FiInfo className="h-4 w-4 text-blue-500" />
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 hover:line-clamp-none transition-all duration-200">
+                  {instructions}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons - Grouped on the right */}
+          <div className="mt-4 flex items-center justify-end"> {/* Changed justify-between to justify-end */}
+            {/* Group View, Clear, Rescrape buttons together */}
+            <div className="flex items-center space-x-2"> {/* Increased spacing */}
+              {/* Open Visit URL Button */}
+              {order.visits?.nextVisit?.url && (
+                <button
+                  className="p-2 text-green-500 hover:text-green-600 dark:text-green-400 dark:hover:text-green-300 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-green-500 transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Construct the full URL if it's relative
+                    const url = order.visits.nextVisit.url;
+                    const fullUrl = url.startsWith('http') ? url : `https://app.workfossa.com${url}`;
+                    // Open the URL with auto-login
+                    openWorkFossaWithLogin(fullUrl);
+                  }}
+                  title="Open Visit URL"
+                >
+                  <FiExternalLink className="h-5 w-5" />
+                </button>
+              )}
             
-            <div className="flex">
+              {/* View Dispensers Icon Button */}
               <button
-                className="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500 transition-colors ${
+                  hasDispenserData
+                    ? 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300'
+                    : 'text-gray-400 dark:text-gray-500 cursor-not-allowed' // Indicate no data
+                }`}
+                onClick={(e) => hasDispenserData && handleViewDispenserData(order, e)} // Only clickable if data exists
+                disabled={!hasDispenserData}
+                title={hasDispenserData ? "View dispenser information" : "No dispenser information available"}
+              >
+                <GiGasPump className="h-5 w-5" /> {/* Replace FiDroplet with GiGasPump */}
+              </button>
+
+              {/* Clear Data Icon Button */}
+              <button
+                className="p-2 text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-red-500 transition-colors"
                 onClick={(e) => handleClearDispenserData(order.id, e)}
                 disabled={!!clearingDispenserId}
                 title="Clear Dispenser Data"
@@ -1025,9 +1258,10 @@ const Home: React.FC = () => {
                   <FiTrash2 className="h-5 w-5" />
                 )}
               </button>
-              
+
+              {/* Force Rescrape Icon Button */}
               <button
-                className="p-2 text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="p-2 text-gray-500 hover:text-blue-500 dark:text-gray-400 dark:hover:text-blue-400 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-blue-500 transition-colors"
                 onClick={(e) => handleForceRescrapeDispenserData(order.id, e)}
                 disabled={!!reScrapeDispenserId}
                 title="Force Rescrape"
@@ -1313,29 +1547,6 @@ const Home: React.FC = () => {
     }
   };
 
-  // Update the render button in renderJobRow function to show a visual indicator
-  const renderDispenserButton = (order: any) => {
-    const hasDispenserData = order.dispensers && order.dispensers.length > 0;
-    
-    return (
-      <button
-        className={`px-3 py-1.5 rounded text-sm font-medium ${
-          hasDispenserData 
-            ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-            : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
-        } transition-colors flex items-center gap-1`}
-        onClick={(e) => handleViewDispenserData(order, e)}
-        title={hasDispenserData ? "View dispenser information" : "No dispenser information available"}
-      >
-        <FiInfo className="h-4 w-4" />
-        <span>View Dispensers</span>
-        {!hasDispenserData && (
-          <FiX className="h-4 w-4 ml-1 text-gray-500 dark:text-gray-400" />
-        )}
-      </button>
-    );
-  };
-
   // Function to toggle technical details visibility for a dispenser
   const toggleTechnicalDetails = (index: number) => {
     setExpandedTechnicalDetails(prev => 
@@ -1469,7 +1680,6 @@ const Home: React.FC = () => {
   const goToCurrentWeek = () => {
     const today = new Date();
     setSelectedDate(today);
-    localStorage.setItem('selectedDate', today.toISOString());
     setCurrentMonth(today.getMonth());
     setCurrentYear(today.getFullYear());
     setRefreshTimestamp(Date.now());
@@ -1497,13 +1707,20 @@ const Home: React.FC = () => {
     const currentDayOfWeek = now.getDay();
     const currentHour = now.getHours();
     
-    if (currentDayOfWeek === workWeekEnd && currentHour >= 17) {
+    if (currentDayOfWeek === workWeekEnd && currentHour >= 17 && !initialWeekendModeShown) {
       // If we're loading after 5:00pm on work week end day, update the UI
       console.log("Page loaded after 5:00pm on work week end day - using weekend mode");
-      // Force refresh the UI
+      
+      // Force refresh the UI - the getWorkWeekDateRanges function will handle weekend mode
       setRefreshTimestamp(Date.now());
+      
+      // Show notification only once
+      addToast('info', 'Weekend mode active - viewing next week\'s schedule', 5000);
+      
+      // Mark as shown to prevent repeated notifications
+      markWeekendModeAsShown();
     }
-  }, [workWeekEnd, setRefreshTimestamp]); // Include workWeekEnd in dependencies
+  }, [workWeekEnd, setRefreshTimestamp, addToast, initialWeekendModeShown]);
 
   // Add a timer effect to check for work week transitions at 5:00pm
   useEffect(() => {
@@ -1514,20 +1731,38 @@ const Home: React.FC = () => {
       const currentHour = now.getHours();
       const currentMinute = now.getMinutes();
       
-      // Check if we're at the work week end day and it's between 5:00pm and 5:05pm
-      // The 5-minute window ensures we don't miss the transition and don't refresh too often
+      // Check if we're at the work week end day and it's 5:00pm or later but before 5:05pm
+      // This gives a small window to process the transition only once
       if (currentDayOfWeek === workWeekEnd && 
           currentHour === 17 && 
           currentMinute < 5) {
-        console.log("Work week transition detected at 5:00pm - refreshing dashboard");
-        // Force refresh the UI to update the week view
-        setRefreshTimestamp(Date.now());
-        // Optionally show a toast notification
-        addToast('info', 'Switched to weekend mode - next week is now this week', 3000);
+        // Only process the transition once per window
+        if (!transitionProcessed) {
+          console.log("Work week transition detected at 5:00pm - refreshing dashboard and updating selected date");
+
+          // Force refresh the UI to update the week view using the current date
+          // The getWorkWeekDateRanges function will automatically handle weekend mode
+          setRefreshTimestamp(Date.now());
+          
+          // Optionally show a toast notification
+          addToast('info', 'Switched to weekend mode - next week is now this week', 5000);
+
+          // Mark transition as processed for this window
+          setTransitionProcessed(true);
+          
+          // Also set the initial flag to prevent duplicate notifications
+          markWeekendModeAsShown();
+        }
+      } else {
+        // Only reset the flag when we're completely outside the transition window
+        // This ensures we don't process the transition again during the same 5:00-5:05pm window
+        if (currentDayOfWeek !== workWeekEnd || currentHour !== 17) {
+          setTransitionProcessed(false);
+        }
       }
     };
     
-    // Run the check immediately in case we're already at 5:00pm
+    // Run the check immediately when this effect runs
     checkForWorkWeekTransition();
     
     // Set up an interval to check every minute
@@ -1536,35 +1771,310 @@ const Home: React.FC = () => {
     return () => {
       clearInterval(intervalId);
     };
-  }, [workWeekEnd, addToast]);
+  }, [workWeekEnd, addToast, setRefreshTimestamp, transitionProcessed, setTransitionProcessed, markWeekendModeAsShown]);
+
+  // Function to group and sort work orders
+  const groupAndSortWorkOrders = () => {
+    const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+    const grouped = {
+      thisWeek: [] as WorkOrder[],
+      nextWeek: [] as WorkOrder[],
+      future: [] as WorkOrder[],
+      past: [] as WorkOrder[],
+      noDate: [] as WorkOrder[]
+    };
+
+    filteredWorkOrders.forEach(order => {
+      const visitDate = order.visits?.nextVisit?.date ||
+                        order.nextVisitDate ||
+                        order.visitDate ||
+                        order.date;
+
+      if (!visitDate) {
+        grouped.noDate.push(order);
+        return;
+      }
+
+      const orderDate = new Date(visitDate);
+
+      if (isNaN(orderDate.getTime())) { // Check for invalid date
+        grouped.noDate.push(order); // Add orders with invalid dates to noDate
+        return;
+      }
+
+      if (orderDate >= dateRanges.currentWeekStart && orderDate <= dateRanges.currentWeekEnd) {
+        grouped.thisWeek.push(order);
+      } else if (orderDate >= dateRanges.nextWeekStart && orderDate <= dateRanges.nextWeekEnd) {
+        grouped.nextWeek.push(order);
+      } else if (orderDate > dateRanges.nextWeekEnd) {
+        grouped.future.push(order);
+      } else {
+        grouped.past.push(order);
+      }
+    });
+
+    const sortByDate = (a: WorkOrder, b: WorkOrder) => {
+      const dateA = new Date(a.visits?.nextVisit?.date || a.nextVisitDate || a.visitDate || a.date || 0);
+      const dateB = new Date(b.visits?.nextVisit?.date || b.nextVisitDate || b.visitDate || b.date || 0);
+       // Handle potential invalid dates during sort
+      if (isNaN(dateA.getTime())) return 1;
+      if (isNaN(dateB.getTime())) return -1;
+      return dateA.getTime() - dateB.getTime();
+    };
+
+    grouped.thisWeek.sort(sortByDate);
+    grouped.nextWeek.sort(sortByDate);
+    grouped.future.sort(sortByDate);
+    grouped.past.sort(sortByDate);
+
+    return grouped;
+  };
+
+  // Type for the grouped work orders
+  type GroupedWorkOrders = ReturnType<typeof groupAndSortWorkOrders>;
+
+  // New function to render the grouped weekly sections based on passed data
+  const renderWeeklySections = (grouped: GroupedWorkOrders) => {
+    // Determine if the current view is the actual current week
+    const now = new Date();
+    const currentActualWeekRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, now);
+    const selectedWeekRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+    const isActualCurrentWeek = currentActualWeekRanges.currentWeekStart.getTime() === selectedWeekRanges.currentWeekStart.getTime();
+
+    // Helper function to render a group of work orders with date headers
+    const renderOrderGroup = (orders: WorkOrder[]) => {
+      const ordersByDate = organizeWorkOrdersByDate(orders);
+      
+      return ordersByDate.map((dateGroup, groupIndex) => {
+        const dateObj = new Date(dateGroup.date);
+        const formattedDate = dateObj.toLocaleDateString(undefined, {
+          weekday: 'long',
+          month: 'short',
+          day: 'numeric'
+        });
+        
+        // Generate a subtle background color based on the date
+        // This creates a consistent color for all cards on the same date
+        const dateHash = dateObj.getDate() + (dateObj.getMonth() * 31);
+        const hue = (dateHash * 37) % 360; // Generate hue based on date
+        const colorClass = `same-date-group-${dateHash % 10}`; // Use 10 different classes
+        
+        // Check if there are multiple jobs on this date
+        const hasMultipleJobs = dateGroup.orders.length > 1;
+        
+        return (
+          <div key={`date-group-${groupIndex}`} className="mb-4">
+            {/* Date header - always show this */}
+            <div className="flex items-center mb-2 px-2">
+              {hasMultipleJobs && (
+                <div className="w-3 h-3 rounded-full bg-blue-500 mr-2" style={{ backgroundColor: `hsl(${hue}, 70%, 60%)` }}></div>
+              )}
+              <h4 className="text-sm font-medium text-gray-600 dark:text-gray-300">{formattedDate}</h4>
+              <div className="ml-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full text-xs">
+                {dateGroup.orders.length} {dateGroup.orders.length === 1 ? 'job' : 'jobs'}
+              </div>
+            </div>
+            
+            {/* Work order cards for this date */}
+            <div className={`space-y-4 ${hasMultipleJobs ? 'pl-4 border-l-2' : ''}`} 
+                 style={hasMultipleJobs ? { borderColor: `hsl(${hue}, 70%, 60%)` } : {}}>
+              {dateGroup.orders.map(order => renderJobRow(order, hasMultipleJobs ? colorClass : undefined))}
+            </div>
+          </div>
+        );
+      });
+    };
+
+    return (
+      <>
+        {/* This Week Section - Conditionally render header */}
+        {grouped.thisWeek.length > 0 && (
+          <div>
+            {/* Only show header if NOT the actual current week (count is in nav bar) */}
+            {!isActualCurrentWeek && (
+              <div className="bg-gray-100 dark:bg-gray-750 p-3 border-b border-gray-200 dark:border-gray-700 flex items-center">
+                <div className="flex items-center">
+                  <h3 className="font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                    <FiCalendar className="mr-2 text-blue-500" />
+                    This Week
+                  </h3>
+                  {/* Badge is redundant here if shown in nav bar, but keep for consistency if header is shown */}
+                  <span className="bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
+                    {grouped.thisWeek.length} Visit{grouped.thisWeek.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="p-4">
+              {renderOrderGroup(grouped.thisWeek)}
+            </div>
+          </div>
+        )}
+
+        {/* Next Week Section */}
+        {grouped.nextWeek.length > 0 && (
+          <div>
+            {/* Updated header style */}
+            <div className="bg-gray-100 dark:bg-gray-750 p-3 border-b border-gray-200 dark:border-gray-700 flex items-center">
+              <div className="flex items-center">
+                <h3 className="font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                  <FiCalendar className="mr-2 text-green-500" />
+                  Next Week
+                </h3>
+                <span className="bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
+                  {grouped.nextWeek.length} Visit{grouped.nextWeek.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+            <div className="p-4">
+              {renderOrderGroup(grouped.nextWeek)}
+            </div>
+          </div>
+        )}
+
+        {/* Future Jobs Section */}
+        {grouped.future.length > 0 && (
+          <div>
+            {/* Updated header style */}
+            <div className="bg-gray-100 dark:bg-gray-750 p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                <FiCalendar className="mr-2 text-purple-500" />
+                Future Visits
+              </h3>
+              <span className="bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-full text-xs font-medium">
+                {grouped.future.length} Visit{grouped.future.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="p-4">
+              {renderOrderGroup(grouped.future)}
+            </div>
+          </div>
+        )}
+
+        {/* Past Jobs Section */}
+        {grouped.past.length > 0 && (
+          <div>
+            {/* Updated header style */}
+            <div className="bg-gray-100 dark:bg-gray-750 p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                <FiClock className="mr-2 text-gray-500" /> {/* Changed icon */}
+                Past Visits
+              </h3>
+              <span className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full text-xs font-medium">
+                {grouped.past.length} Visit{grouped.past.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="p-4">
+              {renderOrderGroup(grouped.past)}
+            </div>
+          </div>
+        )}
+
+        {/* No Date Section */}
+        {grouped.noDate.length > 0 && (
+          <div>
+            {/* Updated header style */}
+            <div className="bg-gray-100 dark:bg-gray-750 p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                <FiAlertCircle className="mr-2 text-amber-500" />
+                Unscheduled Visits
+              </h3>
+              <span className="bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full text-xs font-medium">
+                {grouped.noDate.length} Visit{grouped.noDate.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <div className="p-4 space-y-4">
+              {grouped.noDate.map(order => renderJobRow(order))}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  // Calculate grouped work orders before the main return
+  const groupedWorkOrders = groupAndSortWorkOrders();
+
+  // Function to open WorkFossa website with active user's credentials
+  const openWorkFossaWithLogin = async (targetUrl: string = 'https://app.workfossa.com') => {
+    try {
+      // Get active user ID
+      const activeUserId = localStorage.getItem('activeUserId');
+      
+      if (!activeUserId) {
+        throw new Error('No active user found. Please select a user first.');
+      }
+      
+      // Fetch active user's credentials
+      const response = await fetch(`/api/users/${activeUserId}/credentials`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to get active user credentials');
+      }
+      
+      const credentials = await response.json();
+      
+      if (!credentials.email || !credentials.password) {
+        throw new Error('Active user has incomplete credentials');
+      }
+      
+      // Use the electron API to open the URL with the active user's credentials
+      // @ts-ignore (electron is defined in the preload script)
+      const result = await window.electron.openUrlWithActiveUser({
+        url: targetUrl,
+        email: credentials.email,
+        password: credentials.password
+      });
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to open WorkFossa');
+      }
+      
+      // Show success toast
+      addToast(
+        'info',
+        'WorkFossa has been opened with active user credentials'
+      );
+    } catch (error) {
+      console.error('Error opening WorkFossa:', error);
+      
+      // Show error toast
+      addToast(
+        'error',
+        error instanceof Error ? error.message : 'An unknown error occurred'
+      );
+    }
+  };
 
   return (
-    <div className="container mx-auto p-4">
+    // Remove flex-col and any padding to eliminate the gap next to the sidebar
+    <div className="h-full">
       {/* Dashboard header with stats */}
       {renderDashboardHeader()}
-      
+
       {/* Main toolbar */}
-      <div className="bg-[#1e293b] text-white rounded-lg shadow-md mb-4 flex flex-col">
+      {/* Updated background, padding, and spacing */}
+      <div className="bg-gray-800 dark:bg-gray-900 text-white rounded-lg shadow-md mb-6 flex flex-col">
         {/* Top section - view toggles, update times and filter */}
-        <div className="flex items-center justify-between p-3">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between p-4 border-b border-gray-700 dark:border-gray-800">
+          <div className="flex items-center gap-3"> {/* Increased gap */}
             <button
-              className={`px-4 py-2 rounded-md flex items-center gap-2 ${
-                activeView === 'weekly' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-[#2d3c55] text-gray-300 hover:bg-[#3a4a66]'
+              className={`px-4 py-2 rounded-md flex items-center gap-2 transition-colors ${
+                activeView === 'weekly'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-700 dark:bg-gray-800 text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700'
               }`}
               onClick={() => setActiveView('weekly')}
             >
               <FiList className="h-4 w-4" />
               <span>List</span>
             </button>
-            
+
             <button
-              className={`px-4 py-2 rounded-md flex items-center gap-2 ${
-                activeView === 'calendar' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-[#2d3c55] text-gray-300 hover:bg-[#3a4a66]'
+              className={`px-4 py-2 rounded-md flex items-center gap-2 transition-colors ${
+                activeView === 'calendar'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-700 dark:bg-gray-800 text-gray-300 hover:bg-gray-600 dark:hover:bg-gray-700'
               }`}
               onClick={() => setActiveView('calendar')}
             >
@@ -1572,121 +2082,34 @@ const Home: React.FC = () => {
               <span>Calendar</span>
             </button>
           </div>
-          
+
           <div className="flex items-center space-x-4">
-            <div className="flex items-center bg-[#243352] rounded-md px-4 py-2">
-              <FiClock className="h-4 w-4 mr-2 text-blue-400" />
-              <div className="flex flex-col">
-                <span className="text-xs text-gray-400">Last Updated:</span>
-                <span className="font-medium text-blue-300"><LastScrapedTime /></span>
-              </div>
-            </div>
-            
-            <div className="flex items-center bg-[#243352] rounded-md px-4 py-2">
-              <FiRefreshCw className="h-4 w-4 mr-2 text-green-400" />
-              <div className="flex flex-col">
-                <span className="text-xs text-gray-400">Next Update:</span>
-                <span className="font-medium text-green-300"><NextScrapeTime /></span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="relative">
-            <button
-              className="px-4 py-2 bg-[#2d3c55] rounded-md text-gray-300 hover:bg-[#3a4a66] flex items-center gap-2"
-              onClick={() => document.getElementById("store-filter-dropdown")?.classList.toggle("hidden")}
-            >
-              <FiFilter className="h-4 w-4" />
-              <span>
-                {activeFilter === 'all' ? 'All Stores' : 
-                 activeFilter === '7-eleven' ? '7-Eleven' : 
-                 activeFilter === 'circle-k' ? 'Circle K' : 
-                 activeFilter === 'wawa' ? 'Wawa' : 
-                 activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1).replace('-', ' ')}
-              </span>
-              <FiChevronDown className="h-4 w-4" />
-            </button>
-            
-            {/* Store filter dropdown */}
-            <div 
-              id="store-filter-dropdown"
-              className="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700"
-            >
-              <div className="py-1">
-                <button
-                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === 'all' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                  onClick={() => {
-                    setActiveFilter('all');
-                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
-                  }}
-                >
-                  All Stores
-                </button>
-                <button
-                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === '7-eleven' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                  onClick={() => {
-                    setActiveFilter('7-eleven');
-                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
-                  }}
-                >
-                  7-Eleven
-                </button>
-                <button
-                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === 'circle-k' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                  onClick={() => {
-                    setActiveFilter('circle-k');
-                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
-                  }}
-                >
-                  Circle K
-                </button>
-                <button
-                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === 'wawa' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                  onClick={() => {
-                    setActiveFilter('wawa');
-                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
-                  }}
-                >
-                  Wawa
-                </button>
-                <button
-                  className={`block px-4 py-2 text-sm w-full text-left ${activeFilter === 'other' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-                  onClick={() => {
-                    setActiveFilter('other');
-                    document.getElementById("store-filter-dropdown")?.classList.add("hidden");
-                  }}
-                >
-                  Other
-                </button>
-              </div>
-            </div>
+            {/* Sidebar items are already handled elsewhere */}
           </div>
         </div>
-        
+
         {/* Bottom section - search and action buttons */}
-        <div className="flex items-center gap-4 p-3 px-4 bg-[#273349]">
+        <div className="flex items-center gap-4 p-4"> {/* Adjusted padding */}
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <FiSearch className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="text"
-              className="block w-full pl-10 pr-3 py-2 bg-[#1e293b] border border-gray-600 rounded-md text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              placeholder="Search by store name, work order ID, or instructions..."
+              className="block w-full pl-10 pr-3 py-2 bg-gray-700 dark:bg-gray-800 border border-gray-600 dark:border-gray-700 rounded-md text-gray-200 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm transition-colors"
+              placeholder="Search store name, ID, instructions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          
-          <div className="flex items-center">
+
+          <div className="flex items-center space-x-2"> {/* Adjusted spacing */}
             <button
-              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none"
+              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-md focus:outline-none transition-colors"
               title="Refresh Data"
               onClick={() => {
                 setIsDataRefreshing(true);
                 addToast('info', 'Refreshing data...', 2000);
-                
-                // Force reload data with dispenser refresh
                 loadData(true).then(() => {
                   setIsDataRefreshing(false);
                   addToast('success', 'Data refreshed successfully', 3000);
@@ -1698,9 +2121,9 @@ const Home: React.FC = () => {
             >
               <FiRefreshCw className={`h-5 w-5 ${isDataRefreshing ? 'animate-spin' : ''}`} />
             </button>
-            
+
             <button
-              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none ml-2"
+              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-md focus:outline-none transition-colors"
               title="View Logs"
               onClick={() => {
                 setShowLogsModal(true);
@@ -1709,23 +2132,97 @@ const Home: React.FC = () => {
             >
               <FiFileText className="h-5 w-5" />
             </button>
-            
+
             <button
-              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-[#2d3c55] rounded-md focus:outline-none ml-2"
+              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-md focus:outline-none transition-colors"
+              title="Open WorkFossa Website"
+              onClick={() => openWorkFossaWithLogin()}
+            >
+              <FiGlobe className="h-5 w-5" />
+            </button>
+
+            <button
+              className="p-2 text-gray-300 hover:text-blue-400 hover:bg-gray-700 dark:hover:bg-gray-800 rounded-md focus:outline-none transition-colors"
               title={isFullscreenMode ? "Exit Fullscreen" : "Enter Fullscreen"}
               onClick={() => setIsFullscreenMode(!isFullscreenMode)}
             >
               {isFullscreenMode ? <FiMinimize className="h-5 w-5" /> : <FiMaximize className="h-5 w-5" />}
             </button>
+
+            {/* Add Work Week Settings Button Here */}
+            <button
+              onClick={() => setShowWorkWeekSettings(!showWorkWeekSettings)}
+              className={`p-2 rounded-md focus:outline-none transition-colors flex items-center ${showWorkWeekSettings ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-blue-400 hover:bg-gray-700 dark:hover:bg-gray-800'}`}
+              aria-expanded={showWorkWeekSettings}
+              aria-controls="work-week-settings-panel"
+              title="Work Week Settings"
+            >
+              <FiSettings className="h-5 w-5" />
+            </button>
           </div>
         </div>
       </div>
-      
-      {/* Content area */}
-      <div className={`mt-4 ${isFullscreenMode ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 p-4 overflow-auto' : ''}`}>
+
+      {/* Work Week Settings Panel - Placed correctly after toolbar, before main content */}
+      {showWorkWeekSettings && (
+         <div
+           id="work-week-settings-panel"
+           className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700 shadow-sm transition-all duration-300 ease-in-out"
+         >
+           <h3 className="font-medium text-gray-900 dark:text-white mb-3">Work Week Preferences</h3>
+           <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">Start of Work Week</label>
+                <select
+                  value={workWeekStart}
+                  onChange={(e) => setWorkWeekStart(Number(e.target.value))}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                >
+                  <option value={0}>Sunday</option>
+                  <option value={1}>Monday</option>
+                  <option value={2}>Tuesday</option>
+                  <option value={3}>Wednesday</option>
+                  <option value={4}>Thursday</option>
+                  <option value={5}>Friday</option>
+                  <option value={6}>Saturday</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">End of Work Week</label>
+                <select
+                  value={workWeekEnd}
+                  onChange={(e) => setWorkWeekEnd(Number(e.target.value))}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                >
+                  <option value={0}>Sunday</option>
+                  <option value={1}>Monday</option>
+                  <option value={2}>Tuesday</option>
+                  <option value={3}>Wednesday</option>
+                  <option value={4}>Thursday</option>
+                  <option value={5}>Friday</option>
+                  <option value={6}>Saturday</option>
+                </select>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              These settings define which days are considered part of your work week for planning purposes.
+            </p>
+            {/* Add explanation about the 5pm weekend mode transition */}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Note: The dashboard automatically displays the <strong>next</strong> work week's schedule after 5:00 PM on the selected 'End of Work Week' day.
+            </p>
+            {/* Add explanation about job filtering based on work week */}
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              The weekly dashboard views will primarily focus on jobs scheduled between your selected start and end days.
+            </p>
+          </div>
+        )}
+
+      {/* Main Content Area Wrapper */}
+      <div className={`flex-grow ${isFullscreenMode ? 'fixed inset-0 z-50 bg-white dark:bg-gray-900 p-4 overflow-auto' : ''}`}>
         {isFullscreenMode && (
           <div className="absolute top-2 right-2 z-50">
-            <button 
+            <button
               className="p-2 bg-gray-200 dark:bg-gray-700 rounded-full hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
               onClick={() => setIsFullscreenMode(false)}
               title="Exit Fullscreen"
@@ -1743,22 +2240,40 @@ const Home: React.FC = () => {
           <>
             {/* Weekly view */}
             {activeView === 'weekly' && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+              <div> {/* Remove bg-white dark:bg-gray-800 rounded-lg shadow-sm from this div */}
+                {/* Remove the Work Orders header section */}
+                {/* 
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                   <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Work Orders</h2>
                 </div>
+                */}
                 
                 {/* Always-visible navigation bar */}
-                <div className="bg-gray-100 dark:bg-gray-700 p-3 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
+                <div className="bg-gray-50 dark:bg-gray-750 p-3 border-b border-t border-gray-200 dark:border-gray-600 flex items-center justify-between rounded-t-lg"> {/* Changed background */}
                   <div className="flex items-center space-x-2">
                     <div className="flex items-center">
-                      <h3 className="font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <h3 className="font-medium text-gray-700 dark:text-gray-300 flex items-center text-sm"> {/* Changed font size */}
                         <FiCalendar className="mr-2 text-blue-500" />
-                        <span>Week of </span>
-                        <span className="font-bold ml-1">
-                          {getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate).currentWeekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        <span className="font-semibold text-base"> {/* Changed font weight/size */} 
+                          Week of {getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate).currentWeekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                         </span>
                       </h3>
+                      {/* Add visit count badge if viewing the actual current week */}
+                      {(() => {
+                        const now = new Date();
+                        const currentActualWeekRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, now);
+                        const selectedWeekRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
+                        const isActualCurrentWeek = currentActualWeekRanges.currentWeekStart.getTime() === selectedWeekRanges.currentWeekStart.getTime();
+                        
+                        if (isActualCurrentWeek && groupedWorkOrders.thisWeek.length > 0) {
+                          return (
+                            <span className="bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
+                              {groupedWorkOrders.thisWeek.length} Visit{groupedWorkOrders.thisWeek.length !== 1 ? 's' : ''}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                   <div className="flex items-center">
@@ -1772,7 +2287,6 @@ const Home: React.FC = () => {
                         
                         // Update state to trigger re-render
                         setSelectedDate(newStart);
-                        localStorage.setItem('selectedDate', newStart.toISOString());
                         setCurrentMonth(newStart.getMonth());
                         setCurrentYear(newStart.getFullYear());
                         setRefreshTimestamp(Date.now());
@@ -1792,7 +2306,6 @@ const Home: React.FC = () => {
                         
                         // Update state to trigger re-render
                         setSelectedDate(newStart);
-                        localStorage.setItem('selectedDate', newStart.toISOString());
                         setCurrentMonth(newStart.getMonth());
                         setCurrentYear(newStart.getFullYear());
                         setRefreshTimestamp(Date.now());
@@ -1812,168 +2325,15 @@ const Home: React.FC = () => {
                   </div>
                 </div>
                 
-                {/* Job list */}
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                {/* Job list container now needs its own background and rounding */}
+                <div className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800 rounded-b-lg shadow-sm"> {/* Added bg, rounded-b, shadow */}
                   {filteredWorkOrders.length === 0 ? (
                     <div className="p-6 text-center text-gray-500 dark:text-gray-400">
                       No work orders found with the current filters.
                     </div>
                   ) : (
-                    // Group work orders by week
-                    (() => {
-                      // Get date ranges for current and next weeks
-                      const dateRanges = getWorkWeekDateRanges(workWeekStart, workWeekEnd, selectedDate);
-                      
-                      // Group orders by week: thisWeek, nextWeek, future, past
-                      const today = new Date();
-                      
-                      const grouped = {
-                        thisWeek: [] as WorkOrder[],
-                        nextWeek: [] as WorkOrder[],
-                        future: [] as WorkOrder[],
-                        past: [] as WorkOrder[],
-                        noDate: [] as WorkOrder[]
-                      };
-                      
-                      filteredWorkOrders.forEach(order => {
-                        const visitDate = order.visits?.nextVisit?.date || 
-                                          order.nextVisitDate || 
-                                          order.visitDate || 
-                                          order.date;
-                        
-                        if (!visitDate) {
-                          grouped.noDate.push(order);
-                          return;
-                        }
-                        
-                        const orderDate = new Date(visitDate);
-                        
-                        if (orderDate >= dateRanges.currentWeekStart && orderDate <= dateRanges.currentWeekEnd) {
-                          grouped.thisWeek.push(order);
-                        } else if (orderDate >= dateRanges.nextWeekStart && orderDate <= dateRanges.nextWeekEnd) {
-                          grouped.nextWeek.push(order);
-                        } else if (orderDate > dateRanges.nextWeekEnd) {
-                          grouped.future.push(order);
-                        } else {
-                          grouped.past.push(order);
-                        }
-                      });
-                      
-                      // Sort each group by date
-                      const sortByDate = (a: WorkOrder, b: WorkOrder) => {
-                        const dateA = new Date(a.visits?.nextVisit?.date || a.nextVisitDate || a.visitDate || a.date || 0);
-                        const dateB = new Date(b.visits?.nextVisit?.date || b.nextVisitDate || b.visitDate || b.date || 0);
-                        return dateA.getTime() - dateB.getTime();
-                      };
-                      
-                      grouped.thisWeek.sort(sortByDate);
-                      grouped.nextWeek.sort(sortByDate);
-                      grouped.future.sort(sortByDate);
-                      grouped.past.sort(sortByDate);
-                      
-                      // Format date range for display
-                      const formatDateRange = (start: Date, end: Date) => {
-                        return `${start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
-                      };
-                      
-                      return (
-                        <>
-                          {/* This Week Section */}
-                          {grouped.thisWeek.length > 0 && (
-                            <div>
-                              <div className="bg-blue-50 dark:bg-blue-900/30 p-3 border-b border-blue-200 dark:border-blue-800 flex items-center">
-                                <div className="flex items-center">
-                                  <h3 className="font-medium text-blue-800 dark:text-blue-200 flex items-center">
-                                    <FiCalendar className="mr-2" />
-                                    This Week
-                                  </h3>
-                                  <span className="bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
-                                    {grouped.thisWeek.length} Visit{grouped.thisWeek.length !== 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.thisWeek.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Next Week Section */}
-                          {grouped.nextWeek.length > 0 && (
-                            <div>
-                              <div className="bg-green-50 dark:bg-green-900/30 p-3 border-b border-green-200 dark:border-green-800 flex items-center">
-                                <div className="flex items-center">
-                                  <h3 className="font-medium text-green-800 dark:text-green-200 flex items-center">
-                                    <FiCalendar className="mr-2" />
-                                    Next Week
-                                  </h3>
-                                  <span className="bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 px-2 py-1 rounded-full text-xs font-medium ml-2">
-                                    {grouped.nextWeek.length} Visit{grouped.nextWeek.length !== 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.nextWeek.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Future Jobs Section */}
-                          {grouped.future.length > 0 && (
-                            <div>
-                              <div className="bg-purple-50 dark:bg-purple-900/30 p-3 border-b border-purple-200 dark:border-purple-800 flex items-center justify-between">
-                                <h3 className="font-medium text-purple-800 dark:text-purple-200 flex items-center">
-                                  <FiCalendar className="mr-2" />
-                                  Future Visits
-                                </h3>
-                                <span className="bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 px-2 py-1 rounded-full text-xs font-medium">
-                                  {grouped.future.length} Visit{grouped.future.length !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.future.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* Past Jobs Section */}
-                          {grouped.past.length > 0 && (
-                            <div>
-                              <div className="bg-gray-50 dark:bg-gray-700 p-3 border-b border-gray-200 dark:border-gray-600 flex items-center justify-between">
-                                <h3 className="font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                                  <FiCalendar className="mr-2" />
-                                  Past Visits
-                                </h3>
-                                <span className="bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full text-xs font-medium">
-                                  {grouped.past.length} Visit{grouped.past.length !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.past.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {/* No Date Section */}
-                          {grouped.noDate.length > 0 && (
-                            <div>
-                              <div className="bg-amber-50 dark:bg-amber-900/30 p-3 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between">
-                                <h3 className="font-medium text-amber-800 dark:text-amber-200 flex items-center">
-                                  <FiAlertCircle className="mr-2" />
-                                  Unscheduled Visits
-                                </h3>
-                                <span className="bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-full text-xs font-medium">
-                                  {grouped.noDate.length} Visit{grouped.noDate.length !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                              <div className="p-4 space-y-4">
-                                {grouped.noDate.map(order => renderJobRow(order))}
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()
+                    // Replace IIFE with function call, passing grouped data
+                    renderWeeklySections(groupedWorkOrders)
                   )}
                 </div>
               </div>
@@ -2046,20 +2406,29 @@ const Home: React.FC = () => {
                     
                     const currentDate = new Date(currentYear, currentMonth, dayNumber);
                     const isToday = currentDate.toDateString() === new Date().toDateString();
-                    const dayJobs = filteredWorkOrders.filter(order => {
-                      // Try multiple date fields to find a match
-                      const orderDate = order.visits?.nextVisit?.date || 
-                                       order.scheduledDate || 
-                                       order.nextVisitDate || 
-                                       order.visitDate || 
-                                       order.date;
-                      
-                      if (!orderDate) return false;
-                      
-                      const visitDate = new Date(orderDate);
-                      return visitDate.toDateString() === currentDate.toDateString();
-                    });
-                    
+
+                    // Use the pre-calculated grouped data for the calendar day
+                    const dayJobs = [
+                      ...groupedWorkOrders.thisWeek,
+                      ...groupedWorkOrders.nextWeek,
+                      ...groupedWorkOrders.future,
+                      ...groupedWorkOrders.past,
+                      ...groupedWorkOrders.noDate
+                    ].filter(order => {
+                       const orderDate = order.visits?.nextVisit?.date ||
+                                        order.scheduledDate ||
+                                        order.nextVisitDate ||
+                                        order.visitDate ||
+                                        order.date;
+
+                       if (!orderDate) return false;
+
+                       const visitDate = new Date(orderDate);
+                       if (isNaN(visitDate.getTime())) return false; // Skip invalid dates
+
+                       return visitDate.toDateString() === currentDate.toDateString();
+                     });
+
                     return (
                       <div 
                         key={`day-${dayNumber}`} 
@@ -2100,230 +2469,17 @@ const Home: React.FC = () => {
             )}
           </>
         )}
-      </div>
-      
-      {/* Dispenser modal */}
+      </div> {/* End Main Content Area Wrapper */}
+
+      {/* Modals remain outside the main content flow but within the component return */}
       {showDispenserModal && (
-        <div 
-          className="fixed inset-0 z-50 overflow-y-auto"
-          onClick={() => setShowDispenserModal(false)} // Close modal when clicking the backdrop
-        >
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
-            </div>
-            
-            <div 
-              className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle max-w-2xl w-full"
-              onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
-            >
-              {/* Header */}
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900 px-6 py-3">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg leading-6 font-medium text-white flex items-center">
-                    <FiTool className="h-5 w-5 mr-2" />
-                    Dispenser Data {selectedOrderId && `for Order #${selectedOrderId}`}
-                  </h3>
-                  <button
-                    className="text-white hover:text-gray-200 focus:outline-none"
-                    onClick={() => setShowDispenserModal(false)}
-                  >
-                    <FiX className="h-6 w-6" />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Content */}
-              <div className="bg-white dark:bg-gray-800 p-4">
-                {selectedDispensers.length > 0 ? (
-                  <div className="space-y-3 max-h-[calc(85vh-130px)] overflow-y-auto pr-1">
-                    {selectedDispensers.map((dispenser, index) => {
-                      // Extract the dispenser number from the title with improved pattern matching
-                      let dispenserNumber = `#${index+1}`;
-                      
-                      if (dispenser.title) {
-                        // First try dual format (e.g., "1/2 - Regular...")
-                        const dualMatch = dispenser.title.match(/^(\d+\/\d+)/);
-                        if (dualMatch) {
-                          dispenserNumber = dualMatch[1];
-                        } else {
-                          // Then try single number format (e.g., "13 - Diesel...")
-                          const singleMatch = dispenser.title.match(/^(\d+)\s*-/);
-                          if (singleMatch) {
-                            dispenserNumber = singleMatch[1];
-                          }
-                        }
-                      }
-                      
-                      return (
-                        <div 
-                          key={index} 
-                          className="bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm overflow-hidden"
-                        >
-                          {/* Condensed single line layout */}
-                          <div className="p-3 flex items-center">
-                            {/* Dispenser number badge */}
-                            <div className="bg-blue-600 text-white rounded-lg min-w-[50px] px-2 py-1 text-sm font-bold shadow-sm mr-3 flex-shrink-0 text-center">
-                              {dispenserNumber}
-                            </div>
-                            
-                            {/* Fuel types - middle section */}
-                            <div className="flex-1 overflow-x-auto">
-                              {dispenser.fields && dispenser.fields.Grade ? (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {sortFuelTypes(dispenser.fields.Grade).map((grade: string, i: number) => {
-                                    // Define consistent colors based on fuel type
-                                    let bgClass = 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-                                    let gradeLower = grade.toLowerCase();
-                                    
-                                    if (gradeLower.includes('regular')) {
-                                      bgClass = 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
-                                    } else if (gradeLower.includes('plus')) {
-                                      bgClass = 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300';
-                                    } else if (gradeLower.includes('premium')) {
-                                      bgClass = 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300';
-                                    } else if (gradeLower.includes('diesel')) {
-                                      bgClass = 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300';
-                                    } else if (gradeLower.includes('e-85') || gradeLower.includes('ethanol')) {
-                                      bgClass = 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300';
-                                    } else if (gradeLower.includes('super')) {
-                                      bgClass = 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300';
-                                    }
-                                    
-                                    return (
-                                      <span
-                                        key={i}
-                                        className={`px-2 py-0.5 rounded text-xs font-medium ${bgClass}`}
-                                      >
-                                        {grade.trim()}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="text-sm text-gray-500 dark:text-gray-400 italic">
-                                  No fuel data
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Details button */}
-                            <button
-                              onClick={() => toggleTechnicalDetails(index)}
-                              className="text-xs flex items-center px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 ml-2 flex-shrink-0"
-                            >
-                              {expandedTechnicalDetails.includes(index) ? (
-                                <>
-                                  <FiChevronDown className="mr-1 h-3 w-3" />
-                                  Details
-                                </>
-                              ) : (
-                                <>
-                                  <FiSettings className="mr-1 h-3 w-3" />
-                                  Details
-                                </>
-                              )}
-                            </button>
-                          </div>
-                            
-                          {/* Technical specs - ONLY SHOWN WHEN EXPANDED */}
-                          {expandedTechnicalDetails.includes(index) && (
-                            <div className="p-3 pt-0 mt-1 border-t border-gray-200 dark:border-gray-600">
-                              <div className="grid grid-cols-2 gap-3 text-sm">
-                                {dispenser.make && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Make/Model</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">
-                                      {dispenser.make} {dispenser.model && `/ ${dispenser.model}`}
-                                    </span>
-                                  </div>
-                                )}
-                                
-                                {dispenser.fields && dispenser.fields['Number of Nozzles (per side)'] && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Nozzles per side</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Number of Nozzles (per side)']}</span>
-                                  </div>
-                                )}
-                                
-                                {dispenser.fields && dispenser.fields['Meter Type'] && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Meter type</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Meter Type']}</span>
-                                  </div>
-                                )}
-                                
-                                {dispenser.fields && dispenser.fields['Stand Alone Code'] && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Stand Alone Code</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.fields['Stand Alone Code']}</span>
-                                  </div>
-                                )}
-                                
-                                {dispenser.serial && (
-                                  <div className="bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-600">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">Serial Number</span>
-                                    <span className="font-medium text-gray-800 dark:text-gray-200">{dispenser.serial}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 mb-4">
-                      <FiInfo className="h-8 w-8 text-blue-500 dark:text-blue-400" />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-200 mb-2">No Dispenser Information</h3>
-                    <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                      This work order does not have any dispenser information available.
-                    </p>
-                  </div>
-                )}
-              </div>
-              
-              {/* Footer */}
-              <div className="bg-gray-50 dark:bg-gray-700 px-6 py-3 flex justify-between items-center">
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedDispensers.length > 0 ? 
-                    `${selectedDispensers.length} dispenser${selectedDispensers.length !== 1 ? 's' : ''}` : 
-                    'No dispensers available'
-                  }
-                </div>
-                <div className="flex gap-2">
-                  {selectedDispensers.length > 0 && (
-                    <button 
-                      type="button" 
-                      className="text-sm px-4 py-1.5 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
-                      onClick={() => {
-                        // Toggle all technical details at once
-                        if (expandedTechnicalDetails.length === selectedDispensers.length) {
-                          setExpandedTechnicalDetails([]);
-                        } else {
-                          setExpandedTechnicalDetails([...Array(selectedDispensers.length).keys()]);
-                        }
-                      }}
-                    >
-                      {expandedTechnicalDetails.length === selectedDispensers.length ? 
-                        'Hide All Details' : 'Show All Details'}
-                    </button>
-                  )}
-                  <button 
-                    type="button" 
-                    className="text-sm px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium shadow-sm focus:outline-none"
-                    onClick={() => setShowDispenserModal(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DispenserModal
+          isOpen={showDispenserModal}
+          onClose={() => setShowDispenserModal(false)}
+          dispensers={selectedDispensers}
+          orderId={selectedOrderId}
+          sortFuelTypes={sortFuelTypes}
+        />
       )}
       
       {/* Logs modal */}
@@ -2341,33 +2497,84 @@ const Home: React.FC = () => {
               className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
               onClick={(e) => e.stopPropagation()} // Prevent clicks inside modal from closing it
             >
-              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
-                      Scrape Logs
-                    </h3>
-                    
-                    <div className="mt-2">
-                      <ScrapeLogsConsole 
-                        type={logConsoleType}
-                        showHeader={true}
-                        height="400px"
-                        autoScroll={true}
-                      />
-                    </div>
-                  </div>
+              <div className="bg-white dark:bg-gray-800 px-6 pt-5 pb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm0 2h10v10H5V5z" clipRule="evenodd" />
+                      <path d="M7 7h6v2H7V7zm0 4h6v2H7v-2z" />
+                    </svg>
+                    System Logs
+                  </h3>
+                  <button 
+                    type="button" 
+                    className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                    onClick={() => setShowLogsModal(false)}
+                  >
+                    <span className="sr-only">Close</span>
+                    <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-              </div>
-              
-              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button 
-                  type="button" 
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  onClick={() => setShowLogsModal(false)}
-                >
-                  Close
-                </button>
+                
+                {/* Tab selector */}
+                <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1 mb-4">
+                  <button
+                    className={`py-2 px-4 text-sm font-medium rounded-md transition-colors duration-150 flex-1 ${
+                      logConsoleType === 'workOrder'
+                        ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                    onClick={() => setLogConsoleType('workOrder')}
+                  >
+                    <span className="flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                      </svg>
+                      Work Orders
+                    </span>
+                  </button>
+                  <button
+                    className={`py-2 px-4 text-sm font-medium rounded-md transition-colors duration-150 flex-1 ${
+                      logConsoleType === 'dispenser'
+                        ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                    onClick={() => setLogConsoleType('dispenser')}
+                  >
+                    <span className="flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                      </svg>
+                      Equipment
+                    </span>
+                  </button>
+                  <button
+                    className={`py-2 px-4 text-sm font-medium rounded-md transition-colors duration-150 flex-1 ${
+                      logConsoleType === 'server'
+                        ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                    onClick={() => setLogConsoleType('server')}
+                  >
+                    <span className="flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.293 1.293a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L7.586 10 5.293 7.707a1 1 0 010-1.414zM11 12a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                      </svg>
+                      Server
+                    </span>
+                  </button>
+                </div>
+                
+                <div className="mt-2">
+                  <ScrapeLogsConsole 
+                    type={logConsoleType}
+                    showHeader={true}
+                    height="450px"
+                    autoScroll={true}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -2397,7 +2604,5 @@ const Home: React.FC = () => {
       )}
     </div>
   );
-      
-};
+}; // End of HomeContent component
 
-export default Home; 

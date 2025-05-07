@@ -125,12 +125,29 @@ export async function updateUserNotificationSettings(userId, settings) {
             return false;
         }
 
-        users[userIndex].notificationSettings = {
-            ...DEFAULT_NOTIFICATION_SETTINGS,
-            ...users[userIndex].notificationSettings,
-            ...settings
+        // Get current notification settings or use defaults
+        const currentSettings = users[userIndex].notificationSettings || DEFAULT_NOTIFICATION_SETTINGS;
+        
+        // Perform a deep merge for nested objects rather than a shallow spread
+        // This ensures that email and pushover settings are properly merged
+        const mergedSettings = {
+            ...currentSettings,
+            enabled: settings.enabled !== undefined ? settings.enabled : currentSettings.enabled,
+            email: settings.email ? {
+                ...currentSettings.email,
+                ...settings.email
+            } : currentSettings.email,
+            pushover: settings.pushover ? {
+                ...currentSettings.pushover,
+                ...settings.pushover
+            } : currentSettings.pushover
         };
+        
+        // Apply the merged settings
+        users[userIndex].notificationSettings = mergedSettings;
 
+        console.log(`Updated notification settings for user ${userId}:`, JSON.stringify(mergedSettings, null, 2));
+        
         await saveUsers(users);
         return true;
     } catch (error) {
@@ -145,6 +162,26 @@ export async function updateUserNotificationSettings(userId, settings) {
  */
 export async function loadUsers() {
     try {
+        // Try to load the users.json file from userManager first
+        // This will have the display names like "Bruce Hunt" instead of just emails
+        const userManagerFile = path.join(__dirname, '..', '..', 'data', 'users', 'users.json');
+        if (fs.existsSync(userManagerFile)) {
+            try {
+                const userManagerData = await fs.promises.readFile(userManagerFile, 'utf8');
+                const userManagerUsers = JSON.parse(userManagerData);
+                
+                // Check if we have users in the user manager
+                if (Array.isArray(userManagerUsers) && userManagerUsers.length > 0) {
+                    console.log('Loaded users from user manager:', userManagerUsers.map(u => ({ id: u.id, label: u.label })));
+                    return userManagerUsers;
+                }
+            } catch (e) {
+                console.warn('Failed to load users from user manager:', e);
+                // Continue with the fallback method
+            }
+        }
+        
+        // Fallback to the original user data file
         if (!fs.existsSync(USER_DATA_FILE)) {
             // Create default user if file doesn't exist
             const defaultUser = {

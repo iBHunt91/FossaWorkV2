@@ -5,6 +5,7 @@ import { dirname } from 'path';
 import fetch from 'node-fetch';
 import axios from 'axios';
 import { resolveUserFilePath, getActiveUser } from '../../server/utils/userManager.js';
+import { getVisitId } from './formatService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -186,6 +187,15 @@ export async function sendPushoverNotification(options) {
     const appToken = getAppToken();
     const userKey = getUserKey();
 
+    // Get user settings to check if notifications are enabled
+    const settings = getUserPushoverSettings();
+    
+    // Check if pushover notifications are enabled
+    if (settings.preferences && settings.preferences.enabled === false) {
+        console.log('Pushover notifications are disabled, skipping notification send');
+        return { success: false, error: 'Pushover notifications are disabled' };
+    }
+
     // Construct payload with required fields
     const params = new URLSearchParams();
     params.append('token', appToken);
@@ -244,7 +254,7 @@ export async function sendScheduleChangePushover(changes, users) {
         return [];
     }
 
-    if (!changes || (!changes.critical || changes.critical.length === 0) && (!changes.high || changes.high.length === 0)) {
+    if (!changes || !changes.allChanges || changes.allChanges.length === 0) {
         console.log('No significant changes to notify via Pushover');
         return [];
     }
@@ -262,77 +272,262 @@ export async function sendScheduleChangePushover(changes, users) {
     
     // Count changes by type
     const changesCount = {
-        added: (changes.critical?.filter(c => c.type === 'added')?.length || 0) + 
-               (changes.high?.filter(c => c.type === 'added')?.length || 0),
-        removed: changes.critical?.filter(c => c.type === 'removed')?.length || 0,
-        replacement: changes.critical?.filter(c => c.type === 'replacement')?.length || 0,
-        date: changes.high?.filter(c => c.type === 'date_changed')?.length || 0
+        added: changes.allChanges.filter(c => c.type === 'added').length || 0,
+        removed: changes.allChanges.filter(c => c.type === 'removed').length || 0,
+        replacement: changes.allChanges.filter(c => c.type === 'replacement').length || 0,
+        date: changes.allChanges.filter(c => c.type === 'date_changed').length || 0,
+        swap: changes.allChanges.filter(c => c.type === 'swap').length || 0
     };
     
-    // Use the formatting function to generate the message
-    const message = formatScheduleChangeMessage(changes);
+    // Organize changes by type for split notifications if needed
+    const changesByType = {
+        added: changes.allChanges.filter(c => c.type === 'added'),
+        removed: changes.allChanges.filter(c => c.type === 'removed'),
+        replacement: changes.allChanges.filter(c => c.type === 'replacement'),
+        date_changed: changes.allChanges.filter(c => c.type === 'date_changed'),
+        swap: changes.allChanges.filter(c => c.type === 'swap')
+    };
     
     // Construct the title
-    const title = `📅 ${changesCount.added + changesCount.removed + changesCount.replacement + changesCount.date} Schedule Change${changesCount.added + changesCount.removed + changesCount.replacement + changesCount.date !== 1 ? 's' : ''} Detected`;
+    const totalChanges = changes.allChanges.length;
+    const title = `📅 ${totalChanges} Schedule Change${totalChanges !== 1 ? 's' : ''} Detected`;
     
-    // Determine priority based on presence of critical changes
-    const priority = changes.critical && changes.critical.length > 0 ? 1 : 0;
+    // Set standard priority for all changes
+    const priority = 0;
     
-    // Convert priority to string format
-    const priorityStr = priority.toString();
+    // Track all promises for all notifications
+    const allPromises = [];
     
     // Send notification to each user
-    const promises = userArray.map(async (user) => {
+    for (const user of userArray) {
         if (!user.pushoverKey) {
             console.warn(`User has no Pushover key`);
-            return { success: false, error: 'No Pushover key for user' };
+            allPromises.push(Promise.resolve({ success: false, error: 'No Pushover key for user' }));
+            continue;
         }
         
         console.log(`Sending Pushover notification to user key: ${user.pushoverKey.substring(0, 4)}...`);
         
         try {
-            // Directly use fetch for API call instead of relying on other functions
-            const params = new URLSearchParams();
-            params.append('token', appToken);
-            params.append('user', user.pushoverKey);
-            params.append('message', message);
-            params.append('title', title);
+            // Check if we need to split the message due to Pushover's character limit (1024 chars)
+            const fullMessage = formatScheduleChangeMessage(changes);
             
-            // Add additional parameters if available
-            const sound = getConfiguredSound();
-            params.append('sound', sound);
-            
-            // Use user's device if specified
-            if (user.deviceId) {
-                params.append('device', user.deviceId);
-            }
-            
-            // Update priority parameter
-            params.append('priority', priorityStr);
-            
-            console.log('Sending Pushover request with params:', Object.fromEntries(params));
-            
-            const response = await fetch('https://api.pushover.net/1/messages.json', {
-                method: 'POST',
-                body: params
-            });
-            
-            const responseData = await response.json();
-            
-            if (response.ok) {
-                console.log('Successfully sent Pushover notification:', responseData);
-                return { success: true, data: responseData };
+            // If the message is under the limit, send as a single notification
+            if (fullMessage.length <= 1024) {
+                const params = new URLSearchParams();
+                params.append('token', appToken);
+                params.append('user', user.pushoverKey);
+                params.append('message', fullMessage);
+                params.append('title', title);
+                params.append('priority', priority);
+                params.append('html', '1');
+                
+                // Use sound preference if available
+                if (user.notificationSettings?.pushover?.sound) {
+                    params.append('sound', user.notificationSettings.pushover.sound);
+                } else {
+                    params.append('sound', 'pushover'); // Default sound
+                }
+                
+                const response = await fetch('https://api.pushover.net/1/messages.json', {
+                    method: 'POST',
+                    body: params
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    console.log(`Successfully sent Pushover notification to user key: ${user.pushoverKey.substring(0, 4)}...`);
+                    allPromises.push(Promise.resolve({ success: true, data }));
+                } else {
+                    console.error(`Error sending Pushover notification to user:`, data);
+                    allPromises.push(Promise.resolve({ success: false, error: data }));
+                }
             } else {
-                console.error('Pushover API error:', responseData);
-                return { success: false, error: responseData };
+                console.log(`Message exceeds Pushover's 1024 character limit (${fullMessage.length} chars). Splitting by individual changes.`);
+                
+                // Send multiple notifications, grouped by change type with precise message size control
+                const promises = [];
+                
+                // Create an array of change type groups to process
+                const changeTypes = [
+                    { type: 'added', title: '➕ Added Visits', changeList: changesByType.added },
+                    { type: 'removed', title: '🗑️ Removed Visits', changeList: changesByType.removed },
+                    { type: 'replacement', title: '♻️ Replaced Visits', changeList: changesByType.replacement },
+                    { type: 'date_changed', title: '📅 Date Changes', changeList: changesByType.date_changed },
+                    { type: 'swap', title: '🔄 Swapped Visits', changeList: changesByType.swap }
+                ];
+                
+                // Send a summary notification first
+                const summaryParams = new URLSearchParams();
+                summaryParams.append('token', appToken);
+                summaryParams.append('user', user.pushoverKey);
+                summaryParams.append('message', 
+                    `<b>Schedule Changes Summary:</b>\n` +
+                    `• ${changesCount.added} Added visits\n` +
+                    `• ${changesCount.removed} Removed visits\n` +
+                    `• ${changesCount.replacement} Replaced visits\n` +
+                    `• ${changesCount.date} Date changes\n` +
+                    `• ${changesCount.swap} Swapped visits\n\n` +
+                    `<b>Detailed notifications will follow.</b>`
+                );
+                summaryParams.append('title', title);
+                summaryParams.append('priority', priority);
+                summaryParams.append('html', '1');
+                
+                // Use sound preference if available
+                if (user.notificationSettings?.pushover?.sound) {
+                    summaryParams.append('sound', user.notificationSettings.pushover.sound);
+                } else {
+                    summaryParams.append('sound', 'pushover'); // Default sound
+                }
+                
+                // Send the summary notification
+                const summaryResponse = await fetch('https://api.pushover.net/1/messages.json', {
+                    method: 'POST',
+                    body: summaryParams
+                });
+                
+                const summaryData = await summaryResponse.json();
+                
+                if (summaryResponse.ok) {
+                    console.log(`Successfully sent summary Pushover notification to user`);
+                    promises.push({ success: true, data: summaryData });
+                } else {
+                    console.error(`Error sending summary Pushover notification:`, summaryData);
+                    promises.push({ success: false, error: summaryData });
+                }
+                
+                // Process each change type that has changes
+                for (const changeType of changeTypes) {
+                    if (changeType.changeList.length === 0) continue;
+                    
+                    // Format and send each message based on actual character count
+                    // Instead of estimating characters, we'll create messages one change at a time
+                    
+                    // Maximum message size, leaving room for headers and footers
+                    const MAX_MESSAGE_SIZE = 950; // Safety margin below 1024 limit
+                    
+                    // Pre-format each change to know its exact size
+                    const formattedChanges = [];
+                    
+                    for (const change of changeType.changeList) {
+                        // Create a temporary changes object with just this one change
+                        const singleChangeObj = { 
+                            allChanges: [change],
+                            summary: changes.summary
+                        };
+                        
+                        // Format this single change
+                        const formattedChange = formatScheduleChangeMessage(singleChangeObj);
+                        
+                        formattedChanges.push({
+                            change,
+                            formatted: formattedChange,
+                            length: formattedChange.length
+                        });
+                    }
+                    
+                    // Create batches of changes that fit within the character limit
+                    const batches = [];
+                    let currentBatch = [];
+                    let currentBatchSize = 0;
+                    
+                    for (const item of formattedChanges) {
+                        // If this change alone exceeds our max size, it needs its own message
+                        if (item.length > MAX_MESSAGE_SIZE) {
+                            // If we have accumulated changes, finalize that batch
+                            if (currentBatch.length > 0) {
+                                batches.push(currentBatch);
+                                currentBatch = [];
+                                currentBatchSize = 0;
+                            }
+                            
+                            // Put this large change in its own batch
+                            batches.push([item]);
+                            continue;
+                        }
+                        
+                        // If adding this change would exceed our limit, start a new batch
+                        if (currentBatchSize + item.length > MAX_MESSAGE_SIZE) {
+                            batches.push(currentBatch);
+                            currentBatch = [item];
+                            currentBatchSize = item.length;
+                        } else {
+                            // Add to current batch
+                            currentBatch.push(item);
+                            currentBatchSize += item.length;
+                        }
+                    }
+                    
+                    // Add any remaining changes to the final batch
+                    if (currentBatch.length > 0) {
+                        batches.push(currentBatch);
+                    }
+                    
+                    console.log(`Split ${changeType.changeList.length} ${changeType.type} changes into ${batches.length} messages`);
+                    
+                    // Send each batch as a separate notification
+                    for (let i = 0; i < batches.length; i++) {
+                        const batch = batches[i];
+                        
+                        // Create combined message from pre-formatted changes
+                        let batchMessage = '';
+                        for (const item of batch) {
+                            batchMessage += item.formatted;
+                        }
+                        
+                        // Generate message title with batch info
+                        let messageTitle = `${changeType.title} (${i+1}/${batches.length})`;
+                        
+                        const batchParams = new URLSearchParams();
+                        batchParams.append('token', appToken);
+                        batchParams.append('user', user.pushoverKey);
+                        batchParams.append('message', batchMessage);
+                        batchParams.append('title', messageTitle);
+                        batchParams.append('priority', priority);
+                        batchParams.append('html', '1');
+                        
+                        if (user.notificationSettings?.pushover?.sound) {
+                            batchParams.append('sound', user.notificationSettings.pushover.sound);
+                        } else {
+                            batchParams.append('sound', 'pushover');
+                        }
+                        
+                        try {
+                            const batchResponse = await fetch('https://api.pushover.net/1/messages.json', {
+                                method: 'POST',
+                                body: batchParams
+                            });
+                            
+                            const batchData = await batchResponse.json();
+                            
+                            if (batchResponse.ok) {
+                                console.log(`Successfully sent ${changeType.type} batch ${i+1}/${batches.length} Pushover notification (${batchMessage.length} chars)`);
+                                promises.push({ success: true, data: batchData });
+                            } else {
+                                console.error(`Error sending ${changeType.type} batch ${i+1}/${batches.length} notification:`, batchData);
+                                promises.push({ success: false, error: batchData });
+                            }
+                            
+                            // Add a small delay between notifications to avoid rate limiting
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        } catch (error) {
+                            console.error(`Error sending batch notification:`, error);
+                            promises.push({ success: false, error });
+                        }
+                    }
+                }
+                
+                allPromises.push(Promise.all(promises));
             }
         } catch (error) {
             console.error('Error sending Pushover notification:', error);
-            return { success: false, error: error.message };
+            allPromises.push(Promise.resolve({ success: false, error }));
         }
-    });
+    }
     
-    return Promise.all(promises);
+    return Promise.all(allPromises);
 }
 
 /**
@@ -470,29 +665,38 @@ export async function sendTestPushoverNotification() {
         throw new Error('Pushover application token or user key missing. Please configure Pushover settings first.');
     }
     
-    // Create a nicely formatted test message with updated styling
+    // Create a nicely formatted test message with updated styling that matches our unified notification system
     const message = `
     <div style="font-family: Arial, sans-serif; margin: 0; padding: 10px;">
         <div style="background-color: #ffffff; padding: 15px; border-radius: 8px;">
             <h2 style="color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 10px;">
-                📱 TEST NOTIFICATION
+                🔔 Test Notification
             </h2>
             
             <p style="color: #34495e; font-size: 16px; margin-bottom: 15px;">
-                This is a test notification from Fossa Monitor to verify that Pushover integration is working correctly.
+                Your Pushover notification system is working correctly. Notifications will be sent when schedule changes occur.
             </p>
             
-            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #3498db;">
-                <h3 style="color: #2c3e50; margin: 0 0 5px 0;">🔔 NOTIFICATION SETTINGS</h3>
-                <p style="margin: 5px 0;">• App Token: ${appToken ? '<span style="color: #2ecc71; font-weight: bold;">✓ Configured</span>' : '<span style="color: #e74c3c; font-weight: bold;">✗ Missing</span>'}</p>
-                <p style="margin: 5px 0;">• User Key: ${userKey ? '<span style="color: #2ecc71; font-weight: bold;">✓ Configured</span>' : '<span style="color: #e74c3c; font-weight: bold;">✗ Missing</span>'}</p>
-                <p style="margin: 5px 0;">• Priority: Normal (0)</p>
-                <p style="margin: 5px 0;">• Sound: Pushover (default)</p>
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #3498db;">
+                <h3 style="color: #2c3e50; margin: 0 0 10px 0;">📱 Connection Status</h3>
+                <p style="margin: 8px 0; display: flex; align-items: center;">
+                    <span style="color: #2ecc71; font-weight: bold; margin-right: 5px;">✓</span> Pushover service connected successfully
+                </p>
+                <p style="margin: 8px 0;">• App Token: <span style="color: #2ecc71; font-weight: bold;">Connected</span></p>
+                <p style="margin: 8px 0;">• User Key: <span style="color: #2ecc71; font-weight: bold;">Verified</span></p>
+            </div>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #27ae60;">
+                <h3 style="color: #2c3e50; margin: 0 0 10px 0;">ℹ️ Notification Info</h3>
+                <p style="margin: 8px 0;">• Type: <span style="font-weight: bold;">System Test</span></p>
+                <p style="margin: 8px 0;">• Sound: <span style="font-weight: bold;">${getConfiguredSound() || 'Default'}</span></p>
+                <p style="margin: 8px 0;">• Priority: <span style="font-weight: bold;">${getConfiguredPriorityLevel() === 0 ? 'Normal' : (getConfiguredPriorityLevel() === 1 ? 'High' : 'Emergency')}</span></p>
+                <p style="margin: 8px 0;">• Time: <span style="font-weight: bold;">${new Date().toLocaleString()}</span></p>
             </div>
             
             <div style="padding-top: 10px; text-align: center; margin-top: 10px; border-top: 1px solid #dee2e6;">
                 <p style="color: #7f8c8d; font-size: 12px; margin: 5px 0;">
-                    Generated: ${new Date().toLocaleString()}
+                    Fossa Monitor Notification System
                 </p>
             </div>
         </div>
@@ -500,10 +704,10 @@ export async function sendTestPushoverNotification() {
 
     try {
         const result = await sendPushoverNotification({
-            title: 'Fossa Monitor Test',
+            title: 'Fossa Monitor - Test Notification',
             message,
-            priority: 0,
-            sound: 'pushover',
+            priority: getConfiguredPriorityLevel(),
+            sound: getConfiguredSound(),
             html: 1 // Enable HTML formatting
         });
         return result;
@@ -1023,70 +1227,190 @@ export function createPushoverParams(options, enhancedOptions = {}) {
 
 // Format message for schedule changes
 function formatScheduleChangeMessage(changes) {
-    let message = '*Schedule Changes Detected*\n\n';
+    let message = '';
     
-    // Add summary
-    message += '*Summary:*\n';
-    if (changes.summary.added > 0) {
-        message += `• ${changes.summary.added} job${changes.summary.added !== 1 ? 's' : ''} added\n`;
-    }
-    if (changes.summary.removed > 0) {
-        message += `• ${changes.summary.removed} job${changes.summary.removed !== 1 ? 's' : ''} removed\n`;
-    }
-    if (changes.summary.modified > 0) {
-        message += `• ${changes.summary.modified} date change${changes.summary.modified !== 1 ? 's' : ''}\n`;
-    }
-    if (changes.summary.swapped > 0) {
-        message += `• ${changes.summary.swapped} job${changes.summary.swapped !== 1 ? 's' : ''} swapped\n`;
-    }
-    message += '\n';
-    
-    // Add added jobs from both critical and high arrays
-    const addedJobsCritical = changes.critical ? changes.critical.filter(change => change.type === 'added') : [];
-    const addedJobsHigh = changes.high ? changes.high.filter(change => change.type === 'added') : [];
-    const allAddedJobs = [...addedJobsCritical, ...addedJobsHigh];
-    
-    if (allAddedJobs.length > 0) {
-        message += '*Added Jobs:*\n';
-        for (const job of allAddedJobs) {
-            message += `• ${job.store} ${job.storeName || ''} - ${job.dispensers || 0} dispensers (${job.location || 'Unknown'}) ${job.date}\n`;
-        }
+    // Add all changes section
+    if (changes.allChanges && changes.allChanges.length > 0) {
         message += '\n';
-    }
-    
-    // Add removed jobs from critical array
-    if (changes.critical && changes.critical.length > 0) {
-        const removedJobs = changes.critical.filter(change => change.type === 'removed');
+        
+        // Add removed jobs
+        const removedJobs = changes.allChanges.filter(change => change.type === 'removed');
         if (removedJobs.length > 0) {
-            message += '*Removed Jobs:*\n';
             for (const job of removedJobs) {
-                message += `• ${job.store} ${job.storeName || ''} - ${job.dispensers || 0} dispensers (${job.location || 'Unknown'}) ${job.date}\n`;
+                message += `<b><font color="#FF3B30">━━━</font></b>\n`;
+                message += `<b>🗑️ Removed Visit</b>\n`;
+                
+                // Combine visit ID, store and date on one line
+                const visitId = getVisitId(job.jobId);
+                message += `<b>#${visitId}</b> | ${job.store} | <b>Date:</b> ${job.date}\n`;
+                
+                // Create a compact location display
+                let mapUrl;
+                let displayAddress;
+                
+                if (job.address) {
+                    // Just use city for display to save space
+                    if (job.address.cityState) {
+                        displayAddress = job.address.cityState.split(' ')[0]; // Just the city
+                    } else if (job.location) {
+                        displayAddress = job.location;
+                    } else {
+                        displayAddress = 'Unknown';
+                    }
+                    
+                    // Create Google Maps URL
+                    const fullAddress = [
+                        job.address.street, 
+                        job.address.cityState, 
+                        job.address.county
+                    ].filter(Boolean).join(', ');
+                    
+                    mapUrl = `https://www.google.com/maps/place/${encodeURIComponent(fullAddress)}`;
+                } else {
+                    // Fall back to location field
+                    mapUrl = `https://www.google.com/maps/place/${encodeURIComponent(job.location || 'Unknown')}`;
+                    displayAddress = job.location || 'Unknown';
+                }
+                
+                // Combine location and dispensers on one line
+                message += `<b>Location:</b> <a href="${mapUrl}">${displayAddress}</a> | <b>Dispensers:</b> ${job.dispensers || 0}\n`;
             }
-            message += '\n';
-        }
-    }
-    
-    // Add date changes from high array
-    if (changes.high && changes.high.length > 0) {
-        const dateChanges = changes.high.filter(change => change.type === 'date_changed');
-        if (dateChanges.length > 0) {
-            message += '*Date Changes:*\n';
-            for (const change of dateChanges) {
-                message += `• ${change.store} ${change.storeName || ''} - From: ${change.oldDate} To: ${change.newDate}\n`;
-            }
-            message += '\n';
         }
         
-        // Add swapped jobs from high array
-        const swappedJobs = changes.high.filter(change => change.type === 'swap');
-        if (swappedJobs.length > 0) {
-            message += '*Jobs Swapped:*\n';
-            for (const swap of swappedJobs) {
-                message += `• Job ${swap.job1Id} (${swap.job1Store}) with Job ${swap.job2Id} (${swap.job2Store})\n`;
+        // Add added jobs
+        const addedJobs = changes.allChanges.filter(change => change.type === 'added');
+        if (addedJobs.length > 0) {
+            for (const job of addedJobs) {
+                message += `<b><font color="#34C759">━━━</font></b>\n`;
+                message += `<b>➕ Added Visit</b>\n`;
+                
+                // Combine visit ID, store and date on one line
+                const visitId = getVisitId(job.jobId);
+                message += `<b>#${visitId}</b> | ${job.store} | <b>Date:</b> ${job.date}\n`;
+                
+                // Create a compact location display
+                let mapUrl;
+                let displayAddress;
+                
+                if (job.address) {
+                    // Just use city for display to save space
+                    if (job.address.cityState) {
+                        displayAddress = job.address.cityState.split(' ')[0]; // Just the city
+                    } else if (job.location) {
+                        displayAddress = job.location;
+                    } else {
+                        displayAddress = 'Unknown';
+                    }
+                    
+                    // Create Google Maps URL
+                    const fullAddress = [
+                        job.address.street, 
+                        job.address.cityState, 
+                        job.address.county
+                    ].filter(Boolean).join(', ');
+                    
+                    mapUrl = `https://www.google.com/maps/place/${encodeURIComponent(fullAddress)}`;
+                } else {
+                    // Fall back to location field
+                    mapUrl = `https://www.google.com/maps/place/${encodeURIComponent(job.location || 'Unknown')}`;
+                    displayAddress = job.location || 'Unknown';
+                }
+                
+                // Combine location and dispensers on one line
+                message += `<b>Location:</b> <a href="${mapUrl}">${displayAddress}</a> | <b>Dispensers:</b> ${job.dispensers || 0}\n`;
             }
-            message += '\n';
+        }
+        
+        // Add date changes with more compact format
+        const dateChanges = changes.allChanges.filter(change => change.type === 'date_changed');
+        if (dateChanges.length > 0) {
+            for (const change of dateChanges) {
+                message += `<b><font color="#FF9500">━━━</font></b>\n`;
+                message += `<b>📅 Date Changed</b>\n`;
+                
+                // Combine visit ID and store on same line
+                const visitId = getVisitId(change.jobId);
+                message += `<b>#${visitId}</b> | ${change.store}\n`;
+                
+                // Create a compact location display
+                let mapUrl;
+                let displayAddress;
+                
+                if (change.address) {
+                    // Just use city for display to save space
+                    if (change.address.cityState) {
+                        displayAddress = change.address.cityState.split(' ')[0]; // Just the city
+                    } else if (change.location) {
+                        displayAddress = change.location;
+                    } else {
+                        displayAddress = 'Unknown';
+                    }
+                    
+                    // Create Google Maps URL
+                    const fullAddress = [
+                        change.address.street, 
+                        change.address.cityState, 
+                        change.address.county
+                    ].filter(Boolean).join(', ');
+                    
+                    mapUrl = `https://www.google.com/maps/place/${encodeURIComponent(fullAddress)}`;
+                } else {
+                    // Fall back to location field
+                    mapUrl = `https://www.google.com/maps/place/${encodeURIComponent(change.location || 'Unknown')}`;
+                    displayAddress = change.location || 'Unknown';
+                }
+                
+                // Combine location, dispensers, and date changes all on one line
+                message += `<b>Location:</b> <a href="${mapUrl}">${displayAddress}</a> | <b>Dispensers:</b> ${change.dispensers || 0}\n`;
+                message += `<b>Date:</b> ${change.oldDate} → ${change.newDate}\n`;
+            }
+        }
+        
+        // Add swapped jobs with more compact format
+        const swappedJobs = changes.allChanges.filter(change => change.type === 'swap');
+        if (swappedJobs.length > 0) {
+            for (const swap of swappedJobs) {
+                message += `<b><font color="#007AFF">━━━</font></b>\n`;
+                message += `<b>🔄 Visits Swapped</b>\n`;
+                
+                // Job 1 - All on one line
+                const visitId1 = getVisitId(swap.job1Id);
+                const visitId2 = getVisitId(swap.job2Id);
+                
+                message += `<b>Job 1:</b> #${visitId1} | ${swap.job1Store} | ${swap.job1Location || ''}\n`;
+                message += `<b>Date:</b> ${swap.oldDate1} → ${swap.newDate1}\n`;
+                
+                // Job 2 - All on one line
+                message += `<b>Job 2:</b> #${visitId2} | ${swap.job2Store} | ${swap.job2Location || ''}\n`;
+                message += `<b>Date:</b> ${swap.oldDate2} → ${swap.newDate2}\n`;
+            }
+        }
+        
+        // Add replacement jobs with more compact format
+        const replacementJobs = changes.allChanges.filter(change => change.type === 'replacement');
+        if (replacementJobs.length > 0) {
+            for (const replace of replacementJobs) {
+                message += `<b><font color="#AF52DE">━━━</font></b>\n`;
+                message += `<b>♻️ Visit Replaced</b>\n`;
+                
+                // Removed job - All info on two lines
+                const removedVisitId = getVisitId(replace.removedJobId);
+                message += `<b>Removed:</b> #${removedVisitId} | ${replace.removedStore} | <b>Disp:</b> ${replace.removedDispensers || 0}\n`;
+                if (replace.removedLocation) {
+                    message += `<b>Location:</b> ${replace.removedLocation}\n`;
+                }
+                
+                // Added job - All info on two lines
+                const addedVisitId = getVisitId(replace.addedJobId);
+                message += `<b>Added:</b> #${addedVisitId} | ${replace.addedStore} | <b>Disp:</b> ${replace.addedDispensers || 0}\n`;
+                if (replace.addedLocation) {
+                    message += `<b>Location:</b> ${replace.addedLocation} | <b>Date:</b> ${replace.date}\n`;
+                } else {
+                    message += `<b>Date:</b> ${replace.date}\n`;
+                }
+            }
         }
     }
-    
+
     return message;
 } 

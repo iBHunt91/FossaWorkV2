@@ -115,4 +115,30 @@ export function getUserPushoverSettings() {
       }
     };
   }
+}
+
+/**
+ * Save user pushover settings to user file
+ * @param {Object} settings - The settings to save
+ * @returns {boolean} - Whether the save was successful
+ */
+export function saveUserPushoverSettings(settings) {
+  try {
+    // Resolve the file path
+    const userDir = path.join(__dirname, '../../data/user');
+    const settingsPath = path.join(userDir, 'pushover_settings.json');
+    
+    // Ensure the directory exists
+    if (!fs.existsSync(userDir)) {
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+    
+    // Write settings to file
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+    console.log('Pushover settings saved successfully');
+    return true;
+  } catch (error) {
+    console.error('Error saving pushover settings:', error);
+    return false;
+  }
 } 

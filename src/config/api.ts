@@ -110,6 +110,7 @@ export const ENDPOINTS = {
   FORM_AUTOMATION_BATCH: async () => buildUrl('/api/form-automation/batch'),
   FORM_AUTOMATION_BATCH_STATUS: async () => buildUrl('/api/form-automation/batch/status'),
   FORM_AUTOMATION_CANCEL: async () => buildUrl('/api/form-automation/cancel'),
+  FORM_AUTOMATION_PREVIEW_BATCH: async () => buildUrl('/api/form-automation/preview-batch'),
 };
 
 /**

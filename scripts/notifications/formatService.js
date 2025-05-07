@@ -69,8 +69,7 @@ export function getChangeTypeColor(changeType, format = 'hex') {
         removed: { hex: '#e74c3c', name: 'red' },
         date_changed: { hex: '#f39c12', name: 'orange' },
         swap: { hex: '#3498db', name: 'blue' },
-        critical: { hex: '#FF3B30', name: 'red' },
-        high: { hex: '#FF9500', name: 'orange' }
+        replacement: { hex: '#9b59b6', name: 'purple' }
     };
     
     return colors[changeType]?.[format] || (format === 'hex' ? '#333333' : 'gray');
@@ -234,30 +233,15 @@ export function generateScheduleChangesHtml(changes, date, user, displayPreferen
                     <div style="list-style-type: none; padding: 0;">
     `;
 
-    // Add critical changes section
-    if (changes.critical && changes.critical.length > 0) {
+    // Add all changes section
+    if (changes.allChanges && changes.allChanges.length > 0) {
         html += `<div style="margin-bottom: 20px;">
-            <span style="color: ${getChangeTypeColor('critical')}; font-weight: bold; font-size: 16px;">
-                ⚠️ CRITICAL CHANGES (${changes.critical.length})
+            <span style="color: #3498db; font-weight: bold; font-size: 16px;">
+                📅 SCHEDULE CHANGES (${changes.allChanges.length})
             </span>
             <div style="margin-top: 10px;">`;
         
-        for (const change of changes.critical) {
-            html += renderChangeItemHtml(change, change.type, displayPreferences);
-        }
-        
-        html += `</div></div>`;
-    }
-
-    // Add high priority changes section
-    if (changes.high && changes.high.length > 0) {
-        html += `<div style="margin-bottom: 20px;">
-            <span style="color: ${getChangeTypeColor('high')}; font-weight: bold; font-size: 16px;">
-                ⚠️ HIGH PRIORITY CHANGES (${changes.high.length})
-            </span>
-            <div style="margin-top: 10px;">`;
-        
-        for (const change of changes.high) {
+        for (const change of changes.allChanges) {
             html += renderChangeItemHtml(change, change.type, displayPreferences);
         }
         
@@ -265,9 +249,11 @@ export function generateScheduleChangesHtml(changes, date, user, displayPreferen
     }
 
     // Add summary section
-    const criticalCount = changes.critical?.length || 0;
-    const highCount = changes.high?.length || 0;
-    const totalChanges = criticalCount + highCount;
+    const totalChanges = changes.allChanges?.length || 0;
+    const removedCount = changes.summary?.removed || 0;
+    const addedCount = changes.summary?.added || 0;
+    const modifiedCount = changes.summary?.modified || 0;
+    const swappedCount = changes.summary?.swapped || 0;
     
     html += `
                     </div>
@@ -277,17 +263,17 @@ export function generateScheduleChangesHtml(changes, date, user, displayPreferen
                     <h3 style="color: #2c3e50; margin-top: 0;">📊 Summary</h3>
                     <div style="color: #34495e;">
                         <div>• Total changes: ${totalChanges}</div>
-                        <div>• Critical: ${criticalCount}</div>
-                        <div>• High priority: ${highCount}</div>
+                        <div>• Removed jobs: ${removedCount}</div>
+                        <div>• Added jobs: ${addedCount}</div>
+                        <div>• Modified jobs: ${modifiedCount}</div>
+                        <div>• Swapped jobs: ${swappedCount}</div>
                     </div>
                 </div>
 
                 <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px;">
                     <h3 style="color: #2c3e50; margin-top: 0;">🛠️ Actions Required</h3>
                     <div style="color: #34495e;">
-                        ${criticalCount > 0 ? 
-                            `<div style="color: ${getChangeTypeColor('critical')}; font-weight: bold;">• IMMEDIATE ACTION REQUIRED</div>` : ''}
-                        <div>• Review schedule changes</div>
+                        ${totalChanges > 0 ? `<div>• Review schedule changes</div>` : ''}
                         <div>• Update team calendar</div>
                         <div>• Confirm resource availability</div>
                     </div>

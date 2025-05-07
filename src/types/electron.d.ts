@@ -49,6 +49,15 @@ export interface ElectronAPI {
     success: boolean,
     error?: string
   }>;
+  fs: {
+    readFile: (path: string, options?: string) => Promise<string>;
+    writeFile: (path: string, data: string, options?: string) => Promise<void>;
+    exists: (path: string) => boolean;
+    mkdir: (path: string, options?: any) => Promise<void>;
+    stat: (path: string) => Promise<any>;
+    join: (...paths: string[]) => string;
+    dirname: (path: string) => string;
+  };
   onNavigate: (callback: (route: string) => void) => void;
   onTestNotificationResult: (callback: (result: any) => void) => void;
   onBackendStatus: (callback: (status: any) => void) => void;
