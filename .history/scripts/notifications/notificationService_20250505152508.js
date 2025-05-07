@@ -1,0 +1,338 @@
+import { sendScheduleChangeEmail, sendTestEmail } from '../email/emailService.js';
+import { sendScheduleChangePushover } from '../pushover/pushoverService.js';
+import { sendTestPushoverNotification, getUserPushoverSettings } from './pushoverService.js';
+import { getUserEmailSettings } from '../email/emailSettings.js';
+import { 
+    getUserPreferences, 
+    getUserNotificationSettings, 
+    loadUsers, 
+    DEFAULT_PREFERENCES,
+    DEFAULT_NOTIFICATION_SETTINGS
+} from '../user/userService.js';
+
+/**
+ * Send notifications about schedule changes through all configured channels
+ * @param {Object} changes - Object containing changes to notify about
+ * @param {Object|null} specificUser - Optional specific user to send notification to
+ * @returns {Promise<Object>} - Results from all notification methods
+ */
+export async function sendScheduleChangeNotifications(changes, specificUser = null) {
+    // Log the change data for debugging
+    console.log('CHANGE DETAILS:', JSON.stringify(changes, null, 2));
+    
+    const results = {
+        email: null,
+        pushover: null
+    };
+
+    try {
+        // Get users to notify
+        let users = [];
+        if (specificUser) {
+            users = [specificUser];
+        } else {
+            users = await getUsersWithNotificationsEnabled();
+        }
+
+        console.log('Users to notify:', users.map(u => ({ id: u.id, email: u.email })));
+
+        if (!users || users.length === 0) {
+            console.log('No users to notify');
+            return { success: true, results };
+        }
+
+        // Send notifications to each user
+        for (const user of users) {
+            const notificationSettings = user.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS;
+            const userPreferences = user.preferences || DEFAULT_PREFERENCES;
+
+            console.log(`Processing notifications for user ${user.id}:`, {
+                emailEnabled: notificationSettings.email?.enabled,
+                pushoverEnabled: notificationSettings.pushover?.enabled
+            });
+
+            // Filter changes based on user preferences
+            const filteredChanges = filterChangesForUser(changes, userPreferences);
+
+            // Skip if no relevant changes for this user
+            if (filteredChanges.critical.length === 0 && filteredChanges.high.length === 0) {
+                console.log(`No relevant changes for user ${user.id}`);
+                continue;
+            }
+
+            // Send email if enabled
+            if (notificationSettings.email?.enabled) {
+                try {
+                    let userWithEmail = user;
+                    // If user is undefined or missing email, load from user settings
+                    if (!userWithEmail || !userWithEmail.email) {
+                        const emailSettings = getUserEmailSettings();
+                        userWithEmail = {
+                            ...(userWithEmail || {}),
+                            email: emailSettings.recipientEmail || '',
+                            id: userWithEmail?.id || 'unknown',
+                            preferences: userWithEmail?.preferences || userPreferences,
+                            notificationSettings: userWithEmail?.notificationSettings || notificationSettings
+                        };
+                    }
+                    if (!userWithEmail.email) {
+                        throw new Error('No recipient email found for user');
+                    }
+                    const emailResult = await sendScheduleChangeEmail(filteredChanges, userWithEmail);
+                    results.email = emailResult;
+                    console.log(`Email notification sent successfully to user ${userWithEmail.id}`);
+                } catch (error) {
+                    console.error(`Error sending email notification to user ${user?.id || 'unknown'}:`, error);
+                    results.email = { success: false, error };
+                }
+            }
+
+            // Send Pushover if enabled
+            if (notificationSettings.pushover?.enabled) {
+                try {
+                    // Get Pushover settings
+                    const pushoverSettings = getUserPushoverSettings();
+                    console.log(`Pushover settings for user ${user.id}:`, {
+                        hasAppToken: !!pushoverSettings.appToken,
+                        hasUserKey: !!pushoverSettings.userKey,
+                        enabled: notificationSettings.pushover.enabled
+                    });
+
+                    if (pushoverSettings.appToken && pushoverSettings.userKey) {
+                        console.log(`Attempting to send Pushover notification to user ${user.id}`);
+                        // Wrap the user in an array if it's not already an array
+                        const userArray = Array.isArray(user) ? user : [user];
+                        const userWithPushover = userArray.map(u => ({
+                            ...u,
+                            pushoverKey: pushoverSettings.userKey,
+                            notificationSettings: {
+                                ...notificationSettings,
+                                pushover: {
+                                    ...notificationSettings.pushover,
+                                    priority: pushoverSettings.preferences.priorityLevel,
+                                    sound: pushoverSettings.preferences.sound
+                                }
+                            }
+                        }));
+                        
+                        const pushoverResult = await sendScheduleChangePushover(filteredChanges, userWithPushover);
+                        results.pushover = pushoverResult;
+                        console.log(`Pushover notification result for user ${user.id}:`, pushoverResult);
+                    } else {
+                        console.log(`Pushover credentials not configured for user ${user.id}`);
+                    }
+                } catch (error) {
+                    console.error(`Error sending Pushover notification to user ${user.id}:`, error);
+                    results.pushover = { success: false, error };
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error sending notifications:', error);
+        return { success: false, error };
+    }
+
+    return {
+        success: true,
+        results
+    };
+}
+
+/**
+ * Get users who have notifications enabled
+ * @returns {Promise<Array>} - Array of users with notification preferences
+ */
+async function getUsersWithNotificationsEnabled() {
+    try {
+        // Load all users from the user store
+        const users = await loadUsers();
+        if (!users || users.length === 0) {
+            console.log('No users found in the system');
+            return [];
+        }
+
+        // Filter users who have notifications enabled
+        const usersWithNotifications = [];
+        
+        for (const user of users) {
+            // Get notification settings for the user
+            const notificationSettings = user.notificationSettings || DEFAULT_NOTIFICATION_SETTINGS;
+            
+            // Only include users with notifications enabled
+            if (notificationSettings.enabled) {
+                // Get Pushover settings
+                const pushoverSettings = getUserPushoverSettings();
+                
+                // Enable Pushover by default if credentials exist
+                const pushoverEnabled = !!pushoverSettings.appToken && !!pushoverSettings.userKey;
+                
+                // Create the complete user object with all required properties
+                usersWithNotifications.push({
+                    id: user.id,
+                    email: user.email,
+                    pushoverKey: pushoverSettings.userKey,
+                    preferences: user.preferences || DEFAULT_PREFERENCES,
+                    notificationSettings: {
+                        ...notificationSettings,
+                        pushover: {
+                            ...notificationSettings.pushover,
+                            enabled: pushoverEnabled // Override with true if credentials exist
+                        }
+                    }
+                });
+            }
+        }
+        
+        if (usersWithNotifications.length === 0) {
+            console.log('No users have notifications enabled');
+            return [];
+        }
+        
+        return usersWithNotifications;
+    } catch (error) {
+        console.error('Error getting users with notifications enabled:', error);
+        return [];
+    }
+}
+
+/**
+ * Filter changes based on user preferences
+ * @param {Object} changes - Original changes object
+ * @param {Object} userPreferences - User's notification preferences
+ * @returns {Object} - Filtered changes object
+ */
+function filterChangesForUser(changes, userPreferences) {
+    const filteredChanges = {
+        critical: [],
+        high: [],
+        medium: [],
+        low: [],
+        summary: { ...changes.summary }
+    };
+
+    // Get user notification preferences
+    const notificationPrefs = userPreferences?.notifications || {};
+    const filters = notificationPrefs.filters || {
+        stores: [],
+        locations: [],
+        severity: ['critical', 'high']
+    };
+
+    // If user has disabled schedule change notifications, return empty changes
+    if (notificationPrefs.scheduleChanges === false) {
+        return filteredChanges;
+    }
+
+    // Filter changes by severity
+    if (filters.severity && filters.severity.length > 0) {
+        // Only include changes with matching severity
+        if (filters.severity.includes('critical')) {
+            filteredChanges.critical = filterChangesByStoreAndLocation(changes.critical, filters);
+        }
+        if (filters.severity.includes('high')) {
+            filteredChanges.high = filterChangesByStoreAndLocation(changes.high, filters);
+        }
+        if (filters.severity.includes('medium')) {
+            filteredChanges.medium = filterChangesByStoreAndLocation(changes.medium, filters);
+        }
+        if (filters.severity.includes('low')) {
+            filteredChanges.low = filterChangesByStoreAndLocation(changes.low, filters);
+        }
+    } else {
+        // If no severity filter, include all changes
+        filteredChanges.critical = filterChangesByStoreAndLocation(changes.critical, filters);
+        filteredChanges.high = filterChangesByStoreAndLocation(changes.high, filters);
+        filteredChanges.medium = filterChangesByStoreAndLocation(changes.medium, filters);
+        filteredChanges.low = filterChangesByStoreAndLocation(changes.low, filters);
+    }
+
+    // Update summary counts
+    filteredChanges.summary.removed = filteredChanges.critical.filter(c => c.type === 'removed').length;
+    filteredChanges.summary.added = filteredChanges.critical.filter(c => c.type === 'added').length + 
+                                   filteredChanges.high.filter(c => c.type === 'added').length;
+    filteredChanges.summary.modified = filteredChanges.high.filter(c => c.type === 'date_changed').length;
+    filteredChanges.summary.swapped = filteredChanges.high.filter(c => c.type === 'swap').length;
+
+    return filteredChanges;
+}
+
+/**
+ * Filter a list of changes by store and location
+ * @param {Array} changesList - List of changes to filter
+ * @param {Object} filters - Filters to apply (stores, locations)
+ * @returns {Array} - Filtered list of changes
+ */
+function filterChangesByStoreAndLocation(changesList, filters) {
+    if (!changesList || changesList.length === 0) {
+        return [];
+    }
+
+    // If no store or location filters, return all changes
+    if ((!filters.stores || filters.stores.length === 0) && 
+        (!filters.locations || filters.locations.length === 0)) {
+        return changesList;
+    }
+
+    // Filter changes by store and location
+    return changesList.filter(change => {
+        // Get store number from change
+        const storeNumber = change.store || 
+                           change.job1Store || 
+                           (change.customer?.storeNumber || '').toString();
+        
+        // Get location from change
+        const location = change.location || 
+                        change.job1Location || 
+                        (change.customer?.city || '').toString();
+
+        // Check if the change matches any of the store filters
+        const matchesStore = !filters.stores || 
+                            filters.stores.length === 0 || 
+                            filters.stores.some(s => storeNumber.includes(s));
+
+        // Check if the change matches any of the location filters
+        const matchesLocation = !filters.locations || 
+                               filters.locations.length === 0 || 
+                               filters.locations.some(l => location.toLowerCase().includes(l.toLowerCase()));
+
+        // Return true if either store or location matches
+        return matchesStore || matchesLocation;
+    });
+}
+
+/**
+ * Send test notifications through all configured channels
+ * @returns {Promise<Object>} - Results from all notification methods
+ */
+export async function sendTestNotifications() {
+    const results = {
+        email: null,
+        pushover: null
+    };
+
+    try {
+        // Send test email
+        await sendTestEmail();
+        results.email = { success: true };
+    } catch (error) {
+        console.error('Error sending test email:', error);
+        results.email = { success: false, error };
+    }
+
+    try {
+        // Send test Pushover notification
+        const pushoverResult = await sendTestPushoverNotification();
+        results.pushover = pushoverResult;
+    } catch (error) {
+        console.error('Error sending test Pushover notification:', error);
+        results.pushover = { success: false, error };
+    }
+
+    // Determine overall success
+    const success = results.email?.success || results.pushover?.success;
+    
+    return {
+        success,
+        results
+    };
+} 

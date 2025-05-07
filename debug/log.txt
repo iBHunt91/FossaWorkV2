@@ -1,0 +1,1 @@
+console.log('DEBUG: sortFuelTypes()', JSON.stringify(fuelGrades.slice(0, 5)));

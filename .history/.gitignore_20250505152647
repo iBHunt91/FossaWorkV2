@@ -1,0 +1,77 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log
+lerna-debug.log
+.pnpm-debug.log*
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Build outputs
+dist/
+build/
+out/
+release/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Keep environment templates
+!.env.template
+
+# Cache and temporary files
+.npm
+.eslintcache
+.DS_Store
+Thumbs.db
+.cache/
+tmp/
+temp/
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# IDE directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+
+# Electron specific
+<<<<<<< HEAD
+.electron-symbols/
+
+# User data and archive files
+data/users/*/archive/
+data/users/*/archives/
+data/backups/
+data/users/*/batch_history.json
+data/users/*/completed_jobs.json
+data/users/*/last_notification.json
+data/users/*/last_pushover_notification.json
+data/users/*/change_history.json
+data/users/*/metadata.json
+data/users/*/scraped_content.json
+data/users/*/scraped_content.previous.json
+data/users/*/email-settings.json
+data/users/*/data/
+data/notification_cache.json
+data/user/
+circle_k_web/
+scripts/*backup*.json
+
+# Keep template files
+!data/templates/
+=======
+.electron-symbols/
+>>>>>>> parent of ff61f0f (Update .gitignore to exclude user data files and archives)
