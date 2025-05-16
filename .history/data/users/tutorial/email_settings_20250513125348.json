@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "email": "tutorial@example.com",
+  "notifyOnChanges": true,
+  "notifyOnFailures": true,
+  "frequency": "immediate",
+  "deliveryTime": "09:00",
+  "notes": "This section shows email notification settings. You can configure when and how you receive alerts about changes or issues.",
+  "isTutorial": true
+} 

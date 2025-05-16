@@ -40,16 +40,18 @@ let isCancelled = false;
 let jobStatus = {
   status: 'idle',
   progress: 0,
-  message: ''
+  message: '',
+  dispenserProgress: null
 };
 
 // Helper function to update status for a single job
-const updateStatus = (status, message, progress = null) => {
+const updateStatus = (status, message, progress = null, dispenserProgress = null) => {
   jobStatus = {
     ...jobStatus,
     status,
     message,
-    progress: progress !== null ? progress : jobStatus.progress
+    progress: progress !== null ? progress : jobStatus.progress,
+    dispenserProgress: dispenserProgress !== null ? dispenserProgress : jobStatus.dispenserProgress
   };
   
   // Also log the status change
@@ -481,7 +483,7 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
     // If we have dispensers data and form URLs, fill out each form
     if (dispensers.length > 0 && formUrls.length > 0) {
       logger.info(`Proceeding to fill form details. isSpecificDispensers=${isSpecificDispensers}, formType=${formType}`, 'FORM_PREP');
-      await fillFormDetails(page, formUrls, dispensers, isSpecificDispensers, formType);
+      await fillFormDetails(page, formUrls, dispensers, isSpecificDispensers, formType, dispenserProgress);
     } else {
       if (formUrls.length === 0) {
         logger.warn('No form URLs found to process', 'FORM_PREP');
@@ -506,9 +508,10 @@ async function prepareForm(page, dispensers, formCount = null, isSpecificDispens
  * @param {array} dispensers - Array of dispenser objects
  * @param {boolean} isSpecificDispensers - Whether this is a specific dispensers job (code 2862)
  * @param {string} formType - Type of form being filled (FORM_TYPES.ACCUMEASURE or FORM_TYPES.OPEN_NECK_PROVER)
+ * @param {object} parentDispenserProgress - Dispenser progress from parent function
  * @returns {Promise<void>}
  */
-async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE) {
+async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE, parentDispenserProgress = null) {
   try {
     logger.info('Starting to fill form details...', 'FORM_PREP');
     console.log('====== STARTING FORM AUTOMATION ======');
@@ -523,11 +526,59 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
       logger.warn(`WARNING: Fewer forms (${formUrls.length}) than dispensers (${dispensers.length}). Only the first ${formUrls.length} dispensers will be used.`, 'FORM_PREP');
     }
     
-    // Log dispensers to forms mapping
-    logger.info(`Dispenser to Form Mapping:`, 'FORM_PREP');
-    for (let i = 0; i < Math.min(formUrls.length, dispensers.length); i++) {
-      logger.info(`Form ${i+1} → ${dispensers[i]?.title || 'Unknown dispenser'}`, 'FORM_PREP');
+    // Use parent dispenser progress if available, otherwise create a local one
+    const dispenserProgress = parentDispenserProgress || {
+      workOrderId: null,
+      dispensers: []
+    };
+    
+    // Only initialize if we're using a local one (shouldn't happen with correct implementation)
+    if (!parentDispenserProgress) {
+      logger.warn('No parent dispenser progress provided, creating local one', 'FORM_PREP');
+      
+      // Log dispensers to forms mapping and initialize progress
+      logger.info(`Dispenser to Form Mapping:`, 'FORM_PREP');
+      for (let i = 0; i < Math.min(formUrls.length, dispensers.length); i++) {
+        logger.info(`Form ${i+1} → ${dispensers[i]?.title || 'Unknown dispenser'}`, 'FORM_PREP');
+        
+        // Initialize progress for each dispenser
+        const dispenser = dispensers[i];
+        const fuelGrades = [];
+        
+        // Parse fuel grades from dispenser fields
+        if (dispenser.fields && dispenser.fields.Grade) {
+          const grades = dispenser.fields.Grade.split(',').map(g => g.trim());
+          grades.forEach(grade => {
+            fuelGrades.push({
+              grade: grade,
+              status: 'pending',
+              prover: null,
+              meter: null,
+              message: null
+            });
+          });
+        }
+        
+        dispenserProgress.dispensers.push({
+          dispenserTitle: dispenser.title || 'Unknown',
+          dispenserNumber: dispenser.dispenserNumber || null,
+          formNumber: i + 1,
+          totalForms: formUrls.length,
+          status: 'pending',
+          fuelGrades: fuelGrades,
+          currentAction: 'Waiting to process'
+        });
+      }
+    } else {
+      // Log dispensers to forms mapping
+      logger.info(`Dispenser to Form Mapping:`, 'FORM_PREP');
+      for (let i = 0; i < Math.min(formUrls.length, dispensers.length); i++) {
+        logger.info(`Form ${i+1} → ${dispensers[i]?.title || 'Unknown dispenser'}`, 'FORM_PREP');
+      }
     }
+    
+    // Send initial progress update
+    updateStatus('running', 'Filling form details...', null, dispenserProgress);
     
     // Process forms in order
     for (let i = 0; i < formUrls.length; i++) {
@@ -546,7 +597,11 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
       logger.info(`Using dispenser: ${dispenser.title}`, 'FORM_PREP');
       console.log(`\n>>> PROCESSING FORM ${i + 1}/${formUrls.length}`);
       console.log(`Using dispenser: ${dispenser.title}`);
-      updateStatus('running', `Filling form ${i + 1}/${formUrls.length} with dispenser: ${dispenser.title}`);
+      
+      // Update dispenser progress
+      dispenserProgress.dispensers[i].status = 'processing';
+      dispenserProgress.dispensers[i].currentAction = 'Opening form';
+      updateStatus('running', `Filling form ${i + 1}/${formUrls.length} with dispenser: ${dispenser.title}`, null, dispenserProgress);
       
       // Navigate to the form URL
       await page.goto(formUrl);
@@ -1081,8 +1136,16 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
           
           // Wait for saving to complete - look for network activity or UI changes
           try {
-            // Wait for network idle, which suggests the save request completed
-            await page.waitForLoadState('networkidle', { timeout: 5000 });
+            // Wait for save to complete with extended timeout
+            await page.waitForTimeout(3000); // Give more time for save to complete
+            
+            // Try to wait for network idle
+            try {
+              await page.waitForLoadState('networkidle', { timeout: 5000 });
+            } catch (netError) {
+              logger.warn('Network idle timeout, continuing anyway');
+              logger.warn('Network idle timeout, continuing anyway', 'FORM_PREP');
+            }
             
             // Verify the save was successful by checking for save success indicators
             let saveVerified = false;
@@ -1158,13 +1221,56 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
           }
           
           // Now proceed with navigating through all fuel type sections
-          const fuelSectionsProcessed = await processAllFuelSections(page, dispenser, isSpecificDispensers, formType);
+          logger.info(`[DEBUG] About to call processAllFuelSections for form ${i + 1}`);
+          logger.info(`[DEBUG] About to call processAllFuelSections for form ${i + 1}`, 'FORM_PREP');
+          
+          const fuelSectionsProcessed = await processAllFuelSections(page, dispenser, isSpecificDispensers, formType, dispenserProgress, i);
+          
+          logger.info(`[DEBUG] processAllFuelSections returned: ${fuelSectionsProcessed}`);
+          logger.info(`[DEBUG] processAllFuelSections returned: ${fuelSectionsProcessed}`, 'FORM_PREP');
+          
           if (fuelSectionsProcessed) {
             logger.info(`Successfully processed all fuel sections for form ${i + 1}`);
             logger.info(`Successfully processed all fuel sections for form ${i + 1}`, 'FORM_PREP');
           } else {
             logger.warn(`Failed to process all fuel sections for form ${i + 1}`);
             logger.warn(`Failed to process all fuel sections for form ${i + 1}`, 'FORM_PREP');
+            
+            // Let's try an alternative approach - manually navigate to fuel sections
+            logger.info(`[DEBUG] Attempting manual navigation to fuel sections`);
+            logger.info(`[DEBUG] Attempting manual navigation to fuel sections`, 'FORM_PREP');
+            
+            const currentUrl = page.url();
+            if (!currentUrl.includes('/sections/')) {
+              // We're still on the main form page, try to navigate directly
+              const formMatch = currentUrl.match(/\/forms\/(\d+)$/);
+              const sectionsUrl = formMatch ? currentUrl.replace(/\/forms\/\d+$/, `/forms/${formMatch[1]}/sections/536`) : currentUrl + '/sections/536';
+              logger.info(`[DEBUG] Attempting direct navigation to: ${sectionsUrl}`);
+              logger.info(`[DEBUG] Attempting direct navigation to: ${sectionsUrl}`, 'FORM_PREP');
+              
+              try {
+                await page.goto(sectionsUrl);
+                await page.waitForLoadState('networkidle');
+                
+                // Check if we made it to fuel sections
+                const onFuelSections = await page.evaluate(() => {
+                  return document.querySelectorAll('[id^="iteration-"]').length > 0;
+                });
+                
+                if (onFuelSections) {
+                  logger.info(`[DEBUG] Successfully navigated to fuel sections manually`);
+                  logger.info(`[DEBUG] Successfully navigated to fuel sections manually`, 'FORM_PREP');
+                  
+                  // Try processing fuel sections again
+                  const retryResult = await processAllFuelSections(page, dispenser, isSpecificDispensers, formType, dispenserProgress, i);
+                  logger.info(`[DEBUG] Retry processAllFuelSections result: ${retryResult}`);
+                  logger.info(`[DEBUG] Retry processAllFuelSections result: ${retryResult}`, 'FORM_PREP');
+                }
+              } catch (navError) {
+                logger.error(`[DEBUG] Failed to manually navigate to fuel sections: ${navError.message}`);
+                logger.error(`[DEBUG] Failed to manually navigate to fuel sections: ${navError.message}`, 'FORM_PREP');
+              }
+            }
           }
         } else {
           logger.warn('Save button not found');
@@ -1191,7 +1297,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
             await page.waitForTimeout(1000); // Wait for save to complete
             
             // Try to proceed with the fuel sections
-            const fuelSectionsProcessed = await processAllFuelSections(page, dispenser, isSpecificDispensers, formType);
+            const fuelSectionsProcessed = await processAllFuelSections(page, dispenser, isSpecificDispensers, formType, dispenserProgress, i);
             if (fuelSectionsProcessed) {
               logger.info(`Successfully processed all fuel sections for form ${i + 1} after alternative save`);
               logger.info(`Successfully processed all fuel sections for form ${i + 1} after alternative save`, 'FORM_PREP');
@@ -1209,10 +1315,24 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
         continue; // Skip to next form if we can't save this one
       }
       
+      // Mark dispenser as completed
+      if (dispenserProgress && dispenserProgress.dispensers[i]) {
+        dispenserProgress.dispensers[i].status = 'completed';
+        dispenserProgress.dispensers[i].currentAction = 'Form completed';
+        
+        // Mark all fuel grades as completed
+        dispenserProgress.dispensers[i].fuelGrades.forEach(fg => {
+          if (fg.status === 'processing') {
+            fg.status = 'completed';
+            fg.message = 'Successfully processed';
+          }
+        });
+      }
+      
       logger.info(`Completed processing form ${i + 1}/${formUrls.length}`);
       logger.info(`Completed processing form ${i + 1}/${formUrls.length}`, 'FORM_PREP');
       console.log(`<<< COMPLETED FORM ${i + 1}/${formUrls.length}`);
-      updateStatus('running', `Completed form ${i + 1}/${formUrls.length}, ${i < formUrls.length - 1 ? 'moving to next form' : 'finishing up'}`);
+      updateStatus('running', `Completed form ${i + 1}/${formUrls.length}, ${i < formUrls.length - 1 ? 'moving to next form' : 'finishing up'}`, null, dispenserProgress);
     }
     
     logger.info('Form filling complete');
@@ -1237,7 +1357,7 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
  * @param {string} formType - The type of form being processed
  * @returns {Promise<boolean>}
  */
-async function processAllFuelSections(page, dispenser, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE) {
+async function processAllFuelSections(page, dispenser, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE, dispenserProgress = null, dispenserIndex = null) {
   try {
     logger.info('=== ENTERING MULTI-SECTION MODE: Starting to process all fuel sections... ===');
     logger.info('=== ENTERING MULTI-SECTION MODE: Starting to process all fuel sections... ===', 'FORM_PREP');
@@ -1258,10 +1378,78 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
       logger.info('Found Next button, clicking to proceed to fuel sections...');
       logger.info('Found Next button, clicking to proceed to fuel sections...', 'FORM_PREP');
       
-      // Click the next button
-      await page.click('a.next-section');
-      logger.info('Clicked Next button to proceed to fuel sections');
-      logger.info('Clicked Next button to proceed to fuel sections', 'FORM_PREP');
+      // Click the next button with error handling
+      try {
+        await page.click('a.next-section');
+        logger.info('Clicked Next button to proceed to fuel sections');
+        logger.info('Clicked Next button to proceed to fuel sections', 'FORM_PREP');
+      } catch (clickError) {
+        logger.error(`Failed to click Next button: ${clickError.message}`);
+        logger.error(`Failed to click Next button: ${clickError.message}`, 'FORM_PREP');
+        
+        // Try alternative click methods
+        logger.info('Trying alternative click method for Next button');
+        logger.info('Trying alternative click method for Next button', 'FORM_PREP');
+        
+        const clicked = await page.evaluate(() => {
+          const nextButton = document.querySelector('a.next-section');
+          if (nextButton) {
+            nextButton.click();
+            return true;
+          }
+          return false;
+        });
+        
+        if (!clicked) {
+          throw new Error('Could not click Next button using any method');
+        }
+      }
+      
+      // Wait for navigation to complete
+      try {
+        await page.waitForLoadState('networkidle', { timeout: 10000 });
+        logger.info('Navigation to fuel sections completed');
+        logger.info('Navigation to fuel sections completed', 'FORM_PREP');
+      } catch (navError) {
+        logger.warn('Navigation timeout after clicking Next button, continuing anyway');
+        logger.warn('Navigation timeout after clicking Next button, continuing anyway', 'FORM_PREP');
+      }
+      
+      // Wait for fuel section elements to appear
+      try {
+        await page.waitForSelector('[id^="iteration-"]', { timeout: 5000 });
+        logger.info('Fuel section iterations loaded');
+        logger.info('Fuel section iterations loaded', 'FORM_PREP');
+      } catch (selectorError) {
+        logger.warn('Fuel section iterations not found, checking current URL');
+        logger.warn('Fuel section iterations not found, checking current URL', 'FORM_PREP');
+        
+        const currentUrl = page.url();
+        logger.info(`Current URL: ${currentUrl}`);
+        logger.info(`Current URL: ${currentUrl}`, 'FORM_PREP');
+        
+        // Check if we're still on the initial form page
+        if (!currentUrl.includes('/sections/')) {
+          logger.error('Failed to navigate to fuel sections - still on initial form page');
+          logger.error('Failed to navigate to fuel sections - still on initial form page', 'FORM_PREP');
+          
+          // Try clicking the button again
+          logger.info('Attempting to click Next button again...');
+          logger.info('Attempting to click Next button again...', 'FORM_PREP');
+          
+          try {
+            await page.click('a.next-section', { force: true });
+            await page.waitForLoadState('networkidle', { timeout: 10000 });
+            await page.waitForSelector('[id^="iteration-"]', { timeout: 5000 });
+            logger.info('Successfully navigated to fuel sections on second attempt');
+            logger.info('Successfully navigated to fuel sections on second attempt', 'FORM_PREP');
+          } catch (retryError) {
+            logger.error('Failed to navigate to fuel sections even after retry');
+            logger.error('Failed to navigate to fuel sections even after retry', 'FORM_PREP');
+            return false;
+          }
+        }
+      }
       
       // Load prover preferences from JSON file
       logger.info('Loading prover preferences...');
@@ -1385,7 +1573,22 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
           if (fuelType) {
             // Update status with progress information
             processedIterations++;
-            updateStatus('running', `Processing fuel type: ${fuelType} (${processedIterations}/${totalIterations}) - Dispenser #${dispenser.dispenserNumber || dispenser.title || 'Unknown'}`);
+            
+            // Update progress for this fuel grade
+            if (dispenserProgress && dispenserIndex !== null && dispenserProgress.dispensers[dispenserIndex]) {
+              const fuelGradeIndex = dispenserProgress.dispensers[dispenserIndex].fuelGrades.findIndex(
+                fg => fg.grade === fuelType || fg.grade.includes(fuelType)
+              );
+              
+              if (fuelGradeIndex !== -1) {
+                dispenserProgress.dispensers[dispenserIndex].fuelGrades[fuelGradeIndex].status = 'processing';
+                dispenserProgress.dispensers[dispenserIndex].fuelGrades[fuelGradeIndex].message = 'Filling form data';
+              }
+              
+              dispenserProgress.dispensers[dispenserIndex].currentAction = `Processing ${fuelType}`;
+            }
+            
+            updateStatus('running', `Processing fuel type: ${fuelType} (${processedIterations}/${totalIterations}) - Dispenser #${dispenser.dispenserNumber || dispenser.title || 'Unknown'}`, null, dispenserProgress);
             
             logger.info(`Processing fuel type: ${fuelType} (iteration ${currentIteration}, ${processedIterations}/${totalIterations})`);
             logger.info(`Processing fuel type: ${fuelType} (iteration ${currentIteration}, ${processedIterations}/${totalIterations})`, 'FORM_PREP');
@@ -1414,6 +1617,21 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
                 logger.info(`Saved form for fuel type: ${fuelType}`);
                 logger.info(`Saved form for fuel type: ${fuelType}`, 'FORM_PREP');
                 console.log(`Saved form for fuel type: ${fuelType}`);
+                
+                // Mark this fuel grade as completed
+                if (dispenserProgress && dispenserIndex !== null && dispenserProgress.dispensers[dispenserIndex]) {
+                  const fuelGradeIndex = dispenserProgress.dispensers[dispenserIndex].fuelGrades.findIndex(
+                    fg => fg.grade === fuelType || fg.grade.includes(fuelType)
+                  );
+                  
+                  if (fuelGradeIndex !== -1) {
+                    dispenserProgress.dispensers[dispenserIndex].fuelGrades[fuelGradeIndex].status = 'completed';
+                    dispenserProgress.dispensers[dispenserIndex].fuelGrades[fuelGradeIndex].message = 'Successfully saved';
+                  }
+                  
+                  updateStatus('running', `Saved ${fuelType}`, null, dispenserProgress);
+                }
+                
                 await page.waitForTimeout(1000); // Wait for save to complete
               } else {
                 logger.warn(`Save button not found for iteration ${currentIteration}`);
@@ -1442,7 +1660,7 @@ async function processAllFuelSections(page, dispenser, isSpecificDispensers = fa
       }
       
       // Update status with completion information
-      updateStatus('running', `Processed ${processedIterations}/${totalIterations} fuel sections, completing form`);
+      updateStatus('running', `Processed ${processedIterations}/${totalIterations} fuel sections, completing form`, null, dispenserProgress);
       
       logger.info(`=== COMPLETED MULTI-SECTION PROCESSING: Processed ${processedIterations}/${totalIterations} fuel sections ===`);
       console.log(`=== COMPLETED MULTI-SECTION PROCESSING: Processed ${processedIterations}/${totalIterations} fuel sections ===`);
@@ -2756,6 +2974,12 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
     let dispensersFound = false;
     let serviceCode = null;
     
+    // Initialize dispenserProgress early
+    let dispenserProgress = {
+      workOrderId: null,
+      dispensers: []
+    };
+    
     // Extract work order ID from the URL or passed workOrderId
     let workOrderIdFromUrl = workOrderId;
     if (!workOrderIdFromUrl) {
@@ -2822,6 +3046,7 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
     }
     
     logger.info(`Final work order ID for lookup: ${workOrderIdFromUrl}`);
+    
     updateStatus('running', 'Analyzing visit details...');
     
     // Step 1: Try to get service code and dispenser data from scraped_content.json
@@ -3122,8 +3347,39 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
       throw new Error(errorMessage);
     }
     
+    // Initialize dispenser progress for the entire visit
+    dispenserProgress = {
+      workOrderId: workOrderIdFromUrl,
+      dispensers: dispensers.map((dispenser, idx) => {
+        // Parse fuel grades
+        const fuelGrades = [];
+        if (dispenser.fields && dispenser.fields.Grade) {
+          const grades = dispenser.fields.Grade.split(',').map(g => g.trim());
+          grades.forEach(grade => {
+            fuelGrades.push({
+              grade: grade,
+              status: 'pending',
+              prover: null,
+              meter: null,
+              message: null
+            });
+          });
+        }
+        
+        return {
+          dispenserTitle: dispenser.title || 'Unknown',
+          dispenserNumber: dispenser.dispenserNumber || null,
+          formNumber: idx + 1,
+          totalForms: dispensers.length,
+          status: 'pending',
+          fuelGrades: fuelGrades,
+          currentAction: 'Waiting to process'
+        };
+      })
+    };
+    
     // Prepare forms
-    updateStatus('running', `Preparing ${formType} forms...`);
+    updateStatus('running', `Preparing ${formType} forms...`, null, dispenserProgress);
     const formsAdded = await prepareForm(page, dispensers, formCount, isSpecificDispensers, formType);
     
     if (!formsAdded) {
@@ -3150,8 +3406,8 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
     logger.info(`Found ${absoluteFormUrls.length} form URLs to fill`);
     
     // Fill form details
-    updateStatus('running', `Filling ${formType} form details...`);
-    const success = await fillFormDetails(page, absoluteFormUrls, dispensers, isSpecificDispensers, formType);
+    updateStatus('running', `Filling ${formType} form details...`, null, dispenserProgress);
+    const success = await fillFormDetails(page, absoluteFormUrls, dispensers, isSpecificDispensers, formType, dispenserProgress);
     
     if (!success) {
       // Check if the failure was due to cancellation
@@ -3163,20 +3419,20 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
     }
     
     // Update status
-    updateStatus('running', `Processing complete, closing browser...`);
+    updateStatus('running', `Processing complete, closing browser...`, null, dispenserProgress);
     
     return { success: true, message: `Visit processed successfully: ${visitUrl}`, jobId: currentJobId };
     
   } catch (error) {
     logger.error(`Error processing visit: ${error.message}`);
-    updateStatus('error', `Error processing visit: ${error.message}`);
+    updateStatus('error', `Error processing visit: ${error.message}`, null, dispenserProgress);
     return { success: false, message: `Error: ${error.message}`, jobId: currentJobId };
   } finally {
     if (browser) {
       // Close browser and update final status
       await browser.close();
       global.activeBrowser = null; // Clear the global reference
-      updateStatus('completed', `Successfully processed visit: ${visitUrl}`);
+      updateStatus('completed', `Successfully processed visit: ${visitUrl}`, null, dispenserProgress);
       
       // When job is complete (success or error), remove it from active jobs
       if (currentJobId === currentJobId) { // This check is redundant but kept for clarity
@@ -3360,8 +3616,41 @@ async function processBatch(filePath, headless = true, options = {}) {
         
         // Reset the current status to running before starting this visit
         updateStatus('running', `Processing visit for Work Order ${visit.id}`);
+        
+        // Initialize dispenser progress for this visit
+        const dispenserProgress = {
+          workOrderId: visit.id,
+          dispensers: visit.dispensers.map((dispenser, idx) => {
+            // Parse fuel grades
+            const fuelGrades = [];
+            if (dispenser.fields && dispenser.fields.Grade) {
+              const grades = dispenser.fields.Grade.split(',').map(g => g.trim());
+              grades.forEach(grade => {
+                fuelGrades.push({
+                  grade: grade,
+                  status: 'pending',
+                  prover: null,
+                  meter: null,
+                  message: null
+                });
+              });
+            }
+            
+            return {
+              dispenserTitle: dispenser.title || 'Unknown',
+              dispenserNumber: dispenser.dispenserNumber || null,
+              formNumber: idx + 1,
+              totalForms: visit.dispensers.length,
+              status: 'pending',
+              fuelGrades: fuelGrades,
+              currentAction: 'Waiting to process'
+            };
+          })
+        };
+        
         updateBatchStatus('running', `Processing visit ${i + 1}/${visitsToProcess.length}: Work Order ${visit.id}`, {
-          currentVisitStatus: `Processing visit for Work Order ${visit.id}`
+          currentVisitStatus: `Processing visit for Work Order ${visit.id}`,
+          dispenserProgress: dispenserProgress
         });
         
         // Prepare the form with dispenser data and form count
@@ -3398,7 +3687,8 @@ async function processBatch(filePath, headless = true, options = {}) {
           absoluteFormUrls, 
           visit.dispensers, 
           visit.isSpecificDispensers, 
-          visit.formType
+          visit.formType,
+          dispenserProgress
         );
         
         // Update completed count and store the completed visit ID
@@ -3479,6 +3769,7 @@ function getBatchStatus() {
     completedVisits: batchStatus.currentItem,
     currentVisit: batchStatus.currentItem > 0 ? `Visit ${batchStatus.currentItem}` : null,
     currentVisitStatus: batchStatus.message,
+    dispenserProgress: batchStatus.dispenserProgress, // Include dispenser progress
     startTime: batchStatus.startTime || new Date().toISOString(),
     lastStatusUpdate: new Date().toISOString()
   };

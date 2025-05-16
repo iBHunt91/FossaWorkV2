@@ -1,0 +1,1136 @@
+# System Architecture
+
+## Overview
+This document outlines the system architecture, component relationships, and technical design decisions.
+
+## Table of Contents
+1. [System Overview](#system-overview)
+2. [Component Architecture](#component-architecture)
+3. [Data Flow](#data-flow)
+4. [Integration Points](#integration-points)
+5. [Technical Decisions](#technical-decisions)
+
+## System Overview
+* High-level system description
+* System boundaries
+* Key components
+* System goals and constraints
+
+## Component Architecture
+* Component descriptions
+* Component relationships
+* Dependencies
+* Module boundaries
+
+### Form Automation System
+The form automation system is a key component that provides automated form filling functionality.
+
+#### Component Structure
+1. **React Frontend** (`FormPrep.tsx`)
+   - Provides user interface for selecting work orders
+   - Manages job status and updates UI accordingly
+   - Uses React's useEffect for polling job progress
+
+2. **IPC Communication Layer**
+   - Bridges React frontend with Electron background processes
+   - Sends automation commands and receives status updates
+
+3. **Browser Automation Engine**
+   - Runs in Electron background process
+   - Uses Playwright to control browser
+   - Handles form filling, navigation, and submission
+
+4. **Status Monitoring System**
+   - Provides real-time updates on automation progress
+   - Implements smart timeout detection to prevent stuck jobs
+   - Uses React's useEffect for consistent state management
+
+#### Associated Files
+| File | Description |
+|------|-------------|
+| `src/pages/FormPrep.tsx` | Main UI component for form automation |
+| `src/services/formService.ts` | Backend service that handles browser automation |
+| `src/api/formAutomationApi.ts` | API endpoints for status updates |
+| `src/electron/automation/browserHandler.js` | Electron process that manages Playwright |
+| `src/electron/ipc/automationIpc.js` | IPC communication for browser automation |
+| `src/types/workOrder.ts` | TypeScript interfaces for work order data |
+| `src/hooks/useFormAutomation.ts` | React hook for the automation functionality |
+| `data/prover_preferences.json` | JSON file storing prover-to-fuel type mappings |
+| `scripts/utils/prover_info.js` | Utility script for managing prover preferences |
+
+### Toast Notification System
+The toast notification system is a key UI component that provides temporary notifications to users.
+
+#### Component Structure
+1. **ToastContext** (`src/context/ToastContext.tsx`)
+   - Manages the global state of all toast notifications
+   - Handles toast lifecycle (creation, update, deletion)
+   - Provides methods for toast manipulation
+   - Implements automatic cleanup of expired toasts
+
+2. **Toast Component** (within ToastContext)
+   - Renders individual toast notifications
+   - Handles animations and styling
+   - Manages toast positioning and layout
+   - Supports different toast types with appropriate icons
+
+3. **useToastNotification Hook** (`src/hooks/useToastNotification.ts`)
+   - Provides a convenient API for components to create and manage toasts
+   - Includes standardized message formats for common operations
+   - Supports customization of duration, position, and duplicate prevention
+
+#### Data Flow
+1. Components call the `useToastNotification` hook
+2. Hook interacts with ToastContext to create/update/delete toasts
+3. ToastContext manages the state of all toasts
+4. Toast components render based on the context state
+
+#### Integration Points
+- Used by any component that needs to show notifications
+- Integrates with the theme system for styling
+- Works with the animation system for transitions
+- Supports dark mode and responsive design
+
+#### Toast Types
+- Success notifications (green)
+- Error notifications (red)
+- Warning notifications (amber)
+- Info notifications (blue)
+
+#### Features
+- Automatic cleanup of expired toasts
+- Duplicate prevention
+- Customizable duration
+- Multiple position options
+- Dark mode support
+- Backdrop blur effects
+- Smooth animations
+- Responsive design
+- Accessible markup
+
+### Monitoring System
+The monitoring system is responsible for tracking work order schedules and detecting changes.
+
+#### Component Structure
+1. **Main Electron Process** (`electron/main.js`)
+   - Acts as the central coordination point for the application
+   - Creates the system tray icon and context menu
+   - Manages the application lifecycle (startup, shutdown)
+   - Initializes the dashboard interface
+   - Sets up scheduled tasks to run the monitoring at regular intervals
+   - Handles automatic startup configuration
+
+2. **Server Component** (`server/server.js`)
+   - Provides API endpoints for the user interface to communicate with
+   - Coordinates the schedule monitoring process
+   - Handles credential management and authentication
+   - Processes job information and change detection
+   - Manages notification trigger events
+
+3. **Automated Scraping** (`scripts/automated_scrape.js`)
+   - Launches a headless browser using Playwright
+   - Logs into Fossa using stored credentials
+   - Navigates to the work order list page
+   - Extracts all job information
+   - Saves information as structured JSON data
+   - Runs on a scheduled basis (every hour by default)
+
+4. **Schedule Comparator** (`scripts/utils/scheduleComparator.js`)
+   - Contains the core logic for detecting changes
+   - Reads the most recent and previous schedule files
+   - Compares the two schedules to identify:
+     - Removed jobs (in previous but not current)
+     - Added jobs (in current but not previous)
+     - Job replacements (job swapped for a different one on same day)
+     - Date changes (same job with a different date)
+   - Categorizes changes by severity:
+     - Critical: Jobs removed or replaced
+     - High: Jobs added or dates changed
+     - Medium: Less important changes
+     - Low: Minor changes
+   - Generates a detailed report of all changes
+   - Saves the change report to a file for reference
+   - Implements smart job completion detection to avoid false removal alerts
+
+5. **Notification Service** (`scripts/notifications/notificationService.js`)
+   - Coordinates all notification methods
+   - Receives change information from the comparator
+   - Determines which notification methods to use
+   - Calls the specific notification handlers
+   - Supports multiple notification channels:
+     - Email notifications
+     - Pushover notifications
+     - System tray notifications
+
+#### Associated Files
+| File | Description |
+|------|-------------|
+| `electron/main.js` | Main Electron process |
+| `server/server.js` | Server component |
+| `scripts/automated_scrape.js` | Automated scraping |
+| `scripts/utils/scheduleComparator.js` | Schedule comparison |
+| `scripts/notifications/notificationService.js` | Notification service |
+| `scripts/email/emailService.js` | Email notifications |
+| `scripts/notifications/pushoverService.js` | Pushover notifications |
+| `scripts/utils/dataManager.js` | Data management |
+| `scripts/utils/logger.js` | Logging system |
+| `scripts/backup.js` | Backup system |
+
+#### Change Detection Logic
+The system uses a sophisticated change detection algorithm that:
+1. Compares current and previous schedules
+2. Identifies different types of changes:
+   - Job removals
+   - Job additions
+   - Job replacements
+   - Date changes
+3. Categorizes changes by severity
+4. Generates detailed change reports
+5. Implements smart completion detection to avoid false alerts
+
+#### Notification System
+The notification system supports multiple channels:
+1. **Email Notifications**
+   - HTML-formatted emails
+   - Color-coded sections for different change types
+   - Detailed information about each change
+   - Responsive design for mobile viewing
+
+2. **Pushover Notifications**
+   - Instant push notifications to mobile devices
+   - Different priority levels based on change severity
+   - Customizable sounds and alerts
+   - Clickable links to view more details
+
+3. **System Tray Notifications**
+   - Local notifications on the user's computer
+   - Quick access to change details
+   - Integration with the system tray icon
+
+### User Interface Architecture
+The application features a modern UI architecture with the following components:
+
+#### Navigation Structure
+The application has the following main navigation sections:
+
+1. **Dashboard** - Main data overview and system status
+2. **Filters Redesign** - Enhanced filter management with improved visualization
+3. **Form Prep** - Form preparation tools
+4. **Auto Fossa** - Automation controls
+5. **History** - Historical data and logs
+6. **Settings** - Redesigned application configuration with intuitive sidebar navigation
+
+#### UI Design Principles
+The application follows these UI design principles:
+
+- **Card-based layouts** - Clean, consistent card components for better information organization
+- **Sidebar navigation** - Intuitive sidebar navigation in key sections like Settings
+- **Enhanced interactivity** - Improved interactive elements with better state feedback
+- **Responsive design** - Fully responsive layouts that work on various screen sizes
+- **Dark mode support** - Complete dark mode implementation across all redesigned pages
+- **Consistent theming** - Unified color scheme and styling across the application
+- **Persistent navigation** - Fixed navigation controls in the dashboard to ensure users can always navigate between weeks regardless of data availability
+
+#### Data Tools Section
+The Data Tools section features a sophisticated, modern design that seamlessly integrates with the dashboard:
+
+1. **Time Information Panel**
+   - Elegantly designed card with subtle borders and shadows
+   - Interactive hover effects with animated underlines for each timestamp
+   - Clear separation between last updated and next update information
+   - Responsive layout that adapts to different screen sizes
+
+2. **Work Order Scraping Module**
+   - Premium card design with hover animations and subtle shadows
+   - Sophisticated button styling with gradient backgrounds and smooth transitions
+   - Advanced progress visualization:
+     - Animated progress bars with pulse effects
+     - Badge-style percentage indicators with color coding
+     - Custom loading spinners that match the brand color scheme
+     - Real-time status updates with elegant typography
+
+3. **Dispenser Data Scraping Module**
+   - Consistent design language with the Work Order section
+   - Color-coded elements that maintain the indigo theme for dispensers
+   - Enhanced error states with visually structured troubleshooting steps
+   - Action buttons with gradient backgrounds and shadow effects
+
+The Data Tools section exemplifies modern UI design principles:
+- Sophisticated micro-interactions that provide visual feedback
+- Layered design elements with proper elevation hierarchy
+- Strategic use of whitespace for improved readability
+- Refined animations that enhance the user experience without being distracting
+- Distinctive iconography presented in branded accent containers
+- Careful attention to typography with improved font weights and line spacing
+- Consistent border-radius treatments across elements
+- Optimized for both light and dark mode with proper contrast ratios
+
+## Data Flow
+### Multi-User Data Flow
+The application implements a robust data flow architecture to ensure each user sees only their own data:
+
+#### Work Order Data Flow
+```
+┌─────────────────┐     ┌──────────────────┐     ┌───────────────────┐
+│  User Directory │     │  API Middleware  │     │  React Components │
+│  data/users/    │     │  server/routes/  │     │  src/pages/       │
+└────────┬────────┘     └────────┬─────────┘     └─────────┬─────────┘
+         │                       │                         │
+         ▼                       ▼                         ▼
+┌────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│ User-specific  │      │ API endpoints   │      │ Home.tsx        │
+│ data files     │ ──► │ resolve active  │ ──► │ loads data for   │
+│ (JSON)         │      │ user's data     │      │ active user     │
+└────────────────┘      └─────────────────┘      └─────────────────┘
+```
+
+#### Active User Resolution
+1. The active user ID is stored in:
+   - `data/settings.json` on the server
+   - `localStorage` in the browser for persistence
+
+2. During application lifecycle events:
+   - **App Launch**: Active user is loaded from settings
+   - **User Switching**: Active user is updated in both settings and localStorage
+   - **API Requests**: Each request resolves the correct user's data path
+
+3. User switching triggers:
+   - Server-side update of active user
+   - Client-side storage update
+   - Custom event dispatch
+   - Application reload
+   - Work order reload for new user
+
+4. Error handling provides appropriate feedback when:
+   - No active user is set
+   - User data is missing
+   - Data files are corrupted
+   - Permissions prevent access to files
+
+5. **User Switching Flow Architecture**
+   ```
+   ┌───────────────┐     ┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
+   │ UI Components │     │ API Middleware   │     │ User Manager    │     │ Data Manager     │
+   │ (React)       │     │ (Express)        │     │ (NodeJS)        │     │ (NodeJS)         │
+   └───────┬───────┘     └────────┬─────────┘     └────────┬────────┘     └─────────┬────────┘
+           │                      │                        │                        │
+           │ User Initiates Switch│                        │                        │
+           │─────────────────────>│                        │                        │
+           │                      │                        │                        │
+           │                      │ Update Active User     │                        │
+           │                      │─────────────────────────>                       │
+           │                      │                        │ Update settings.json   │
+           │                      │                        │────────────────────────>
+           │                      │                        │                        │
+           │                      │                        │ Clear User Cache       │
+           │                      │                        │<───────────────────────
+           │                      │                        │                        │
+           │                      │ Return Success         │                        │
+           │<─────────────────────│<────────────────────────                       │
+           │                      │                        │                        │
+           │ Update localStorage  │                        │                        │
+           │───────────────────┐  │                        │                        │
+           │                   │  │                        │                        │
+           │ Dispatch Events   │  │                        │                        │
+           │───────────────────┘  │                        │                        │
+           │                      │                        │                        │
+           │ Reload Application   │                        │                        │
+           │───────────────────┐  │                        │                        │
+           │                   │  │                        │                        │
+           │ New Request Flow  │  │                        │                        │
+           ▼                   ▼  ▼                        ▼                        ▼
+   ```
+
+6. **Error Resilience Architecture**
+   - Atomic writes for `settings.json` updates (temp file + rename)
+   - Multiple verification points in the switching flow
+   - Extensive logging at key transition points
+   - Transaction-like pattern with commit/verify steps
+   - Graceful fallbacks for common error scenarios
+   - Clear user feedback for any errors in the process
+
+This architecture ensures data isolation between users while maintaining a seamless user experience with proper error handling and graceful fallbacks.
+
+### State Management
+
+## Integration Points
+* External systems
+* APIs
+* Services
+* Protocols
+
+## Technical Decisions
+* Design principles
+* Technology choices
+* Architecture trade-offs
+* Scalability considerations
+
+### ES Module Architecture
+The application uses ES Modules as its module system, specified by `"type": "module"` in package.json. This decision impacts several aspects of the application architecture:
+
+#### Module System
+- All JS files use ES module import/export syntax instead of CommonJS require()
+- Standard file extensions (.js) are used with ES Module syntax
+- Package.json includes `"type": "module"` to enable ES Module support
+
+#### Process Management
+- The application manages several Node.js processes and child processes
+- Child processes require specific flags for ES Module support:
+  - `--experimental-modules` enables ES module features
+  - `--es-module-specifier-resolution=node` allows imports without file extensions
+- Environment variables like `NODE_OPTIONS` propagate these flags to child processes
+
+#### Directory Structure
+The ES Module architecture affects how files reference each other:
+- Path resolution in ES modules uses `import.meta.url` pattern
+- `__dirname` and `__filename` are recreated with:
+  ```javascript
+  import { fileURLToPath } from 'url';
+  import { dirname } from 'path';
+  
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  ```
+
+#### Code Organization
+- Modules are organized to minimize circular dependencies
+- Import statements are kept at the top of files
+- Dynamic imports are used when needed for conditional loading
+- File paths in imports use relative paths within the codebase
+- External dependencies are imported directly by name
+
+### Form Automation System
+The form automation system is a key component that provides automated form filling functionality.
+
+#### Component Structure
+1. **React Frontend** (`FormPrep.tsx`)
+   - Provides user interface for selecting work orders
+   - Manages job status and updates UI accordingly
+   - Uses React's useEffect for polling job progress
+
+2. **IPC Communication Layer**
+   - Bridges React frontend with Electron background processes
+   - Sends automation commands and receives status updates
+
+3. **Browser Automation Engine**
+   - Runs in Electron background process
+   - Uses Playwright to control browser
+   - Handles form filling, navigation, and submission
+
+4. **Status Monitoring System**
+   - Provides real-time updates on automation progress
+   - Implements smart timeout detection to prevent stuck jobs
+   - Uses React's useEffect for consistent state management
+
+#### Associated Files
+| File | Description |
+|------|-------------|
+| `src/pages/FormPrep.tsx` | Main UI component for form automation |
+| `src/services/formService.ts` | Backend service that handles browser automation |
+| `src/api/formAutomationApi.ts` | API endpoints for status updates |
+| `src/electron/automation/browserHandler.js` | Electron process that manages Playwright |
+| `src/electron/ipc/automationIpc.js` | IPC communication for browser automation |
+| `src/types/workOrder.ts` | TypeScript interfaces for work order data |
+| `src/hooks/useFormAutomation.ts` | React hook for the automation functionality |
+| `data/prover_preferences.json` | JSON file storing prover-to-fuel type mappings |
+| `scripts/utils/prover_info.js` | Utility script for managing prover preferences |
+
+### Toast Notification System
+The toast notification system is a key UI component that provides temporary notifications to users.
+
+#### Component Structure
+1. **ToastContext** (`src/context/ToastContext.tsx`)
+   - Manages the global state of all toast notifications
+   - Handles toast lifecycle (creation, update, deletion)
+   - Provides methods for toast manipulation
+   - Implements automatic cleanup of expired toasts
+
+2. **Toast Component** (within ToastContext)
+   - Renders individual toast notifications
+   - Handles animations and styling
+   - Manages toast positioning and layout
+   - Supports different toast types with appropriate icons
+
+3. **useToastNotification Hook** (`src/hooks/useToastNotification.ts`)
+   - Provides a convenient API for components to create and manage toasts
+   - Includes standardized message formats for common operations
+   - Supports customization of duration, position, and duplicate prevention
+
+#### Data Flow
+1. Components call the `useToastNotification` hook
+2. Hook interacts with ToastContext to create/update/delete toasts
+3. ToastContext manages the state of all toasts
+4. Toast components render based on the context state
+
+#### Integration Points
+- Used by any component that needs to show notifications
+- Integrates with the theme system for styling
+- Works with the animation system for transitions
+- Supports dark mode and responsive design
+
+#### Toast Types
+- Success notifications (green)
+- Error notifications (red)
+- Warning notifications (amber)
+- Info notifications (blue)
+
+#### Features
+- Automatic cleanup of expired toasts
+- Duplicate prevention
+- Customizable duration
+- Multiple position options
+- Dark mode support
+- Backdrop blur effects
+- Smooth animations
+- Responsive design
+- Accessible markup
+
+### Monitoring System
+The monitoring system is responsible for tracking work order schedules and detecting changes.
+
+#### Component Structure
+1. **Main Electron Process** (`electron/main.js`)
+   - Acts as the central coordination point for the application
+   - Creates the system tray icon and context menu
+   - Manages the application lifecycle (startup, shutdown)
+   - Initializes the dashboard interface
+   - Sets up scheduled tasks to run the monitoring at regular intervals
+   - Handles automatic startup configuration
+
+2. **Server Component** (`server/server.js`)
+   - Provides API endpoints for the user interface to communicate with
+   - Coordinates the schedule monitoring process
+   - Handles credential management and authentication
+   - Processes job information and change detection
+   - Manages notification trigger events
+
+3. **Automated Scraping** (`scripts/automated_scrape.js`)
+   - Launches a headless browser using Playwright
+   - Logs into Fossa using stored credentials
+   - Navigates to the work order list page
+   - Extracts all job information
+   - Saves information as structured JSON data
+   - Runs on a scheduled basis (every hour by default)
+
+4. **Schedule Comparator** (`scripts/utils/scheduleComparator.js`)
+   - Contains the core logic for detecting changes
+   - Reads the most recent and previous schedule files
+   - Compares the two schedules to identify:
+     - Removed jobs (in previous but not current)
+     - Added jobs (in current but not previous)
+     - Job replacements (job swapped for a different one on same day)
+     - Date changes (same job with a different date)
+   - Categorizes changes by severity:
+     - Critical: Jobs removed or replaced
+     - High: Jobs added or dates changed
+     - Medium: Less important changes
+     - Low: Minor changes
+   - Generates a detailed report of all changes
+   - Saves the change report to a file for reference
+   - Implements smart job completion detection to avoid false removal alerts
+
+5. **Notification Service** (`scripts/notifications/notificationService.js`)
+   - Coordinates all notification methods
+   - Receives change information from the comparator
+   - Determines which notification methods to use
+   - Calls the specific notification handlers
+   - Supports multiple notification channels:
+     - Email notifications
+     - Pushover notifications
+     - System tray notifications
+
+#### Associated Files
+| File | Description |
+|------|-------------|
+| `electron/main.js` | Main Electron process |
+| `server/server.js` | Server component |
+| `scripts/automated_scrape.js` | Automated scraping |
+| `scripts/utils/scheduleComparator.js` | Schedule comparison |
+| `scripts/notifications/notificationService.js` | Notification service |
+| `scripts/email/emailService.js` | Email notifications |
+| `scripts/notifications/pushoverService.js` | Pushover notifications |
+| `scripts/utils/dataManager.js` | Data management |
+| `scripts/utils/logger.js` | Logging system |
+| `scripts/backup.js` | Backup system |
+
+#### Change Detection Logic
+The system uses a sophisticated change detection algorithm that:
+1. Compares current and previous schedules
+2. Identifies different types of changes:
+   - Job removals
+   - Job additions
+   - Job replacements
+   - Date changes
+3. Categorizes changes by severity
+4. Generates detailed change reports
+5. Implements smart completion detection to avoid false alerts
+
+#### Notification System
+The notification system supports multiple channels:
+1. **Email Notifications**
+   - HTML-formatted emails
+   - Color-coded sections for different change types
+   - Detailed information about each change
+   - Responsive design for mobile viewing
+
+2. **Pushover Notifications**
+   - Instant push notifications to mobile devices
+   - Different priority levels based on change severity
+   - Customizable sounds and alerts
+   - Clickable links to view more details
+
+3. **System Tray Notifications**
+   - Local notifications on the user's computer
+   - Quick access to change details
+   - Integration with the system tray icon
+
+### User Interface Architecture
+The application features a modern UI architecture with the following components:
+
+#### Navigation Structure
+The application has the following main navigation sections:
+
+1. **Dashboard** - Main data overview and system status
+2. **Filters Redesign** - Enhanced filter management with improved visualization
+3. **Form Prep** - Form preparation tools
+4. **Auto Fossa** - Automation controls
+5. **History** - Historical data and logs
+6. **Settings** - Redesigned application configuration with intuitive sidebar navigation
+
+#### UI Design Principles
+The application follows these UI design principles:
+
+- **Card-based layouts** - Clean, consistent card components for better information organization
+- **Sidebar navigation** - Intuitive sidebar navigation in key sections like Settings
+- **Enhanced interactivity** - Improved interactive elements with better state feedback
+- **Responsive design** - Fully responsive layouts that work on various screen sizes
+- **Dark mode support** - Complete dark mode implementation across all redesigned pages
+- **Consistent theming** - Unified color scheme and styling across the application
+- **Persistent navigation** - Fixed navigation controls in the dashboard to ensure users can always navigate between weeks regardless of data availability
+
+#### Data Tools Section
+The Data Tools section features a sophisticated, modern design that seamlessly integrates with the dashboard:
+
+1. **Time Information Panel**
+   - Elegantly designed card with subtle borders and shadows
+   - Interactive hover effects with animated underlines for each timestamp
+   - Clear separation between last updated and next update information
+   - Responsive layout that adapts to different screen sizes
+
+2. **Work Order Scraping Module**
+   - Premium card design with hover animations and subtle shadows
+   - Sophisticated button styling with gradient backgrounds and smooth transitions
+   - Advanced progress visualization:
+     - Animated progress bars with pulse effects
+     - Badge-style percentage indicators with color coding
+     - Custom loading spinners that match the brand color scheme
+     - Real-time status updates with elegant typography
+
+3. **Dispenser Data Scraping Module**
+   - Consistent design language with the Work Order section
+   - Color-coded elements that maintain the indigo theme for dispensers
+   - Enhanced error states with visually structured troubleshooting steps
+   - Action buttons with gradient backgrounds and shadow effects
+
+The Data Tools section exemplifies modern UI design principles:
+- Sophisticated micro-interactions that provide visual feedback
+- Layered design elements with proper elevation hierarchy
+- Strategic use of whitespace for improved readability
+- Refined animations that enhance the user experience without being distracting
+- Distinctive iconography presented in branded accent containers
+- Careful attention to typography with improved font weights and line spacing
+- Consistent border-radius treatments across elements
+- Optimized for both light and dark mode with proper contrast ratios
+
+## Data Flow
+### Multi-User Data Flow
+The application implements a robust data flow architecture to ensure each user sees only their own data:
+
+#### Work Order Data Flow
+```
+┌─────────────────┐     ┌──────────────────┐     ┌───────────────────┐
+│  User Directory │     │  API Middleware  │     │  React Components │
+│  data/users/    │     │  server/routes/  │     │  src/pages/       │
+└────────┬────────┘     └────────┬─────────┘     └─────────┬─────────┘
+         │                       │                         │
+         ▼                       ▼                         ▼
+┌────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│ User-specific  │      │ API endpoints   │      │ Home.tsx        │
+│ data files     │ ──► │ resolve active  │ ──► │ loads data for   │
+│ (JSON)         │      │ user's data     │      │ active user     │
+└────────────────┘      └─────────────────┘      └─────────────────┘
+```
+
+#### Active User Resolution
+1. The active user ID is stored in:
+   - `data/settings.json` on the server
+   - `localStorage` in the browser for persistence
+
+2. During application lifecycle events:
+   - **App Launch**: Active user is loaded from settings
+   - **User Switching**: Active user is updated in both settings and localStorage
+   - **API Requests**: Each request resolves the correct user's data path
+
+3. User switching triggers:
+   - Server-side update of active user
+   - Client-side storage update
+   - Custom event dispatch
+   - Application reload
+   - Work order reload for new user
+
+4. Error handling provides appropriate feedback when:
+   - No active user is set
+   - User data is missing
+   - Data files are corrupted
+   - Permissions prevent access to files
+
+5. **User Switching Flow Architecture**
+   ```
+   ┌───────────────┐     ┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
+   │ UI Components │     │ API Middleware   │     │ User Manager    │     │ Data Manager     │
+   │ (React)       │     │ (Express)        │     │ (NodeJS)        │     │ (NodeJS)         │
+   └───────┬───────┘     └────────┬─────────┘     └────────┬────────┘     └─────────┬────────┘
+           │                      │                        │                        │
+           │ User Initiates Switch│                        │                        │
+           │─────────────────────>│                        │                        │
+           │                      │                        │                        │
+           │                      │ Update Active User     │                        │
+           │                      │─────────────────────────>                       │
+           │                      │                        │ Update settings.json   │
+           │                      │                        │────────────────────────>
+           │                      │                        │                        │
+           │                      │                        │ Clear User Cache       │
+           │                      │                        │<───────────────────────
+           │                      │                        │                        │
+           │                      │ Return Success         │                        │
+           │<─────────────────────│<────────────────────────                       │
+           │                      │                        │                        │
+           │ Update localStorage  │                        │                        │
+           │───────────────────┐  │                        │                        │
+           │                   │  │                        │                        │
+           │ Dispatch Events   │  │                        │                        │
+           │───────────────────┘  │                        │                        │
+           │                      │                        │                        │
+           │ Reload Application   │                        │                        │
+           │───────────────────┐  │                        │                        │
+           │                   │  │                        │                        │
+           │ New Request Flow  │  │                        │                        │
+           ▼                   ▼  ▼                        ▼                        ▼
+   ```
+
+6. **Error Resilience Architecture**
+   - Atomic writes for `settings.json` updates (temp file + rename)
+   - Multiple verification points in the switching flow
+   - Extensive logging at key transition points
+   - Transaction-like pattern with commit/verify steps
+   - Graceful fallbacks for common error scenarios
+   - Clear user feedback for any errors in the process
+
+This architecture ensures data isolation between users while maintaining a seamless user experience with proper error handling and graceful fallbacks.
+
+### State Management
+
+## Integration Points
+* External systems
+* APIs
+* Services
+* Protocols
+
+## Technical Decisions
+* Design principles
+* Technology choices
+* Architecture trade-offs
+* Scalability considerations
+
+### ES Module Architecture
+The application uses ES Modules as its module system, specified by `"type": "module"` in package.json. This decision impacts several aspects of the application architecture:
+
+#### Module System
+- All JS files use ES module import/export syntax instead of CommonJS require()
+- Standard file extensions (.js) are used with ES Module syntax
+- Package.json includes `"type": "module"` to enable ES Module support
+
+#### Process Management
+- The application manages several Node.js processes and child processes
+- Child processes require specific flags for ES Module support:
+  - `--experimental-modules` enables ES module features
+  - `--es-module-specifier-resolution=node` allows imports without file extensions
+- Environment variables like `NODE_OPTIONS` propagate these flags to child processes
+
+#### Directory Structure
+The ES Module architecture affects how files reference each other:
+- Path resolution in ES modules uses `import.meta.url` pattern
+- `__dirname` and `__filename` are recreated with:
+  ```javascript
+  import { fileURLToPath } from 'url';
+  import { dirname } from 'path';
+  
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  ```
+
+#### Code Organization
+- Modules are organized to minimize circular dependencies
+- Import statements are kept at the top of files
+- Dynamic imports are used when needed for conditional loading
+- File paths in imports use relative paths within the codebase
+- External dependencies are imported directly by name
+
+### Form Automation System
+The form automation system is a key component that provides automated form filling functionality.
+
+#### Component Structure
+1. **React Frontend** (`FormPrep.tsx`)
+   - Provides user interface for selecting work orders
+   - Manages job status and updates UI accordingly
+   - Uses React's useEffect for polling job progress
+
+2. **IPC Communication Layer**
+   - Bridges React frontend with Electron background processes
+   - Sends automation commands and receives status updates
+
+3. **Browser Automation Engine**
+   - Runs in Electron background process
+   - Uses Playwright to control browser
+   - Handles form filling, navigation, and submission
+
+4. **Status Monitoring System**
+   - Provides real-time updates on automation progress
+   - Implements smart timeout detection to prevent stuck jobs
+   - Uses React's useEffect for consistent state management
+
+#### Associated Files
+| File | Description |
+|------|-------------|
+| `src/pages/FormPrep.tsx` | Main UI component for form automation |
+| `src/services/formService.ts` | Backend service that handles browser automation |
+| `src/api/formAutomationApi.ts` | API endpoints for status updates |
+| `src/electron/automation/browserHandler.js` | Electron process that manages Playwright |
+| `src/electron/ipc/automationIpc.js` | IPC communication for browser automation |
+| `src/types/workOrder.ts` | TypeScript interfaces for work order data |
+| `src/hooks/useFormAutomation.ts` | React hook for the automation functionality |
+| `data/prover_preferences.json` | JSON file storing prover-to-fuel type mappings |
+| `scripts/utils/prover_info.js` | Utility script for managing prover preferences |
+
+### Toast Notification System
+The toast notification system is a key UI component that provides temporary notifications to users.
+
+#### Component Structure
+1. **ToastContext** (`src/context/ToastContext.tsx`)
+   - Manages the global state of all toast notifications
+   - Handles toast lifecycle (creation, update, deletion)
+   - Provides methods for toast manipulation
+   - Implements automatic cleanup of expired toasts
+
+2. **Toast Component** (within ToastContext)
+   - Renders individual toast notifications
+   - Handles animations and styling
+   - Manages toast positioning and layout
+   - Supports different toast types with appropriate icons
+
+3. **useToastNotification Hook** (`src/hooks/useToastNotification.ts`)
+   - Provides a convenient API for components to create and manage toasts
+   - Includes standardized message formats for common operations
+   - Supports customization of duration, position, and duplicate prevention
+
+#### Data Flow
+1. Components call the `useToastNotification` hook
+2. Hook interacts with ToastContext to create/update/delete toasts
+3. ToastContext manages the state of all toasts
+4. Toast components render based on the context state
+
+#### Integration Points
+- Used by any component that needs to show notifications
+- Integrates with the theme system for styling
+- Works with the animation system for transitions
+- Supports dark mode and responsive design
+
+#### Toast Types
+- Success notifications (green)
+- Error notifications (red)
+- Warning notifications (amber)
+- Info notifications (blue)
+
+#### Features
+- Automatic cleanup of expired toasts
+- Duplicate prevention
+- Customizable duration
+- Multiple position options
+- Dark mode support
+- Backdrop blur effects
+- Smooth animations
+- Responsive design
+- Accessible markup
+
+### Monitoring System
+The monitoring system is responsible for tracking work order schedules and detecting changes.
+
+#### Component Structure
+1. **Main Electron Process** (`electron/main.js`)
+   - Acts as the central coordination point for the application
+   - Creates the system tray icon and context menu
+   - Manages the application lifecycle (startup, shutdown)
+   - Initializes the dashboard interface
+   - Sets up scheduled tasks to run the monitoring at regular intervals
+   - Handles automatic startup configuration
+
+2. **Server Component** (`server/server.js`)
+   - Provides API endpoints for the user interface to communicate with
+   - Coordinates the schedule monitoring process
+   - Handles credential management and authentication
+   - Processes job information and change detection
+   - Manages notification trigger events
+
+3. **Automated Scraping** (`scripts/automated_scrape.js`)
+   - Launches a headless browser using Playwright
+   - Logs into Fossa using stored credentials
+   - Navigates to the work order list page
+   - Extracts all job information
+   - Saves information as structured JSON data
+   - Runs on a scheduled basis (every hour by default)
+
+4. **Schedule Comparator** (`scripts/utils/scheduleComparator.js`)
+   - Contains the core logic for detecting changes
+   - Reads the most recent and previous schedule files
+   - Compares the two schedules to identify:
+     - Removed jobs (in previous but not current)
+     - Added jobs (in current but not previous)
+     - Job replacements (job swapped for a different one on same day)
+     - Date changes (same job with a different date)
+   - Categorizes changes by severity:
+     - Critical: Jobs removed or replaced
+     - High: Jobs added or dates changed
+     - Medium: Less important changes
+     - Low: Minor changes
+   - Generates a detailed report of all changes
+   - Saves the change report to a file for reference
+   - Implements smart job completion detection to avoid false removal alerts
+
+5. **Notification Service** (`scripts/notifications/notificationService.js`)
+   - Coordinates all notification methods
+   - Receives change information from the comparator
+   - Determines which notification methods to use
+   - Calls the specific notification handlers
+   - Supports multiple notification channels:
+     - Email notifications
+     - Pushover notifications
+     - System tray notifications
+
+#### Associated Files
+| File | Description |
+|------|-------------|
+| `electron/main.js` | Main Electron process |
+| `server/server.js` | Server component |
+| `scripts/automated_scrape.js` | Automated scraping |
+| `scripts/utils/scheduleComparator.js` | Schedule comparison |
+| `scripts/notifications/notificationService.js` | Notification service |
+| `scripts/email/emailService.js` | Email notifications |
+| `scripts/notifications/pushoverService.js` | Pushover notifications |
+| `scripts/utils/dataManager.js` | Data management |
+| `scripts/utils/logger.js` | Logging system |
+| `scripts/backup.js` | Backup system |
+
+#### Change Detection Logic
+The system uses a sophisticated change detection algorithm that:
+1. Compares current and previous schedules
+2. Identifies different types of changes:
+   - Job removals
+   - Job additions
+   - Job replacements
+   - Date changes
+3. Categorizes changes by severity
+4. Generates detailed change reports
+5. Implements smart completion detection to avoid false alerts
+
+#### Notification System
+The notification system supports multiple channels:
+1. **Email Notifications**
+   - HTML-formatted emails
+   - Color-coded sections for different change types
+   - Detailed information about each change
+   - Responsive design for mobile viewing
+
+2. **Pushover Notifications**
+   - Instant push notifications to mobile devices
+   - Different priority levels based on change severity
+   - Customizable sounds and alerts
+   - Clickable links to view more details
+
+3. **System Tray Notifications**
+   - Local notifications on the user's computer
+   - Quick access to change details
+   - Integration with the system tray icon
+
+### User Interface Architecture
+The application features a modern UI architecture with the following components:
+
+#### Navigation Structure
+The application has the following main navigation sections:
+
+1. **Dashboard** - Main data overview and system status
+2. **Filters Redesign** - Enhanced filter management with improved visualization
+3. **Form Prep** - Form preparation tools
+4. **Auto Fossa** - Automation controls
+5. **History** - Historical data and logs
+6. **Settings** - Redesigned application configuration with intuitive sidebar navigation
+
+#### UI Design Principles
+The application follows these UI design principles:
+
+- **Card-based layouts** - Clean, consistent card components for better information organization
+- **Sidebar navigation** - Intuitive sidebar navigation in key sections like Settings
+- **Enhanced interactivity** - Improved interactive elements with better state feedback
+- **Responsive design** - Fully responsive layouts that work on various screen sizes
+- **Dark mode support** - Complete dark mode implementation across all redesigned pages
+- **Consistent theming** - Unified color scheme and styling across the application
+- **Persistent navigation** - Fixed navigation controls in the dashboard to ensure users can always navigate between weeks regardless of data availability
+
+#### Data Tools Section
+The Data Tools section features a sophisticated, modern design that seamlessly integrates with the dashboard:
+
+1. **Time Information Panel**
+   - Elegantly designed card with subtle borders and shadows
+   - Interactive hover effects with animated underlines for each timestamp
+   - Clear separation between last updated and next update information
+   - Responsive layout that adapts to different screen sizes
+
+2. **Work Order Scraping Module**
+   - Premium card design with hover animations and subtle shadows
+   - Sophisticated button styling with gradient backgrounds and smooth transitions
+   - Advanced progress visualization:
+     - Animated progress bars with pulse effects
+     - Badge-style percentage indicators with color coding
+     - Custom loading spinners that match the brand color scheme
+     - Real-time status updates with elegant typography
+
+3. **Dispenser Data Scraping Module**
+   - Consistent design language with the Work Order section
+   - Color-coded elements that maintain the indigo theme for dispensers
+   - Enhanced error states with visually structured troubleshooting steps
+   - Action buttons with gradient backgrounds and shadow effects
+
+The Data Tools section exemplifies modern UI design principles:
+- Sophisticated micro-interactions that provide visual feedback
+- Layered design elements with proper elevation hierarchy
+- Strategic use of whitespace for improved readability
+- Refined animations that enhance the user experience without being distracting
+- Distinctive iconography presented in branded accent containers
+- Careful attention to typography with improved font weights and line spacing
+- Consistent border-radius treatments across elements
+- Optimized for both light and dark mode with proper contrast ratios
+
+## Data Flow
+### Multi-User Data Flow
+The application implements a robust data flow architecture to ensure each user sees only their own data:
+
+#### Work Order Data Flow
+```
+┌─────────────────┐     ┌──────────────────┐     ┌───────────────────┐
+│  User Directory │     │  API Middleware  │     │  React Components │
+│  data/users/    │     │  server/routes/  │     │  src/pages/       │
+└────────┬────────┘     └────────┬─────────┘     └─────────┬─────────┘
+         │                       │                         │
+         ▼                       ▼                         ▼
+┌────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│ User-specific  │      │ API endpoints   │      │ Home.tsx        │
+│ data files     │ ──► │ resolve active  │ ──► │ loads data for   │
+│ (JSON)         │      │ user's data     │      │ active user     │
+└────────────────┘      └─────────────────┘      └─────────────────┘
+```
+
+#### Active User Resolution
+1. The active user ID is stored in:
+   - `data/settings.json` on the server
+   - `localStorage` in the browser for persistence
+
+2. During application lifecycle events:
+   - **App Launch**: Active user is loaded from settings
+   - **User Switching**: Active user is updated in both settings and localStorage
+   - **API Requests**: Each request resolves the correct user's data path
+
+3. User switching triggers:
+   - Server-side update of active user
+   - Client-side storage update
+   - Custom event dispatch
+   - Application reload
+   - Work order reload for new user
+
+4. Error handling provides appropriate feedback when:
+   - No active user is set
+   - User data is missing
+   - Data files are corrupted
+   - Permissions prevent access to files
+
+5. **User Switching Flow Architecture**
+   ```
+   ┌───────────────┐     ┌──────────────────┐     ┌─────────────────┐     ┌──────────────────┐
+   │ UI Components │     │ API Middleware   │     │ User Manager    │     │ Data Manager     │
+   │ (React)       │     │ (Express)        │     │ (NodeJS)        │     │ (NodeJS)         │
+   └───────┬───────┘     └────────┬─────────┘     └────────┬────────┘     └─────────┬────────┘
+           │                      │                        │                        │
+           │ User Initiates Switch│                        │                        │
+           │─────────────────────>│                        │                        │
+           │                      │                        │                        │
+           │                      │ Update Active User     │                        │
+           │                      │─────────────────────────>                       │
+           │                      │                        │ Update settings.json   │
+           │                      │                        │────────────────────────>
+           │                      │                        │                        │
+           │                      │                        │ Clear User Cache       │
+           │                      │                        │<───────────────────────
+           │                      │                        │                        │
+           │                      │ Return Success         │                        │
+           │<─────────────────────│<────────────────────────                       │
+           │                      │                        │                        │
+           │ Update localStorage  │                        │                        │
+           │───────────────────┐  │                        │                        │
+           │                   │  │                        │                        │
+           │ Dispatch Events   │  │                        │                        │
+           │───────────────────┘  │                        │                        │
+           │                      │                        │                        │
+           │ Reload Application   │                        │                        │
+           │───────────────────┐  │                        │                        │
+           │                   │  │                        │                        │
+           │ New Request Flow  │  │                        │                        │
+           ▼                   ▼  ▼                        ▼                        ▼
+   ```
+
+6. **Error Resilience Architecture**
+   - Atomic writes for `settings.json` updates (temp file + rename)
+   - Multiple verification points in the switching flow
+   - Extensive logging at key transition points
+   - Transaction-like pattern with commit/verify steps
+   - Graceful fallbacks for common error scenarios
+   - Clear user feedback for any errors in the process
+
+This architecture ensures data isolation between users while maintaining a seamless user experience with proper error handling and graceful fallbacks.
+
+### State Management
+
+## Integration Points
+* External systems
+* APIs
+* Services
+* Protocols
+
+## Security
+* Security architecture
+* Authentication
+* Authorization
+* Data protection
+
+## Scalability
+* Scaling strategies
+* Performance considerations
+* Resource management
+* Load balancing
+
+# Pushover Notification Architecture
+
+- User settings for Pushover notifications are limited to job field display preferences.
+- Priority and sound for Pushover notifications are determined by the backend logic:
+  - Normal changes: priority 0, default sound
+  - Critical changes: priority 1, 'falling' sound
+  - 3+ critical changes: priority 2 (emergency), 'siren' sound
+- There are no user-configurable options for priority or sound.
+- The backend does not store or process priorityLevel or sound in pushover settings. 

@@ -1,0 +1,115 @@
+{
+  "workOrders": [
+    {
+      "id": "W-126753",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#33105",
+        "address": {
+          "street": "3629 East SR 60  Valrico FL 33594 Hillsborough County",
+          "intersection": "3629 East SR 60",
+          "cityState": "Valrico FL 33594",
+          "county": "Hillsborough County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/43622/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/07/2025",
+          "time": "anytime",
+          "url": "/app/work/126753/visits/128742/",
+          "visitId": "128742"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault."
+    },
+    {
+      "id": "W-126686",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#38193",
+        "address": {
+          "street": "3141 Ronald Reagan Pkwy Ronald Reagan & Pine Tree Trail Davenport FL 33896 Polk County",
+          "intersection": "3141 Ronald Reagan Pkwy",
+          "cityState": "Ronald Reagan & Pine Tree Trail",
+          "county": "Davenport FL 33896"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/46627/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/08/2025",
+          "time": "anytime",
+          "url": "/app/work/126686/visits/128675/",
+          "visitId": "128675"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault."
+    },
+    {
+      "id": "W-126705",
+      "customer": {
+        "name": "7-Eleven Stores, Inc",
+        "storeNumber": "#40350",
+        "address": {
+          "street": "5790 34th Street North  St Petersburg FL 33714 Pinellas County",
+          "intersection": "5790 34th Street North",
+          "cityState": "St Petersburg FL 33714",
+          "county": "Pinellas County"
+        },
+        "storeUrl": "https://app.workfossa.com/app/customers/locations/45589/"
+      },
+      "services": [
+        {
+          "type": "Combo",
+          "quantity": 1,
+          "description": "7-11 Calibration Services",
+          "code": "CAL-SERV"
+        },
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "All Dispensers",
+          "code": "2861"
+        }
+      ],
+      "visits": {
+        "nextVisit": {
+          "date": "05/12/2025",
+          "time": "anytime",
+          "url": "/app/work/126705/visits/128694/",
+          "visitId": "128694"
+        }
+      },
+      "instructions": "Calibrate all dispensers and change filters. Refer to the filter specification list for the proper filter. Put calibration Stickers on the inner side of dispenser uprights, take fuel samples, and take photos. Be sure to upload the photos to the Accumeasure Site Survey in the Vault."
+    }
+  ]
+} 

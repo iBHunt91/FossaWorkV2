@@ -1,0 +1,39 @@
+{
+  "batches": [
+    {
+      "id": "TUTORIAL-BATCH-001",
+      "timestamp": "2025-05-10T10:00:00.000Z",
+      "status": "completed",
+      "description": "Daily data sync",
+      "details": "This shows a completed batch operation. The system tracks automated processes.",
+      "tutorial": true
+    },
+    {
+      "id": "TUTORIAL-BATCH-002",
+      "timestamp": "2025-05-11T10:00:00.000Z",
+      "status": "completed",
+      "description": "Daily data sync",
+      "details": "Regular data synchronization ensures your information is up to date.",
+      "tutorial": true
+    },
+    {
+      "id": "TUTORIAL-BATCH-003",
+      "timestamp": "2025-05-12T10:00:00.000Z",
+      "status": "failed",
+      "description": "Daily data sync",
+      "error": "Connection timeout",
+      "details": "Failed operations are highlighted so you can troubleshoot issues.",
+      "tutorial": true
+    },
+    {
+      "id": "TUTORIAL-BATCH-004",
+      "timestamp": "2025-05-13T10:00:00.000Z",
+      "status": "completed",
+      "description": "Daily data sync",
+      "details": "The system automatically retries failed operations.",
+      "tutorial": true
+    }
+  ],
+  "lastUpdated": "2025-05-13T16:55:00.000Z",
+  "isTutorial": true
+} 

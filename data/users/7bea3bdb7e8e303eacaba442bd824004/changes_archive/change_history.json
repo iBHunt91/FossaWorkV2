@@ -1,0 +1,73 @@
+[
+  {
+    "timestamp": "2025-05-16T15:00:14.631Z",
+    "changes": {
+      "allChanges": [
+        {
+          "type": "removed",
+          "jobId": "W-126770",
+          "store": "#33272",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Brandon, FL",
+          "address": {
+            "street": "1531 East Brandon Boulevard  Brandon FL 33511 Hillsborough County",
+            "intersection": "1531 East Brandon Boulevard",
+            "cityState": "Brandon FL 33511",
+            "county": "Hillsborough County"
+          },
+          "date": "05/16/2025"
+        }
+      ],
+      "summary": {
+        "removed": 1,
+        "added": 0,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  },
+  {
+    "timestamp": "2025-05-07T19:00:32.356Z",
+    "changes": {
+      "allChanges": [
+        {
+          "type": "removed",
+          "jobId": "W-126753",
+          "store": "#33105",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 6,
+          "location": "Valrico, FL",
+          "address": {
+            "street": "3629 East SR 60  Valrico FL 33594 Hillsborough County",
+            "intersection": "3629 East SR 60",
+            "cityState": "Valrico FL 33594",
+            "county": "Hillsborough County"
+          },
+          "date": "05/07/2025"
+        },
+        {
+          "type": "removed",
+          "jobId": "W-126686",
+          "store": "#38193",
+          "storeName": "7-Eleven Stores, Inc",
+          "dispensers": 8,
+          "location": "Ronald, Reagan",
+          "address": {
+            "street": "3141 Ronald Reagan Pkwy Ronald Reagan & Pine Tree Trail Davenport FL 33896 Polk County",
+            "intersection": "3141 Ronald Reagan Pkwy",
+            "cityState": "Ronald Reagan & Pine Tree Trail",
+            "county": "Davenport FL 33896"
+          },
+          "date": "05/08/2025"
+        }
+      ],
+      "summary": {
+        "removed": 2,
+        "added": 0,
+        "modified": 0,
+        "swapped": 0
+      }
+    }
+  }
+]

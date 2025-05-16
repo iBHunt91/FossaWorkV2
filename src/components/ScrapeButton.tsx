@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiDownload, FiRefreshCw, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
-import { startScrapeJob, getScrapeStatus, ScrapeStatus } from '../services/scrapeService';
+import { startScrapeJob, getScrapeStatus, ScrapeStatus, testServerConnection } from '../services/scrapeService';
 
 const ScrapeButton: React.FC = () => {
   const [status, setStatus] = useState<ScrapeStatus>({
@@ -105,6 +105,18 @@ const ScrapeButton: React.FC = () => {
         message: 'Preparing to collect service appointments...',
         error: null
       });
+      
+      // Try to find the server first
+      const testResult = await testServerConnection();
+      if (!testResult.success) {
+        setStatus({
+          status: 'error',
+          progress: 0,
+          message: 'Could not connect to the server. Please make sure the server is running.',
+          error: 'Server connection failed'
+        });
+        return;
+      }
       
       await startScrapeJob();
       

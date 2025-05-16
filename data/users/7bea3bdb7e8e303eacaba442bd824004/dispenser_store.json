@@ -1,1259 +1,5 @@
 {
   "dispenserData": {
-    "W-110174": {
-      "visitId": "VISIT-112075",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Diesel, Ethanol-Free Gasoline Plus, Super - Gilbarco",
-          "serial": "en00022035",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL3",
-          "fields": {
-            "Grade": "Regular, Plus, Diesel, Ethanol-Free Gasoline Plus, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "efen424525",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "efen424528",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Diesel, Ethanol-Free Gasoline Plus, Super - Gilbarco",
-          "serial": "en00022032",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL3",
-          "fields": {
-            "Grade": "Regular, Plus, Diesel, Ethanol-Free Gasoline Plus, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Diesel, Ethanol-Free Gasoline Plus, Super - Gilbarco",
-          "serial": "en00022034",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL3",
-          "fields": {
-            "Grade": "Regular, Plus, Diesel, Ethanol-Free Gasoline Plus, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "efen424526",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "efen424527",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "15/16 - Regular, Plus, Diesel, Ethanol-Free Gasoline Plus, Super - Gilbarco",
-          "serial": "en00022033",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL3",
-          "fields": {
-            "Grade": "Regular, Plus, Diesel, Ethanol-Free Gasoline Plus, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-04-24T23:04:33.985Z"
-    },
-    "W-126867": {
-      "visitId": "VISIT-128856",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "0",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "0",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-04-24T23:04:41.378Z"
-    },
-    "W-126670": {
-      "visitId": "VISIT-128659",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00052268",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "EN00052272",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00052270",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00052267",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00052271",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00052266",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00052269",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "15/16 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "EN00052273",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-04-24T23:04:46.498Z"
-    },
-    "W-129815": {
-      "visitId": "VISIT-131815",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "ASEN119808",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "ACEN119809",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-04-24T23:04:55.419Z"
-    },
-    "W-126676": {
-      "visitId": "VISIT-128665",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "441800",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "441798",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "441802",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "1212",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": ""
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "441799",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "441797",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "441801",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-04-24T23:05:00.318Z"
-    },
-    "W-126866": {
-      "visitId": "VISIT-128855",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:36:39.059Z"
-    },
-    "W-110185": {
-      "visitId": "VISIT-112086",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium, Ethanol-Free Gasoline Plus, Super - Gilbarco",
-          "serial": "LCEN328867",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ethanol-Free Gasoline Plus, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "LCEN328302",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "LCEN328323",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "LCEN328399",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium, Ethanol-Free Gasoline Plus, Super - Gilbarco",
-          "serial": "LCEN328872",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ethanol-Free Gasoline Plus, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "LCEN328297",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "LCEN328412",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "15/16 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "LCEN328398",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-04-24T23:05:10.299Z"
-    },
-    "W-110189": {
-      "visitId": "VISIT-112090",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium, Ethanol-Free Gasoline Plus, Super - Gilbarco",
-          "serial": "geen385798",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ethanol-Free Gasoline Plus, Super",
-            "Stand Alone Code": "",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium, Ethanol-Free Gasoline Plus, Super - Gilbarco",
-          "serial": "geen385802",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ethanol-Free Gasoline Plus, Super",
-            "Stand Alone Code": "",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "geen",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "GEEN385801",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "geen385799",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "geen385797",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium, Diesel, Super - Gilbarco",
-          "serial": "geen385800",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel, Super",
-            "Stand Alone Code": "",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-04-24T23:05:15.331Z"
-    },
-    "W-126753": {
-      "visitId": "VISIT-128742",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "en00036583",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2222",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "en00036584",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "en00036579",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "en00036580",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "1212",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "en00036582",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "en00036581",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "1212",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:36:29.418Z"
-    },
-    "W-126772": {
-      "visitId": "VISIT-128761",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00036451",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00036447",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00036449",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00036450",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "V",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00036448",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:38:44.006Z"
-    },
-    "W-126705": {
-      "visitId": "VISIT-128694",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium, Ultra, Diesel - Gilbarco",
-          "serial": "FAEN252680",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium, Ultra - Gilbarco",
-          "serial": "FAEN252677",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium, Ultra - Gilbarco",
-          "serial": "FAEN252676",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium, Ultra - Gilbarco",
-          "serial": "FAEN252678",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium, Ultra, Diesel - Gilbarco",
-          "serial": "FAEN252681",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium, Ultra - Gilbarco",
-          "serial": "EAEN252679",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:36:43.897Z"
-    },
-    "W-126761": {
-      "visitId": "VISIT-128750",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "DFEN420513",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "DFEN420510",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "DFEN420514",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "DFEN420515",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "dfen420517",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "DFEN420516",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium - Gilbarco",
-          "serial": "DFEN420512",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "15/16 - Regular, Plus, Premium - Gilbarco",
-          "serial": "dfen4205111",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:36:48.721Z"
-    },
-    "W-126694": {
-      "visitId": "VISIT-128683",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "EN443294",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium, Ethanol-Free Gasoline Plus - Gilbarco",
-          "serial": "EN00033244",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ethanol-Free Gasoline Plus",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN443291",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN443292",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium, Ethanol-Free Gasoline Plus - Gilbarco",
-          "serial": "EN00033243",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ethanol-Free Gasoline Plus",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "EN443293",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:36:53.504Z"
-    },
-    "W-126729": {
-      "visitId": "VISIT-128718",
-      "dispensers": [
-        {
-          "title": "1/2 - Diesel - Gilbarco",
-          "serial": "301162",
-          "make": "Make: Gilbarco",
-          "model": "Model: NAO",
-          "fields": {
-            "Grade": "Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "154942",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2294",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "154939",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2294",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "154937",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2294",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "154941",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2222",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "154940",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2294",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium - Gilbarco",
-          "serial": "154938",
-          "make": "Make: Gilbarco",
-          "model": "Model: AC4921",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2294",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Mechanical"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:36:58.324Z"
-    },
-    "W-126770": {
-      "visitId": "VISIT-128759",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "ENOO036152",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "ENOO036152",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "ENOO036150",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00036148",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "ENOO036149",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "ENOO036151",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:37:03.060Z"
-    },
     "W-126723": {
       "visitId": "VISIT-128712",
       "dispensers": [
@@ -1330,7 +76,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:07.851Z"
+      "lastUpdated": "2025-05-16T15:13:45.475Z"
     },
     "W-126758": {
       "visitId": "VISIT-128747",
@@ -1433,7 +179,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:12.628Z"
+      "lastUpdated": "2025-05-16T15:13:50.800Z"
     },
     "W-126750": {
       "visitId": "VISIT-128739",
@@ -1543,7 +289,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:17.378Z"
+      "lastUpdated": "2025-05-16T15:13:56.216Z"
     },
     "W-126666": {
       "visitId": "VISIT-128655",
@@ -1621,7 +367,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:22.084Z"
+      "lastUpdated": "2025-05-16T15:14:01.619Z"
     },
     "W-126675": {
       "visitId": "VISIT-128664",
@@ -1679,714 +425,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:26.832Z"
-    },
-    "W-126680": {
-      "visitId": "VISIT-128669",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Super Premium - Gilbarco",
-          "serial": "EN00035866",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Diesel, Super Premium - Gilbarco",
-          "serial": "EN000149312",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Diesel, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Super Premium - Gilbarco",
-          "serial": "EN00035863",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Super Premium - Gilbarco",
-          "serial": "EN00035867",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Super Premium - Gilbarco",
-          "serial": "EN00035865",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Diesel, Super Premium - Gilbarco",
-          "serial": "EN000149313",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Diesel, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:38:15.399Z"
-    },
-    "W-126748": {
-      "visitId": "VISIT-128737",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "HEEN388253",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "HEEN388250",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "HEEN388249",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "HEEN388251",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "HEEN388246",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "HEEN388248",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium - Gilbarco",
-          "serial": "HEEN388247",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "15/16 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "HEEN388252",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:38:01.102Z"
-    },
-    "W-121101": {
-      "visitId": "VISIT-123056",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "en00149642",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Midgrade 89, Super Premium, Diesel - Gilbarco",
-          "serial": "EN00149645",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": ""
-          }
-        },
-        {
-          "title": "5/6 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN149641",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00149637",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00149640 B",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00149643",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00149638",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": ""
-          }
-        },
-        {
-          "title": "15/16 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00149639",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": ""
-          }
-        },
-        {
-          "title": "17/18 - Regular, Midgrade 89, Super Premium - Gilbarco",
-          "serial": "EN00149636",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "19/20 - Regular, Midgrade 89, Super Premium, Diesel - Gilbarco",
-          "serial": "EN00149644",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Midgrade 89, Super Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": ""
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:37:51.440Z"
-    },
-    "W-126766": {
-      "visitId": "VISIT-128755",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "PA063365",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2535",
-            "Number of Nozzles (per side)": "3",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "PA009648",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2222",
-            "Number of Nozzles (per side)": "3",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "PA002364",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2222",
-            "Number of Nozzles (per side)": "3",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "PA063364",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2222",
-            "Number of Nozzles (per side)": "3",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "PA009649",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2222",
-            "Number of Nozzles (per side)": "3",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "PA063363",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2535",
-            "Number of Nozzles (per side)": "3",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium - Gilbarco",
-          "serial": "PA002788",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2222",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "15/16 - Regular, Plus, Premium - Gilbarco",
-          "serial": "PA002789",
-          "make": "Make: Gilbarco",
-          "model": "Model: Advantage",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "2222",
-            "Number of Nozzles (per side)": "3",
-            "Meter Type": "Mechanical"
-          }
-        },
-        {
-          "title": "17/18 - Diesel - Gilbarco",
-          "serial": "PA018899",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Diesel",
-            "Stand Alone Code": "2535",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "Mechanical"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:38:05.843Z"
-    },
-    "W-126745": {
-      "visitId": "VISIT-128734",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium, Ultra, Diesel - Gilbarco",
-          "serial": "DXEN219588",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium, Ultra - Gilbarco",
-          "serial": "DXEN219906",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium, Ultra - Gilbarco",
-          "serial": "DXEN219304",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium, Ultra - Gilbarco",
-          "serial": "DXEN219905",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium, Ultra, Diesel - Gilbarco",
-          "serial": "BXEN219907",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL2",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Ultra, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:37:56.332Z"
-    },
-    "W-131308": {
-      "visitId": "VISIT-133330",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "kcen326495",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
-          "serial": "kcen326466",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "kcen326492",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "kcen326467",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "9 - DEF, Diesel High Flow - Gilbarco",
-          "serial": "EN00021476",
-          "make": "Make: Gilbarco",
-          "model": "Model: NPA",
-          "fields": {
-            "Grade": "DEF, Diesel High Flow",
-            "Stand Alone Code": "8557",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "10 - DEF, Diesel High Flow - Gilbarco",
-          "serial": "EN00082758",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "DEF, Diesel High Flow",
-            "Stand Alone Code": "8557",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        },
-        {
-          "title": "11 - DEF, Diesel High Flow - Gilbarco",
-          "serial": "EN00082757",
-          "make": "Make: Gilbarco",
-          "model": "Model: NPB",
-          "fields": {
-            "Grade": "DEF, Diesel High Flow",
-            "Stand Alone Code": "8557",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "Electronic"
-          }
-        }
-      ],
-      "lastUpdated": "2025-04-28T22:36:18.688Z"
-    },
-    "W-126686": {
-      "visitId": "VISIT-128675",
-      "dispensers": [
-        {
-          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00013474",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "3/4 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "EN00013476",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00013471",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00013469",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00013470",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00013473",
-          "make": "Make: Gilbarco",
-          "model": "",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": ""
-          }
-        },
-        {
-          "title": "13/14 - Regular, Plus, Premium - Gilbarco",
-          "serial": "EN00013472",
-          "make": "Make: Gilbarco",
-          "model": "Model: NN1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "1",
-            "Meter Type": "HD Meter"
-          }
-        },
-        {
-          "title": "15/16 - Regular, Plus, Premium, Diesel - Gilbarco",
-          "serial": "EN00013475",
-          "make": "Make: Gilbarco",
-          "model": "Model: NL1",
-          "fields": {
-            "Grade": "Regular, Plus, Premium, Diesel",
-            "Stand Alone Code": "0128",
-            "Number of Nozzles (per side)": "2",
-            "Meter Type": "HD Meter"
-          }
-        }
-      ],
-      "lastUpdated": "2025-05-06T23:36:34.260Z"
+      "lastUpdated": "2025-05-16T15:14:06.875Z"
     },
     "W-110154": {
       "visitId": "VISIT-112055",
@@ -2488,7 +527,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:31.723Z"
+      "lastUpdated": "2025-05-16T15:14:12.542Z"
     },
     "W-129660": {
       "visitId": "VISIT-131659",
@@ -2598,7 +637,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:36.511Z"
+      "lastUpdated": "2025-05-16T15:14:17.964Z"
     },
     "W-110193": {
       "visitId": "VISIT-112094",
@@ -2724,7 +763,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:41.492Z"
+      "lastUpdated": "2025-05-16T15:14:23.614Z"
     },
     "W-126803": {
       "visitId": "VISIT-128792",
@@ -2850,7 +889,434 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:37:46.660Z"
+      "lastUpdated": "2025-05-16T15:14:29.068Z"
+    },
+    "W-126745": {
+      "visitId": "VISIT-128734",
+      "dispensers": [
+        {
+          "title": "1/2 - Regular, Plus, Premium, Ultra, Diesel - Gilbarco",
+          "serial": "DXEN219588",
+          "make": "Make: Gilbarco",
+          "model": "Model: NL2",
+          "fields": {
+            "Grade": "Regular, Plus, Premium, Ultra, Diesel",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "2",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Electronic"
+          }
+        },
+        {
+          "title": "3/4 - Regular, Plus, Premium, Ultra - Gilbarco",
+          "serial": "DXEN219906",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN2",
+          "fields": {
+            "Grade": "Regular, Plus, Premium, Ultra",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Electronic"
+          }
+        },
+        {
+          "title": "5/6 - Regular, Plus, Premium, Ultra - Gilbarco",
+          "serial": "DXEN219304",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN2",
+          "fields": {
+            "Grade": "Regular, Plus, Premium, Ultra",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Electronic"
+          }
+        },
+        {
+          "title": "7/8 - Regular, Plus, Premium, Ultra - Gilbarco",
+          "serial": "DXEN219905",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN2",
+          "fields": {
+            "Grade": "Regular, Plus, Premium, Ultra",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Electronic"
+          }
+        },
+        {
+          "title": "9/10 - Regular, Plus, Premium, Ultra, Diesel - Gilbarco",
+          "serial": "BXEN219907",
+          "make": "Make: Gilbarco",
+          "model": "Model: NL2",
+          "fields": {
+            "Grade": "Regular, Plus, Premium, Ultra, Diesel",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "2",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Electronic"
+          }
+        }
+      ],
+      "lastUpdated": "2025-05-16T15:14:34.289Z"
+    },
+    "W-121101": {
+      "visitId": "VISIT-123056",
+      "dispensers": [
+        {
+          "title": "1/2 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "en00149642",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "3/4 - Regular, Midgrade 89, Super Premium, Diesel - Gilbarco",
+          "serial": "EN00149645",
+          "make": "Make: Gilbarco",
+          "model": "",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium, Diesel",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "2",
+            "Meter Type": ""
+          }
+        },
+        {
+          "title": "5/6 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN149641",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "7/8 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00149637",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "9/10 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00149640 B",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "11/12 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00149643",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "13/14 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00149638",
+          "make": "Make: Gilbarco",
+          "model": "",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": ""
+          }
+        },
+        {
+          "title": "15/16 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00149639",
+          "make": "Make: Gilbarco",
+          "model": "",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": ""
+          }
+        },
+        {
+          "title": "17/18 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00149636",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "19/20 - Regular, Midgrade 89, Super Premium, Diesel - Gilbarco",
+          "serial": "EN00149644",
+          "make": "Make: Gilbarco",
+          "model": "",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium, Diesel",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "2",
+            "Meter Type": ""
+          }
+        }
+      ],
+      "lastUpdated": "2025-05-16T15:14:39.736Z"
+    },
+    "W-126748": {
+      "visitId": "VISIT-128737",
+      "dispensers": [
+        {
+          "title": "1/2 - Regular, Plus, Premium, Diesel - Gilbarco",
+          "serial": "HEEN388253",
+          "make": "Make: Gilbarco",
+          "model": "Model: NL1",
+          "fields": {
+            "Grade": "Regular, Plus, Premium, Diesel",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "2",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
+          "serial": "HEEN388250",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
+          "serial": "HEEN388249",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
+          "serial": "HEEN388251",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
+          "serial": "HEEN388246",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
+          "serial": "HEEN388248",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "13/14 - Regular, Plus, Premium - Gilbarco",
+          "serial": "HEEN388247",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "15/16 - Regular, Plus, Premium, Diesel - Gilbarco",
+          "serial": "HEEN388252",
+          "make": "Make: Gilbarco",
+          "model": "Model: NL1",
+          "fields": {
+            "Grade": "Regular, Plus, Premium, Diesel",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "2",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        }
+      ],
+      "lastUpdated": "2025-05-16T15:14:45.108Z"
+    },
+    "W-126766": {
+      "visitId": "VISIT-128755",
+      "dispensers": [
+        {
+          "title": "1/2 - Regular, Plus, Premium - Gilbarco",
+          "serial": "PA063365",
+          "make": "Make: Gilbarco",
+          "model": "Model: Advantage",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "2535",
+            "Number of Nozzles (per side)": "3",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Mechanical"
+          }
+        },
+        {
+          "title": "3/4 - Regular, Plus, Premium - Gilbarco",
+          "serial": "PA009648",
+          "make": "Make: Gilbarco",
+          "model": "Model: Advantage",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "2222",
+            "Number of Nozzles (per side)": "3",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Mechanical"
+          }
+        },
+        {
+          "title": "5/6 - Regular, Plus, Premium - Gilbarco",
+          "serial": "PA002364",
+          "make": "Make: Gilbarco",
+          "model": "Model: Advantage",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "2222",
+            "Number of Nozzles (per side)": "3",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Mechanical"
+          }
+        },
+        {
+          "title": "7/8 - Regular, Plus, Premium - Gilbarco",
+          "serial": "PA063364",
+          "make": "Make: Gilbarco",
+          "model": "Model: Advantage",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "2222",
+            "Number of Nozzles (per side)": "3",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Mechanical"
+          }
+        },
+        {
+          "title": "9/10 - Regular, Plus, Premium - Gilbarco",
+          "serial": "PA009649",
+          "make": "Make: Gilbarco",
+          "model": "Model: Advantage",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "2222",
+            "Number of Nozzles (per side)": "3",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Mechanical"
+          }
+        },
+        {
+          "title": "11/12 - Regular, Plus, Premium - Gilbarco",
+          "serial": "PA063363",
+          "make": "Make: Gilbarco",
+          "model": "Model: Advantage",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "2535",
+            "Number of Nozzles (per side)": "3",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "Mechanical"
+          }
+        },
+        {
+          "title": "13/14 - Regular, Plus, Premium - Gilbarco",
+          "serial": "PA002788",
+          "make": "Make: Gilbarco",
+          "model": "Model: Advantage",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "2222",
+            "Number of Nozzles (per side)": "3",
+            "Meter Type": "Mechanical"
+          }
+        },
+        {
+          "title": "15/16 - Regular, Plus, Premium - Gilbarco",
+          "serial": "PA002789",
+          "make": "Make: Gilbarco",
+          "model": "Model: Advantage",
+          "fields": {
+            "Grade": "Regular, Plus, Premium",
+            "Stand Alone Code": "2222",
+            "Number of Nozzles (per side)": "3",
+            "Meter Type": "Mechanical"
+          }
+        },
+        {
+          "title": "17/18 - Diesel - Gilbarco",
+          "serial": "PA018899",
+          "make": "Make: Gilbarco",
+          "model": "",
+          "fields": {
+            "Grade": "Diesel",
+            "Stand Alone Code": "2535",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "Mechanical"
+          }
+        }
+      ],
+      "lastUpdated": "2025-05-16T15:14:50.464Z"
     },
     "W-129685": {
       "visitId": "VISIT-131684",
@@ -2934,7 +1400,91 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:10.560Z"
+      "lastUpdated": "2025-05-16T15:14:55.744Z"
+    },
+    "W-126680": {
+      "visitId": "VISIT-128669",
+      "dispensers": [
+        {
+          "title": "1/2 - Regular, Plus, Super Premium - Gilbarco",
+          "serial": "EN00035866",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "3/4 - Regular, Plus, Diesel, Super Premium - Gilbarco",
+          "serial": "EN000149312",
+          "make": "Make: Gilbarco",
+          "model": "Model: NL1",
+          "fields": {
+            "Grade": "Regular, Plus, Diesel, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "2",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "5/6 - Regular, Plus, Super Premium - Gilbarco",
+          "serial": "EN00035863",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "7/8 - Regular, Plus, Super Premium - Gilbarco",
+          "serial": "EN00035867",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "9/10 - Regular, Plus, Super Premium - Gilbarco",
+          "serial": "EN00035865",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Plus, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "11/12 - Regular, Plus, Diesel, Super Premium - Gilbarco",
+          "serial": "EN000149313",
+          "make": "Make: Gilbarco",
+          "model": "Model: NL1",
+          "fields": {
+            "Grade": "Regular, Plus, Diesel, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "2",
+            "NTEP / COC #": "02-19A29 (All Gilbarco including High-Flow)",
+            "Meter Type": "HD Meter"
+          }
+        }
+      ],
+      "lastUpdated": "2025-05-16T15:15:01.230Z"
     },
     "W-126764": {
       "visitId": "VISIT-128753",
@@ -3044,7 +1594,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:20.128Z"
+      "lastUpdated": "2025-05-16T15:15:06.856Z"
     },
     "W-129643": {
       "visitId": "VISIT-131642",
@@ -3154,7 +1704,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:24.868Z"
+      "lastUpdated": "2025-05-16T15:15:12.632Z"
     },
     "W-126781": {
       "visitId": "VISIT-128770",
@@ -3232,7 +1782,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:29.670Z"
+      "lastUpdated": "2025-05-16T15:15:18.074Z"
     },
     "W-126774": {
       "visitId": "VISIT-128763",
@@ -3334,7 +1884,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:34.405Z"
+      "lastUpdated": "2025-05-16T15:15:23.487Z"
     },
     "W-126785": {
       "visitId": "VISIT-128774",
@@ -3418,7 +1968,85 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:39.234Z"
+      "lastUpdated": "2025-05-16T15:15:29.128Z"
+    },
+    "W-126772": {
+      "visitId": "VISIT-128761",
+      "dispensers": [
+        {
+          "title": "1/2 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00036451",
+          "make": "Make: Gilbarco",
+          "model": "",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "3/4 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00036447",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "5/6 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00036449",
+          "make": "Make: Gilbarco",
+          "model": "",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "7/8 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00036450",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "9/10 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "V",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        },
+        {
+          "title": "11/12 - Regular, Midgrade 89, Super Premium - Gilbarco",
+          "serial": "EN00036448",
+          "make": "Make: Gilbarco",
+          "model": "Model: NN1",
+          "fields": {
+            "Grade": "Regular, Midgrade 89, Super Premium",
+            "Stand Alone Code": "0128",
+            "Number of Nozzles (per side)": "1",
+            "Meter Type": "HD Meter"
+          }
+        }
+      ],
+      "lastUpdated": "2025-05-16T15:15:34.931Z"
     },
     "W-126765": {
       "visitId": "VISIT-128754",
@@ -3520,7 +2148,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:48.767Z"
+      "lastUpdated": "2025-05-16T15:15:40.324Z"
     },
     "W-126767": {
       "visitId": "VISIT-128756",
@@ -3598,7 +2226,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:53.599Z"
+      "lastUpdated": "2025-05-16T15:15:45.938Z"
     },
     "W-132222": {
       "visitId": "VISIT-134247",
@@ -3670,7 +2298,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:38:58.408Z"
+      "lastUpdated": "2025-05-16T15:15:51.252Z"
     },
     "W-126736": {
       "visitId": "VISIT-128725",
@@ -3754,7 +2382,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:03.170Z"
+      "lastUpdated": "2025-05-16T15:15:56.920Z"
     },
     "W-110272": {
       "visitId": "VISIT-112173",
@@ -3856,7 +2484,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:08.092Z"
+      "lastUpdated": "2025-05-16T15:16:02.809Z"
     },
     "W-110234": {
       "visitId": "VISIT-112135",
@@ -3958,7 +2586,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:13.003Z"
+      "lastUpdated": "2025-05-16T15:16:08.442Z"
     },
     "W-110306": {
       "visitId": "VISIT-112207",
@@ -4060,7 +2688,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:17.961Z"
+      "lastUpdated": "2025-05-16T15:16:14.107Z"
     },
     "W-110266": {
       "visitId": "VISIT-112167",
@@ -4144,7 +2772,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:22.948Z"
+      "lastUpdated": "2025-05-16T15:16:19.533Z"
     },
     "W-94641": {
       "visitId": "VISIT-96475",
@@ -4228,7 +2856,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:27.759Z"
+      "lastUpdated": "2025-05-16T15:16:25.077Z"
     },
     "W-131156": {
       "visitId": "VISIT-133176",
@@ -4322,7 +2950,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:32.819Z"
+      "lastUpdated": "2025-05-16T15:16:30.549Z"
     },
     "W-110295": {
       "visitId": "VISIT-112196",
@@ -4424,7 +3052,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:37.709Z"
+      "lastUpdated": "2025-05-16T15:16:36.326Z"
     },
     "W-110288": {
       "visitId": "VISIT-112189",
@@ -4526,7 +3154,7 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:42.625Z"
+      "lastUpdated": "2025-05-16T15:16:42.226Z"
     },
     "W-126730": {
       "visitId": "VISIT-128719",
@@ -4610,12 +3238,12 @@
           }
         }
       ],
-      "lastUpdated": "2025-05-06T23:39:47.376Z"
+      "lastUpdated": "2025-05-16T15:16:47.895Z"
     }
   },
   "metadata": {
-    "created": "2025-04-24T18:57:47.783Z",
-    "lastUpdated": "2025-05-06T23:39:47.376Z",
-    "totalStores": 50
+    "lastUpdated": "2025-05-16T15:16:47.895Z",
+    "reset": true,
+    "totalStores": 34
   }
 }

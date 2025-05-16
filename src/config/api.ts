@@ -51,7 +51,21 @@ export const getPortSync = (): number => {
  * @returns Promise that resolves to the port number
  */
 export const getPort = async (): Promise<number> => {
-  // If we already have a cached port, return it
+  // Always get fresh port in development to avoid stale cache
+  if (isDev) {
+    try {
+      const port = await getServerPort();
+      cachedPort = port;
+      console.log('Retrieved server port:', port);
+      return port;
+    } catch (error) {
+      console.error('Error getting port:', error);
+      console.log('Using default port: 3001');
+      return 3001;
+    }
+  }
+  
+  // In production, use cache if available
   if (cachedPort !== null) {
     return Promise.resolve(cachedPort);
   }

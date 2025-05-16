@@ -1,0 +1,11 @@
+# Task ID: 6
+# Title: Add Batch Stop Functionality
+# Status: pending
+# Dependencies: 3, 4
+# Priority: high
+# Description: Allow users to stop an ongoing batch process and receive information about where it was halted.
+# Details:
+Add a 'Stop Processing' button. Abort current visit automation immediately. Display persistent message and toast notification with the stopped Visit ID.
+
+# Test Strategy:
+Manual and automated UI tests for stop button and notification. Unit tests for process interruption logic.

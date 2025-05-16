@@ -19,7 +19,7 @@ import formAutomationRouter from './routes/formAutomation.js';
 import userRouter from './routes/users.js';
 import circleKRouter from './routes/circleK.js';
 import { getActiveUser, getUserCredentials, listUsers, resolveUserFilePath } from './utils/userManager.js';
-import { debug, info, warn, error, success } from './utils/logger.js';
+import { debug, info, warn, error, success, readServerLog, getServerLogPath, clearServerLog } from './utils/logger.js';
 import { requestLogger, errorHandler, notFoundHandler, sanitizeRequest } from './utils/middlewares.js';
 import { maskSensitiveEnv } from './utils/security.js';
 import { EventEmitter } from 'events';
@@ -203,11 +203,50 @@ info('Log entries initialized:', 'SERVER');
 debug(`Dispenser logs: ${scrapeJobLogs.dispenser.length}, Work order logs: ${scrapeJobLogs.workOrder.length}`, 'LOGS');
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or local dev)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000', 
+      'http://localhost:3001',
+      'http://localhost:6173'
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log('CORS rejected origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
 app.use(express.json());
 app.use(sanitizeRequest); // Add sanitization middleware
 app.use(requestLogger); // Add request logging middleware
 app.use(express.static(path.join(__dirname, '../client/dist')));
+app.use('/data', express.static(path.join(__dirname, '../data'))); // Serve files from data directory
+app.use('/data', express.static(path.join(__dirname, '../data'))); // Add data directory serving
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`=== Incoming request ===`);
+  console.log(`Method: ${req.method}`);
+  console.log(`URL: ${req.url}`);
+  console.log(`Path: ${req.path}`);
+  console.log(`Base URL: ${req.baseUrl}`);
+  console.log(`Original URL: ${req.originalUrl}`);
+  console.log(`Headers:`, req.headers);
+  console.log(`=== End request info ===`);
+  next();
+});
 
 // Routes
 app.use('/api', router);
@@ -219,6 +258,43 @@ app.use('/api/circle-k', circleKRouter);
 // Simple test route
 app.get('/api/ping', (req, res) => {
   res.json({ message: 'API server is running!' });
+});
+
+app.get('/api/server-logs', (req, res) => {
+  try {
+    const maxLines = req.query.maxLines ? parseInt(req.query.maxLines, 10) : 100;
+    const logs = readServerLog(maxLines);
+    
+    res.json({
+      success: true,
+      logs,
+      filePath: getServerLogPath()
+    });
+  } catch (error) {
+    console.error('Error retrieving server logs:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Clear server logs
+app.post('/api/clear-server-logs', (req, res) => {
+  try {
+    clearServerLog();
+    
+    res.json({
+      success: true,
+      message: 'Server logs cleared successfully'
+    });
+  } catch (error) {
+    console.error('Error clearing server logs:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 // Health check endpoint

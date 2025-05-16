@@ -1,0 +1,118 @@
+# Development Status
+
+## Overview
+This document tracks the current development status, progress, and issues of the project.
+
+## Table of Contents
+1. [Current Status](#current-status)
+2. [Progress Tracking](#progress-tracking)
+3. [Issues & Blockers](#issues--blockers)
+4. [Recent Updates](#recent-updates)
+5. [Next Steps](#next-steps)
+
+## Current Status
+* Version 1.0 Multi-User implementation complete
+* Bruce Hunt user successfully migrated to new multi-user system
+* Core features working across all user accounts
+* Ready for general use with multiple Fossa accounts
+
+## Progress Tracking
+### Completed Features
+* Multi-user account system with per-user data storage
+* User-specific data files (work orders, dispensers, settings)
+* User migration scripts for both general and Bruce Hunt-specific data
+* User management UI for adding, editing, and switching between users
+* Active user display in sidebar for easy reference
+
+### In-Progress Work
+* Further UI refinements for multi-user functionality
+* Automated user data backups
+* Enhanced error handling for user-specific operations
+
+### Upcoming Tasks
+* User permission system (admin vs. standard users)
+* Notification preferences per user
+* Shared data across users when appropriate
+
+## Issues & Blockers
+* No major blockers currently identified
+* Minor UI adjustments may be needed for ideal multi-user experience
+
+## Recent Updates
+
+### Standardized Notification Formatting - June 10, 2025
+- **Added**: Centralized notification formatting service for consistent appearance across all channels
+- **Improved**: HTML generation for both email and Pushover notifications using a single source of truth
+- **Enhanced**: Date formatting standardization throughout the application
+- **Fixed**: Inconsistencies between email and Pushover notification formats
+- **Added**: Comprehensive tests for notification formatting verification
+
+The application now correctly:
+- Uses a single standardized format for all schedule change notifications
+- Maintains consistent styling and information display across channels
+- Properly formats dates and times in a standard way
+- Respects user display preferences uniformly across all notification types
+- Can be updated in a single location to change formatting for all notification types
+
+### ES Module Compatibility Fix - June 5, 2025
+- **Fixed**: "Require is not defined" error in dispenser rescrape functionality
+- **Updated**: All utility modules to consistently use ES module imports instead of CommonJS require()
+- **Improved**: Node.js subprocess execution with proper ES module flags
+- **Enhanced**: Technical documentation with ES module best practices
+- **Added**: Proper environment variable configuration for child processes
+
+The application now correctly:
+- Handles ES module compatibility across all server and utility scripts
+- Properly executes child processes with ES module support
+- Maintains consistent module import/export patterns throughout the codebase
+- Provides better reliability for dispenser data rescraping operations
+
+### User Work Order Display Improvements - May 30, 2025
+- **Fixed**: Work orders now correctly display for the active user on the home page
+- **Fixed**: User switching properly refreshes displayed work orders
+- **Fixed**: Work orders are correctly loaded during app launch for the active user
+- **Fixed**: Improved error handling when no user is selected or when user data is missing
+- **Improved**: API endpoints now provide better error messages and user feedback
+- **Enhanced**: User switching mechanism now properly triggers data reload with custom events
+
+The application now correctly:
+- Ensures that only the active user's work orders are displayed on the home page
+- Handles user switching with proper data refresh and state management
+- Displays appropriate loading and error states when work order data is unavailable
+- Includes detailed error messages when user data can't be found
+
+### User-Specific Data Improvements - April 25, 2025
+- **Fixed**: Last updated timestamp now properly shows user-specific data in the sidebar
+- **Fixed**: Data refresh operations now correctly update the "Last updated" time
+- **Fixed**: silentReload now loads data from user-specific API endpoints instead of direct file paths
+- **Updated**: Documentation to include detailed requirements for working with user-specific data
+- **Added**: Event listener for 'fossa-data-updated' in LastScrapedTime component to ensure refresh after data changes
+
+The application now correctly:
+- Displays user-specific timestamps in the UI
+- Updates timestamps when data is refreshed manually or automatically
+- Switches to displaying the appropriate user's data timestamps when switching between users
+
+* Added Bruce Hunt user with migration script for settings/preferences
+* Successfully migrated prover preferences to Bruce's account
+* Implemented user-specific data file structure
+* Updated server to use active user's credentials for operations
+* Fixed email, pushover settings migration for Bruce's account
+* Improved Prover Preferences UI with Rescrape button and better dropdown styling
+* Enhanced fuel type selection interface for better usability
+
+## Next Steps
+* Implement automated tests for multi-user functionality
+* Create detailed documentation for managing multiple users
+* Add user analytics to track usage patterns
+* Enhance backup system to support multi-user environment
+
+## Team Status
+* Development team fully engaged with multi-user implementation
+* QA team beginning testing of multi-user functionality
+* Documentation team updating guides to reflect multi-user support
+
+## 2024-05-XX
+- Removed Pushover priority level and sound settings from both UI and backend.
+- Pushover notifications now only allow configuration of job field display preferences.
+- Priority and sound are determined automatically by the backend based on change severity. 

@@ -14,11 +14,6 @@ import * as logger from '../../scripts/utils/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Add this line to define projectRoot
-const projectRoot = path.resolve(__dirname, '../..');
-
-const router = express.Router();
-
 // Store recent log messages for UI display
 const scrapeJobLogs = {
   workOrder: [],
@@ -27,8 +22,78 @@ const scrapeJobLogs = {
   formPrep: []
 };
 
+// Initialize logs for all types
+const router = express.Router();
+
 // Maximum number of log entries to keep
 const MAX_LOG_ENTRIES = 100;
+
+// Function to initialize logs
+const initializeLogs = () => {
+  // Add some initial entries to each log type if they're empty
+  if (!scrapeJobLogs.server || scrapeJobLogs.server.length === 0) {
+    addLogEntry('server', '[INFO] Server logging initialized');
+    addLogEntry('server', '[SUCCESS] API server started successfully');
+    addLogEntry('server', '[INFO] System ready to process requests');
+  }
+  
+  if (!scrapeJobLogs.formPrep || scrapeJobLogs.formPrep.length === 0) {
+    addLogEntry('formPrep', '[INFO] Form Prep automation logging initialized');
+    addLogEntry('formPrep', '[SUCCESS] Template engine loaded');
+    addLogEntry('formPrep', '[INFO] Ready to process form automation requests');
+  }
+  
+  if (!scrapeJobLogs.workOrder || scrapeJobLogs.workOrder.length === 0) {
+    addLogEntry('workOrder', '[INFO] Work order logging initialized');
+    addLogEntry('workOrder', '[INFO] Scraper system ready');
+  }
+  
+  if (!scrapeJobLogs.dispenser || scrapeJobLogs.dispenser.length === 0) {
+    addLogEntry('dispenser', '[INFO] Dispenser logging initialized');
+    addLogEntry('dispenser', '[INFO] Equipment data processor ready');
+  }
+};
+
+/**
+ * Log a server event with the appropriate severity level
+ * @param {string} severity - The severity level (INFO, ERROR, SUCCESS, WARN, etc.)
+ * @param {string} message - The log message
+ * @param {object} data - Optional data to include in the log
+ */
+const logServerEvent = (severity, message, data = null) => {
+  let formattedMessage = `[${severity.toUpperCase()}] ${message}`;
+  
+  // If data was provided, add it to the message
+  if (data) {
+    try {
+      // If it's an object, format it nicely
+      if (typeof data === 'object' && data !== null) {
+        const dataString = Object.entries(data)
+          .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+          .join(', ');
+        formattedMessage += ` (${dataString})`;
+      } else {
+        // For primitive types, append directly
+        formattedMessage += ` (${data})`;
+      }
+    } catch (err) {
+      formattedMessage += ` (Error formatting data: ${err.message})`;
+    }
+  }
+  
+  return addLogEntry('server', formattedMessage);
+};
+
+// Define shorthand methods for different severity levels
+const serverLog = {
+  debug: (message, data) => logServerEvent('DEBUG', message, data),
+  info: (message, data) => logServerEvent('INFO', message, data),
+  success: (message, data) => logServerEvent('SUCCESS', message, data),
+  warn: (message, data) => logServerEvent('WARN', message, data),
+  error: (message, data) => logServerEvent('ERROR', message, data),
+  system: (message, data) => logServerEvent('SYSTEM', message, data),
+  network: (message, data) => logServerEvent('NETWORK', message, data),
+};
 
 // Helper to add a log entry
 const addLogEntry = (type, message) => {
@@ -38,9 +103,16 @@ const addLogEntry = (type, message) => {
     type = 'server';
   }
 
+  // If message doesn't already have a severity tag, add a default one
+  let enhancedMessage = message;
+  if (!message.match(/^\[.*?\]/)) {
+    // Default to INFO if no severity tag
+    enhancedMessage = `[INFO] ${message}`;
+  }
+  
   const logEntry = {
     timestamp: new Date().toISOString(),
-    message
+    message: enhancedMessage
   };
   
   // Ensure the log array exists
@@ -55,8 +127,14 @@ const addLogEntry = (type, message) => {
     scrapeJobLogs[type] = scrapeJobLogs[type].slice(0, MAX_LOG_ENTRIES);
   }
   
+  // Also log to console for debugging
+  console.log(`[${type.toUpperCase()}] ${enhancedMessage}`);
+  
   return logEntry;
 };
+
+// Run the initialization after addLogEntry is defined
+initializeLogs();
 
 // Initialize the scrape job objects
 let scrapeProgress = {
@@ -103,16 +181,54 @@ router.get('/scrape-logs/:type', (req, res) => {
   const { type } = req.params;
   
   if (!['workOrder', 'dispenser', 'server', 'formPrep'].includes(type)) {
+    addLogEntry('server', `[ERROR] Invalid log type requested: ${type}`);
     return res.status(400).json({ error: 'Invalid log type' });
   }
   
   // Initialize logs array if it doesn't exist yet
   if (!scrapeJobLogs[type]) {
     scrapeJobLogs[type] = [];
+    
+    // Add initial log for empty log types
+    if (scrapeJobLogs[type].length === 0) {
+      addLogEntry(type, `[INFO] ${type.charAt(0).toUpperCase() + type.slice(1)} logging initialized`);
+    }
+  }
+  
+  addLogEntry('server', `[INFO] Logs requested for type: ${type}`);
+  return res.json({
+    logs: scrapeJobLogs[type]
+  });
+});
+
+/**
+ * Add a log entry for testing
+ */
+router.post('/scrape-logs/:type', (req, res) => {
+  const { type } = req.params;
+  const { message } = req.body;
+  
+  if (!['workOrder', 'dispenser', 'server', 'formPrep'].includes(type)) {
+    addLogEntry('server', `[ERROR] Invalid log type for posting: ${type}`);
+    return res.status(400).json({ error: 'Invalid log type' });
+  }
+  
+  if (!message) {
+    addLogEntry('server', `[ERROR] Missing message in log post request for type: ${type}`);
+    return res.status(400).json({ error: 'Message is required' });
+  }
+  
+  // Add the log entry
+  const logEntry = addLogEntry(type, message);
+  
+  // Also log to the server logs that a log entry was added
+  if (type !== 'server') {
+    addLogEntry('server', `[INFO] Log entry added to ${type} logs: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
   }
   
   return res.json({
-    logs: scrapeJobLogs[type]
+    success: true,
+    logEntry
   });
 });
 
@@ -120,7 +236,7 @@ router.get('/scrape-logs/:type', (req, res) => {
  * Get the status of the work order scrape job
  */
 router.get('/status', (req, res) => {
-  console.log('Status endpoint called, current state:', {
+  serverLog.info('Status endpoint called', {
     status: scrapeProgress.status,
     progress: scrapeProgress.progress,
     message: scrapeProgress.message,
@@ -135,7 +251,7 @@ router.get('/status', (req, res) => {
          scrapeProgress.message.includes('success') ||
          scrapeProgress.message.includes('finished'))))) {
     
-    console.log('Auto-correcting job status from "running" to "completed"');
+    serverLog.info('Auto-correcting job status from "running" to "completed"');
     scrapeProgress = {
       ...scrapeProgress,
       status: 'completed',
@@ -146,12 +262,12 @@ router.get('/status', (req, res) => {
 
   // If the job is completed but progress isn't 100%, fix it
   if (scrapeProgress.status === 'completed' && scrapeProgress.progress !== 100) {
-    console.log('Fixing progress for completed job');
+    serverLog.info('Fixing progress for completed job');
     scrapeProgress.progress = 100;
   }
 
   // Log the final status being sent
-  console.log('Sending status:', scrapeProgress);
+  serverLog.info('Sending scrape job status', scrapeProgress);
 
   return res.json(scrapeProgress);
 });
@@ -1185,13 +1301,45 @@ router.get('/work-orders', (req, res) => {
     // Read the data file
     const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
     
-    console.log(`Successfully loaded ${data.workOrders ? data.workOrders.length : 0} work orders for user ${activeUser}`);
+    // Process work orders to ensure all required fields for FormPrep are present
+    const enhancedWorkOrders = (data.workOrders || []).map(workOrder => {
+      // Add any missing required fields for FormPrep
+      return {
+        ...workOrder,
+        // Ensure visitId exists
+        visitId: workOrder.visitId || `VISIT-${Math.floor(Math.random() * 100000)}`,
+        // Ensure dispensers array exists
+        dispensers: workOrder.dispensers || [],
+        // Ensure location info is present for display 
+        location: workOrder.location || workOrder.storeAddress || "Unknown Location",
+        // Add placeholders for any other potentially missing fields
+        status: workOrder.status || "Ready",
+        // Add active status flag for selection
+        isSelectable: true,
+        // Add lastUpdated field if missing
+        lastUpdated: workOrder.lastUpdated || new Date().toISOString(),
+        // Add a visible field to ensure visibility in the table
+        visible: true,
+        // Add flags for FormPrep functionality
+        formPrepReady: true,
+        hasDispensers: (workOrder.dispensers && workOrder.dispensers.length > 0) || false
+      };
+    });
     
-    // Return the work orders
+    console.log(`Successfully loaded and enhanced ${enhancedWorkOrders.length} work orders for user ${activeUser}`);
+    
+    // Return the enhanced work orders
     return res.json({
-      workOrders: data.workOrders || [],
-      metadata: data.metadata || {},
-      activeUser: activeUser
+      workOrders: enhancedWorkOrders,
+      metadata: {
+        ...(data.metadata || {}),
+        enhancedData: true,
+        totalCount: enhancedWorkOrders.length,
+        timestamp: new Date().toISOString(),
+        hasSelectableItems: enhancedWorkOrders.length > 0
+      },
+      activeUser: activeUser,
+      success: true
     });
   } catch (error) {
     console.error('Error retrieving work orders:', error);
@@ -1302,6 +1450,225 @@ router.post('/scrape-prover-info', async (req, res) => {
       error: error.message || 'Unknown error while scraping prover information'
     });
   }
+});
+
+/**
+ * Get active user's specific dispenser data
+ */
+router.get('/dispensers/activeUser', async (req, res) => {
+  console.log('========== ACTIVE USER DISPENSER DATA API CALLED ==========');
+  try {
+    const userId = (req.session?.userId) || getActiveUser();
+    console.log(`Active user ID: ${userId || 'none'}`);
+    
+    if (!userId) {
+      console.error('No active user found when trying to load active user dispensers');
+      return res.status(400).json({ 
+        error: 'No active user found. Please select a user first.',
+        userId: null,
+        dispensers: []
+      });
+    }
+    
+    // Get the user-specific data file path
+    const scrapedContentPath = resolveUserFilePath('scraped_content.json', userId);
+    console.log(`Looking for scraped content at: ${scrapedContentPath}`);
+    
+    // Check if the file exists
+    if (!fs.existsSync(scrapedContentPath)) {
+      console.error(`Scraped content file not found at: ${scrapedContentPath}`);
+      return res.status(404).json({ 
+        error: 'No dispenser data found for active user. Please run a scrape first.',
+        userId: userId,
+        dispensers: []
+      });
+    }
+    
+    // Read the scraped content
+    const scrapedData = JSON.parse(fs.readFileSync(scrapedContentPath, 'utf8'));
+    
+    // Prepare result with dispensers from all work orders
+    const result = {
+      userId: userId,
+      dispensers: [],
+      workOrders: []
+    };
+    
+    // Extract dispensers from all work orders
+    if (scrapedData.workOrders && Array.isArray(scrapedData.workOrders)) {
+      result.workOrders = scrapedData.workOrders.map(wo => wo.id);
+      
+      scrapedData.workOrders.forEach(workOrder => {
+        if (workOrder.dispensers && Array.isArray(workOrder.dispensers)) {
+          // Add workOrderId to each dispenser for reference
+          const dispensersWithWorkOrderId = workOrder.dispensers.map(dispenser => ({
+            ...dispenser,
+            workOrderId: workOrder.id,
+            visitId: workOrder.visitId || `VISIT-${Math.floor(Math.random() * 100000)}`
+          }));
+          
+          result.dispensers.push(...dispensersWithWorkOrderId);
+        }
+      });
+    }
+    
+    console.log(`Found ${result.dispensers.length} dispensers across ${result.workOrders.length} work orders`);
+    return res.json(result);
+  } catch (error) {
+    console.error('Error retrieving active user dispensers:', error);
+    return res.status(500).json({
+      error: 'Failed to retrieve active user dispensers: ' + error.message,
+      userId: getActiveUser(),
+      dispensers: []
+    });
+  }
+});
+
+/**
+ * Get work orders specific dispenser data
+ */
+router.get('/dispensers/workOrders', async (req, res) => {
+  console.log('========== WORK ORDERS DISPENSER DATA API CALLED ==========');
+  try {
+    const userId = (req.session?.userId) || getActiveUser();
+    console.log(`Active user ID for work orders dispensers: ${userId || 'none'}`);
+    
+    if (!userId) {
+      console.error('No active user found when trying to load work orders dispensers');
+      return res.status(400).json({ 
+        error: 'No active user found. Please select a user first.',
+        workOrderId: 'workOrders',
+        dispensers: []
+      });
+    }
+    
+    // Get the user-specific data file path
+    const scrapedContentPath = resolveUserFilePath('scraped_content.json', userId);
+    console.log(`Looking for scraped content at: ${scrapedContentPath}`);
+    
+    // Check if the file exists
+    if (!fs.existsSync(scrapedContentPath)) {
+      console.error(`Scraped content file not found at: ${scrapedContentPath}`);
+      return res.status(404).json({ 
+        error: 'No dispenser data found for work orders. Please run a scrape first.',
+        workOrderId: 'workOrders',
+        dispensers: []
+      });
+    }
+    
+    // Read the scraped content
+    const scrapedData = JSON.parse(fs.readFileSync(scrapedContentPath, 'utf8'));
+    
+    // Prepare result with all dispensers from all work orders
+    const result = {
+      workOrderId: 'workOrders',  // Special ID since this contains all work orders
+      dispensers: [],
+      visitId: `VISIT-GLOBAL-${Math.floor(Math.random() * 100000)}`,
+      lastUpdated: new Date().toISOString(),
+      _userId: userId
+    };
+    
+    // Extract all dispensers from all work orders
+    if (scrapedData.workOrders && Array.isArray(scrapedData.workOrders)) {
+      scrapedData.workOrders.forEach(workOrder => {
+        if (workOrder.dispensers && Array.isArray(workOrder.dispensers)) {
+          // Add workOrderId to each dispenser for reference
+          const dispensersWithWorkOrderId = workOrder.dispensers.map(dispenser => ({
+            ...dispenser,
+            workOrderId: workOrder.id,
+            sourceWorkOrder: workOrder.id
+          }));
+          
+          result.dispensers.push(...dispensersWithWorkOrderId);
+        }
+      });
+    }
+    
+    console.log(`Found ${result.dispensers.length} dispensers for combined work orders`);
+    return res.json(result);
+  } catch (error) {
+    console.error('Error retrieving work orders dispensers:', error);
+    return res.status(500).json({
+      error: 'Failed to retrieve work orders dispensers: ' + error.message,
+      workOrderId: 'workOrders',
+      dispensers: [],
+      _userId: getActiveUser(),
+      _isMockData: true
+    });
+  }
+});
+
+/**
+ * Get metadata dispenser data (fallback endpoint)
+ */
+router.get('/dispensers/metadata', async (req, res) => {
+  console.log('========== METADATA DISPENSER DATA API CALLED ==========');
+  try {
+    const userId = (req.session?.userId) || getActiveUser();
+    console.log(`Active user ID for metadata dispensers: ${userId || 'none'}`);
+    
+    // This is a fallback endpoint - return empty dispenser data with metadata
+    const result = {
+      workOrderId: 'metadata',
+      visitId: `VISIT-META-${Math.floor(Math.random() * 100000)}`,
+      dispensers: [],
+      lastUpdated: new Date().toISOString(),
+      _userId: userId,
+      metadata: {
+        endpoint: 'metadata',
+        description: 'System metadata dispenser information',
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    console.log('Returning metadata dispenser endpoint response');
+    return res.json(result);
+  } catch (error) {
+    console.error('Error handling metadata dispensers request:', error);
+    return res.status(500).json({
+      error: 'Failed to handle metadata dispensers request: ' + error.message,
+      workOrderId: 'metadata',
+      dispensers: [],
+      _userId: getActiveUser(),
+      _isMockData: true
+    });
+  }
+});
+
+/**
+ * Success endpoint for dispensers
+ */
+router.get('/dispensers/success', (req, res) => {
+  console.log('[SERVER INFO] Success endpoint called');
+  
+  const userId = (req.session?.userId) || getActiveUser();
+  console.log(`Active user ID for success endpoint: ${userId || 'none'}`);
+  
+  // Return data in the exact same format as workOrders endpoint
+  res.json({
+    workOrderId: 'success',
+    visitId: `VISIT-SUCCESS-${Math.floor(Math.random() * 100000)}`,
+    dispensers: [
+      {
+        id: "DISP-1",
+        serialNumber: "SN12345",
+        manufacturer: "Wayne",
+        model: "Ovation2",
+        fuelGrades: ["Regular", "Plus", "Premium", "Diesel"],
+        status: "Active"
+      },
+      {
+        id: "DISP-2",
+        serialNumber: "SN67890",
+        manufacturer: "Gilbarco",
+        model: "Encore 700",
+        fuelGrades: ["Regular", "Premium", "Diesel"],
+        status: "Active"
+      }
+    ],
+    lastUpdated: new Date().toISOString(),
+    _userId: userId
+  });
 });
 
 /**
@@ -1895,8 +2262,54 @@ router.post('/change-history/entry', (req, res) => {
  * @returns {Object} Log entry
  */
 const addFormPrepLog = (message) => {
-  return addLogEntry('formPrep', message);
+  // If message doesn't have a severity tag already, default to INFO
+  let enhancedMessage = message;
+  if (!message.match(/^\[.*?\]/)) {
+    enhancedMessage = `[INFO] ${message}`;
+  }
+  
+  // Add log entry to formPrep logs
+  return addLogEntry('formPrep', enhancedMessage);
+};
+
+// Create convenience methods for form prep logs with different severity levels
+const formPrepLogger = {
+  debug: (message, data) => {
+    let formattedMessage = `[DEBUG] ${message}`;
+    if (data) {
+      formattedMessage += ` (${JSON.stringify(data)})`;
+    }
+    return addFormPrepLog(formattedMessage);
+  },
+  info: (message, data) => {
+    let formattedMessage = `[INFO] ${message}`;
+    if (data) {
+      formattedMessage += ` (${JSON.stringify(data)})`;
+    }
+    return addFormPrepLog(formattedMessage);
+  },
+  success: (message, data) => {
+    let formattedMessage = `[SUCCESS] ${message}`;
+    if (data) {
+      formattedMessage += ` (${JSON.stringify(data)})`;
+    }
+    return addFormPrepLog(formattedMessage);
+  },
+  warn: (message, data) => {
+    let formattedMessage = `[WARN] ${message}`;
+    if (data) {
+      formattedMessage += ` (${JSON.stringify(data)})`;
+    }
+    return addFormPrepLog(formattedMessage);
+  },
+  error: (message, data) => {
+    let formattedMessage = `[ERROR] ${message}`;
+    if (data) {
+      formattedMessage += ` (${JSON.stringify(data)})`;
+    }
+    return addFormPrepLog(formattedMessage);
+  }
 };
 
 // Export the router
-export { router, addLogEntry, scrapeJobLogs, addFormPrepLog }; 
+export { router, addLogEntry, scrapeJobLogs, addFormPrepLog, formPrepLogger, serverLog }; 

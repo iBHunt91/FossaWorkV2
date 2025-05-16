@@ -40,7 +40,13 @@
     "fix-tailwind": "node scripts/fix-tailwind.mjs",
     "test": "node -e \"console.log('Running all tests...'); require('child_process').execSync('npm run test:notifications && npm run test:automation', {stdio: 'inherit'});\"",
     "test:notifications": "node -e \"console.log('Running notification tests...'); require('child_process').execSync('node tests/notifications/test-pushover-root.js && node tests/notifications/test-email-format.js', {stdio: 'inherit'});\"",
-    "test:automation": "node -e \"console.log('Running automation tests...'); require('child_process').execSync('node tests/automation/test-change-trigger.js && node tests/automation/test-simulate-changes.js', {stdio: 'inherit'});\""
+    "test:automation": "node -e \"console.log('Running automation tests...'); require('child_process').execSync('node tests/automation/test-change-trigger.js && node tests/automation/test-simulate-changes.js', {stdio: 'inherit'});\"",
+    "test:clear-history": "node tests/test-clear-history-manual.js",
+    "test:clear-history-full": "node tests/test-clear-history.js",
+    "test:clear-history-integration": "node tests/test-clear-history-integration.js",
+    "test:dispenser-progress": "node tests/test-dispenser-progress.js",
+    "test:fuel-sections": "node tests/test-fuel-sections-navigation.js",
+    "test:visual-progress": "node tests/test-visual-progress.js"
   },
   "dependencies": {
     "@playwright/test": "^1.51.1",

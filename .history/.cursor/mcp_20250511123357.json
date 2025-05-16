@@ -1,0 +1,41 @@
+{
+    "mcpServers": {
+            "taskmaster-ai": {
+                "command": "npx",
+                "args": ["-y", "--package=task-master-ai", "task-master-ai"],
+                "env": {
+                    "ANTHROPIC_API_KEY": "Y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",
+                    "PERPLEXITY_API_KEY": "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",
+                    "OPENAI_API_KEY": "YOUR_OPENAI_KEY_HERE",
+                    "GOOGLE_API_KEY": "YOUR_GOOGLE_KEY_HERE",
+                    "MISTRAL_API_KEY": "YOUR_MISTRAL_KEY_HERE",
+                    "OPENROUTER_API_KEY": "YOUR_OPENROUTER_KEY_HERE",
+                    "XAI_API_KEY": "YOUR_XAI_KEY_HERE",
+                    "AZURE_OPENAI_API_KEY": "YOUR_AZURE_KEY_HERE"
+                }
+            },
+            "@21st-dev/magic": {
+            "command": "cmd",
+            "args": [
+                "/c",
+                "npx",
+                "-y",
+                "@21st-dev/magic@latest",
+                "API_KEY=\"2aaff358aa537032f8d4960eb8141d22639579865206a4a5d79a7dd016392c3c\""
+            ]
+        },
+        "interactive-feedback-mcp": {
+            "command": "uv",
+            "args": [
+                "--directory",
+                "C:\\MCP\\interactive-feedback-mcp",
+                "run",
+                "server.py"
+            ],
+            "timeout": 600,
+            "autoApprove": [
+                "interactive_feedback"
+            ]
+            }
+    }
+    }

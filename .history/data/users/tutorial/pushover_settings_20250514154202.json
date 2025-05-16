@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "userKey": "tutorial_user_key",
+  "priority": "normal",
+  "sound": "pushover",
+  "device": "all",
+  "notes": "Pushover notifications can be configured here. These settings control mobile alerts for important events.",
+  "isTutorial": true
+} 

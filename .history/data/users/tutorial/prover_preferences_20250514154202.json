@@ -1,0 +1,31 @@
+{
+  "preferences": {
+    "provers": [
+      {
+        "id": "TUT-PROVER-1",
+        "name": "Tutorial Prover 1",
+        "priority": 1,
+        "preferredFuelTypes": ["Regular", "Premium"],
+        "notes": "This is a tutorial prover with high priority. The priority system helps organize which provers to service first."
+      },
+      {
+        "id": "TUT-PROVER-2",
+        "name": "Tutorial Prover 2",
+        "priority": 2,
+        "preferredFuelTypes": ["Regular", "Plus", "Diesel"],
+        "notes": "This prover has medium priority. Different provers can be configured for different fuel types."
+      },
+      {
+        "id": "TUT-PROVER-3",
+        "name": "Tutorial Prover 3",
+        "priority": 3,
+        "preferredFuelTypes": ["Premium"],
+        "notes": "This prover has low priority. The system allows setting preferences for each prover."
+      }
+    ],
+    "defaultPriority": 2,
+    "defaultFuelTypes": ["Regular", "Plus", "Premium"]
+  },
+  "lastUpdated": "2025-05-13T16:45:00.000Z",
+  "isTutorial": true
+} 

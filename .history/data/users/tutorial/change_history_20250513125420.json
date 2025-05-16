@@ -1,0 +1,36 @@
+{
+  "changes": [
+    {
+      "id": "TUTORIAL-CHANGE-001",
+      "timestamp": "2025-05-10T14:30:00.000Z",
+      "type": "schedule_change",
+      "description": "Visit rescheduled from 05/12/2025 to 05/20/2025",
+      "storeId": "TUT-01",
+      "storeName": "Tutorial Store #1",
+      "notes": "This shows a schedule change. The system tracks when visits are rescheduled.",
+      "tutorial": true
+    },
+    {
+      "id": "TUTORIAL-CHANGE-002",
+      "timestamp": "2025-05-08T09:15:00.000Z",
+      "type": "service_added",
+      "description": "Added Nozzle Replacement (2) to work order",
+      "storeId": "TUT-01",
+      "storeName": "Tutorial Store #1",
+      "notes": "This shows a service addition. The system tracks when services are added to work orders.",
+      "tutorial": true
+    },
+    {
+      "id": "TUTORIAL-CHANGE-003",
+      "timestamp": "2025-05-05T11:45:00.000Z",
+      "type": "visit_completed",
+      "description": "Visit completed for Demo Location",
+      "storeId": "TUT-03",
+      "storeName": "Demo Location",
+      "notes": "This shows a completed visit. The system tracks when technicians complete their work.",
+      "tutorial": true
+    }
+  ],
+  "lastUpdated": "2025-05-13T16:50:00.000Z",
+  "isTutorial": true
+} 

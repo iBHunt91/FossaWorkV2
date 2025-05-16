@@ -1,0 +1,11 @@
+# Task ID: 13
+# Title: Documentation and User Guidance
+# Status: pending
+# Dependencies: 2, 4, 7, 11
+# Priority: low
+# Description: Prepare user documentation and in-app guidance for the new batch processing feature.
+# Details:
+Write help text, tooltips, and a user guide section for batch processing. Include screenshots and step-by-step instructions.
+
+# Test Strategy:
+Manual review by non-technical users. Verify clarity and completeness.

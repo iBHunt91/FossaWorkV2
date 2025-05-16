@@ -1,264 +1,372 @@
-/**
- * Service for interacting with the job scraping API
- */
-import { ENDPOINTS } from '../config/api';
+// Implementation of scrapeService functions
+import { initializeServerConnection } from '../utils/serverUtils';
 
-// Types
+export type LogSeverity = 'INFO' | 'WARNING' | 'ERROR' | 'DEBUG' | 'SUCCESS' | 'PROGRESS';
+
+// ScrapeStatus type definition needed by ScrapeContext and App.tsx
 export interface ScrapeStatus {
-  status: 'idle' | 'running' | 'completed' | 'error';
+  status: string;
   progress: number;
   message: string;
   error: string | null;
 }
 
-export interface LogEntry {
-  timestamp: string;
+// Store the API base URL once we find it
+let apiBaseUrl = '';
+
+// Initialize the API base URL
+const initializeApiBaseUrl = async (): Promise<string> => {
+  if (apiBaseUrl) return apiBaseUrl;
+  
+  apiBaseUrl = await initializeServerConnection();
+  console.log(`API Base URL initialized: ${apiBaseUrl || '(empty)'}`);
+  return apiBaseUrl;
+};
+
+// Get the API base URL with fallback to both standard ports
+const getApiBaseUrl = (): string => {
+  // If we've already found the base URL, use it
+  if (apiBaseUrl) return apiBaseUrl;
+  
+  // Otherwise return empty string, and we'll initialize it on first use
+  return '';
+};
+
+// Function to debug connection issues 
+export const testServerConnection = async (): Promise<{
+  success: boolean;
   message: string;
-}
-
-export interface LogsResponse {
-  logs: LogEntry[];
-}
-
-/**
- * Start a new scrape job
- */
-export const startScrapeJob = async (): Promise<{ message: string }> => {
-  // First check if a job is already running
-  try {
-    const status = await getScrapeStatus();
-    if (status.status === 'running') {
-      throw new Error('A scrape job is already running. Please wait for it to complete.');
-    }
-  } catch (error) {
-    // If the error is due to not being able to get status, proceed with the start attempt
-    if (!(error instanceof Error && error.message.includes('Failed to get scrape status'))) {
-      throw error;
+  ports: Array<{ port: number; status: string }>;
+}> => {
+  const ports = [3001, 3002, 3003, 3004, 3005]; // Common ports the server might use
+  const results = [];
+  
+  // Try connecting to each possible port
+  for (const port of ports) {
+    try {
+      // Set a shorter timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 1000);
+      
+      const response = await fetch(`http://localhost:${port}/health`, {
+        signal: controller.signal,
+      }).catch(e => {
+        if (e.name === 'AbortError') {
+          return { ok: false, status: 'timeout' };
+        }
+        throw e;
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        results.push({ port, status: 'available' });
+      } else {
+        results.push({ port, status: `unavailable (${response.status})` });
+      }
+    } catch (error) {
+      results.push({ port, status: 'connection failed' });
     }
   }
-
-  const url = await ENDPOINTS.SCRAPE();
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to start scrape job');
+  
+  // Check if we found any working ports
+  const workingPorts = results.filter(r => r.status === 'available');
+  
+  // If we found working ports, update our apiBaseUrl
+  if (workingPorts.length > 0) {
+    const port = workingPorts[0].port;
+    apiBaseUrl = `http://localhost:${port}`;
+    console.log(`Found working server, setting API base URL to: ${apiBaseUrl}`);
   }
-
-  return response.json();
+  
+  return {
+    success: workingPorts.length > 0,
+    message: workingPorts.length > 0 
+      ? `Found ${workingPorts.length} available server(s)` 
+      : 'No available servers found - server might be down',
+    ports: results
+  };
 };
 
-/**
- * Get the current status of the scrape job
- */
+// Add log entry (useful for debugging)
+export const addLogEntry = async (type: string, message: string): Promise<boolean> => {
+  try {
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      console.error('Could not connect to server to add log entry');
+      return false;
+    }
+    
+    const response = await fetch(`${baseUrl}/api/scrape-logs/${type}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message })
+    });
+    
+    return response.ok;
+  } catch (error) {
+    console.error(`Error adding log entry: ${error}`);
+    return false;
+  }
+};
+
+// Mock implementations of scrape-related functions
+
+// Start a scrape job for work orders
+export const startScrapeJob = async (): Promise<any> => {
+  console.log('Starting work order scrape job');
+  try {
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      throw new Error('Could not connect to server. Please make sure the server is running.');
+    }
+    
+    const response = await fetch(`${baseUrl}/api/scrape`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error starting work order scrape:', error);
+    throw error;
+  }
+};
+
+// Start a scrape job for dispensers
+export const startDispenserScrapeJob = async (): Promise<any> => {
+  console.log('Starting dispenser scrape job');
+  try {
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      throw new Error('Could not connect to server. Please make sure the server is running.');
+    }
+    
+    const response = await fetch(`${baseUrl}/api/dispenser-scrape`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error starting dispenser scrape:', error);
+    throw error;
+  }
+};
+
+// Get status of a work order scrape job
 export const getScrapeStatus = async (): Promise<ScrapeStatus> => {
-  const url = await ENDPOINTS.SCRAPE_STATUS();
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error('Failed to get scrape status');
-  }
-
-  return response.json();
-};
-
-/**
- * Start a new dispenser scrape job
- */
-export const startDispenserScrapeJob = async (): Promise<{ message: string }> => {
-  // First check if a job is already running
   try {
-    const status = await getDispenserScrapeStatus();
-    if (status.status === 'running') {
-      throw new Error('A dispenser scrape job is already running. Please wait for it to complete.');
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      return {
+        status: 'error',
+        progress: 0,
+        message: 'Could not connect to server. Please make sure the server is running.',
+        error: 'Server connection failed'
+      };
     }
+    
+    const response = await fetch(`${baseUrl}/api/status`);
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
   } catch (error) {
-    // If the error is due to not being able to get status, proceed with the start attempt
-    if (!(error instanceof Error && error.message.includes('Failed to get dispenser scrape status'))) {
-      throw error;
-    }
+    console.error('Error getting scrape status:', error);
+    return {
+      status: 'error',
+      progress: 0,
+      message: error instanceof Error ? error.message : 'Failed to get status',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
   }
-
-  const url = await ENDPOINTS.DISPENSER_SCRAPE();
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ skipExisting: true })
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to start dispenser scrape job');
-  }
-
-  return response.json();
 };
 
-/**
- * Get the current status of the dispenser scrape job
- */
+// Get status of a dispenser scrape job
 export const getDispenserScrapeStatus = async (): Promise<ScrapeStatus> => {
-  const url = await ENDPOINTS.DISPENSER_STATUS();
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error('Failed to get dispenser scrape status');
+  try {
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      return {
+        status: 'error',
+        progress: 0,
+        message: 'Could not connect to server. Please make sure the server is running.',
+        error: 'Server connection failed'
+      };
+    }
+    
+    const response = await fetch(`${baseUrl}/api/dispenser-status`);
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting dispenser scrape status:', error);
+    return {
+      status: 'error',
+      progress: 0,
+      message: error instanceof Error ? error.message : 'Failed to get status',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
   }
-
-  return response.json();
 };
 
-/**
- * Clear dispenser data for a specific store
- */
-export const clearDispenserData = async (storeId: string): Promise<{ message: string }> => {
-  const url = await ENDPOINTS.CLEAR_DISPENSER();
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ storeId }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to clear dispenser data');
-  }
-
-  return response.json();
-};
-
-/**
- * Force rescrape of dispenser data for a specific store
- */
-export const forceRescrapeDispenserData = async (storeId: string): Promise<{ message: string }> => {
-  const url = await ENDPOINTS.FORCE_RESCRAPE_DISPENSER();
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ storeId }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to force rescrape dispenser data');
-  }
-
-  return response.json();
-};
-
-/**
- * Get the logs for a specific job type
- */
-export const getScrapeLogs = async (type: 'workOrder' | 'dispenser' | 'server' | 'formPrep'): Promise<LogEntry[]> => {
-  const url = await ENDPOINTS.SCRAPE_LOGS(type);
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to get logs for ${type}`);
-  }
-
-  const data: LogsResponse = await response.json();
-  return data.logs;
-};
-
-/**
- * Check and update both work order and dispenser scrape statuses
- * @returns Object containing both status objects
- */
+// Check all scrape statuses at once
 export const checkAllScrapeStatus = async (): Promise<{
   workOrder: ScrapeStatus;
   dispenser: ScrapeStatus;
 }> => {
-  const defaultStatus: ScrapeStatus = {
-    status: 'idle',
-    progress: 0,
-    message: '',
-    error: null
-  };
-
-  let workOrderStatus = { ...defaultStatus };
-  let dispenserStatus = { ...defaultStatus };
-
-  try {
-    workOrderStatus = await getScrapeStatus();
-  } catch (error) {
-    console.warn('Failed to get work order scrape status');
-  }
-
-  try {
-    dispenserStatus = await getDispenserScrapeStatus();
-  } catch (error) {
-    console.warn('Failed to get dispenser scrape status');
-  }
-
   return {
-    workOrder: workOrderStatus,
-    dispenser: dispenserStatus
+    workOrder: await getScrapeStatus(),
+    dispenser: await getDispenserScrapeStatus()
   };
 };
 
-/**
- * Alias for startScrapeJob to simplify integration with DataTools component
- */
-export const scrapeAllData = startScrapeJob;
-
-/**
- * Get work orders for the active user
- */
-export const getWorkOrders = async () => {
-  const url = await ENDPOINTS.WORK_ORDERS();
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error('Failed to get work orders');
+// Clear dispenser data for a specific order ID
+export const clearDispenserData = async (orderId: string): Promise<any> => {
+  console.log(`Clearing dispenser data for order ID: ${orderId}`);
+  try {
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      throw new Error('Could not connect to server. Please make sure the server is running.');
+    }
+    
+    const response = await fetch(`${baseUrl}/api/clear-dispenser-data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ storeId: orderId })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error clearing dispenser data:', error);
+    throw error;
   }
-
-  return response.json();
 };
 
-/**
- * Get prover preferences for the active user
- */
-export const getProverPreferences = async () => {
-  const url = await ENDPOINTS.PROVER_PREFERENCES();
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error('Failed to get prover preferences');
+// Force rescrape dispenser data for a specific order ID
+export const forceRescrapeDispenserData = async (orderId: string): Promise<any> => {
+  console.log(`Force rescraping dispenser data for order ID: ${orderId}`);
+  try {
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      throw new Error('Could not connect to server. Please make sure the server is running.');
+    }
+    
+    const response = await fetch(`${baseUrl}/api/force-rescrape-dispenser`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ storeId: orderId })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error rescraping dispenser data:', error);
+    throw error;
   }
-
-  return response.json();
 };
 
-/**
- * Save prover preferences for the active user
- */
-export const saveProverPreferences = async (preferences: any) => {
-  const url = await ENDPOINTS.PROVER_PREFERENCES();
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(preferences)
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to save prover preferences');
+// Get work orders
+export const getWorkOrders = async (): Promise<any> => {
+  console.log('Getting work orders');
+  try {
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      throw new Error('Could not connect to server. Please make sure the server is running.');
+    }
+    
+    const response = await fetch(`${baseUrl}/api/work-orders`);
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting work orders:', error);
+    return {
+      success: false,
+      workOrders: [],
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
   }
-
-  return response.json();
 };
 
-// We removed the getWorkOrdersWithDispensers function since we're loading files directly in the component 
+// Mock systemLogs object
+export const systemLogs = {
+  server: {
+    info: (message: string) => console.log(`[SERVER INFO] ${message}`),
+    success: (message: string) => console.log(`[SERVER SUCCESS] ${message}`),
+    warning: (message: string) => console.log(`[SERVER WARNING] ${message}`),
+    error: (message: string) => console.log(`[SERVER ERROR] ${message}`)
+  },
+  formPrep: {
+    info: (message: string) => console.log(`[FORM PREP INFO] ${message}`),
+    success: (message: string) => console.log(`[FORM PREP SUCCESS] ${message}`),
+    warning: (message: string) => console.log(`[FORM PREP WARNING] ${message}`),
+    error: (message: string) => console.log(`[FORM PREP ERROR] ${message}`)
+  }
+};
+
+// Get scrape logs by type
+export const getScrapeLogs = async (type: 'server' | 'formPrep'): Promise<any[]> => {
+  try {
+    // Initialize API URL if not already done
+    const baseUrl = await initializeApiBaseUrl();
+    if (!baseUrl) {
+      console.error('Could not connect to server to get logs');
+      return [];
+    }
+    
+    const response = await fetch(`${baseUrl}/api/scrape-logs/${type}`);
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.logs || [];
+  } catch (error) {
+    console.error(`Error getting ${type} logs:`, error);
+    return [];
+  }
+};

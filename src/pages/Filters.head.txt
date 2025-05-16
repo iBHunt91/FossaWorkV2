@@ -1,0 +1,300 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { 
+  FiFilter, 
+  FiDownload,
+  FiArrowLeft,
+  FiArrowRight,
+  FiCheck,
+  FiAlertCircle,
+  FiAlertTriangle,
+  FiX,
+  FiInfo,
+  FiEdit,
+  FiRefreshCw,
+  FiChevronRight,
+  FiChevronLeft,
+  FiArrowUp,
+  FiArrowDown,
+  FiSearch,
+  FiExternalLink,
+  FiCheckCircle,
+  FiSliders,
+  FiCalendar,
+  FiMapPin,
+  FiTool,
+  FiBox,
+  FiBarChart2,
+  FiGrid,
+  FiEye
+} from 'react-icons/fi';
+import { CSVLink } from 'react-csv';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import scrapedData from '../data/scraped_content.json';
+import DispenserModal from '../components/DispenserModal';
+import { WorkOrder, FilterNeed } from '../types';
+import { calculateFiltersForWorkOrder, FilterWarning } from '../utils/filterCalculation';
+import { useToast } from '../context/ToastContext';
+import { useTheme } from '../context/ThemeContext';
+import { useDispenserData } from '../context/DispenserContext';
+import { format, startOfWeek as dateStartOfWeek, endOfWeek as dateEndOfWeek, subDays, addDays, isSameDay, parseISO } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
+
+// Add custom styles for the date picker
+import "./datePickerStyles.css";
+
+// Interface for date range calculation (imported from Home.tsx)
+interface WorkWeekDateRanges {
+  currentWeekStart: Date;
+  currentWeekEnd: Date;
+  nextWeekStart: Date;
+  nextWeekEnd: Date;
+}
+
+// Helper function from Home.tsx to ensure consistent date calculations
+const getWorkWeekDateRanges = (
+  workWeekStart: number = 1,
+  workWeekEnd: number = 5,
+  selectedDate: Date = new Date()
+): WorkWeekDateRanges => {
+  // Ensure selectedDate is a proper Date object
+  const dateObj = selectedDate instanceof Date ? selectedDate : new Date(selectedDate);
+  
+  // Use the selectedDate as the base date
+  const today = dateObj;
+  
+  // Get current day of week and hour
+  const currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  const currentHour = today.getHours();
+  
+  // Check if we're at the end of the work week after 5:00pm (17:00)
+  // If it's workWeekEnd day and after 5pm, we'll treat it as weekend mode
+  const isAfterWorkWeekEnd = (currentDayOfWeek === workWeekEnd && currentHour >= 17) || 
+                           currentDayOfWeek > workWeekEnd || 
+                           currentDayOfWeek < workWeekStart;
+  
+  // Always calculate first day of current week
+  const currentWeekStart = new Date(today);
+  
+  // Calculate days to add/subtract to get to start day
+  let diffToStart;
+  
+  if (isAfterWorkWeekEnd) {
+    // If in weekend mode, current week becomes next week
+    diffToStart = (workWeekStart + 7 - currentDayOfWeek) % 7;
+    if (diffToStart === 0) diffToStart = 7; // If today is the start day of next week, we need to move forward a full week
+  } else {
+    // Normal mode - calculate days to subtract to get to current week's start
+    diffToStart = ((currentDayOfWeek - workWeekStart) + 7) % 7;
+    currentWeekStart.setDate(today.getDate() - diffToStart);
+  }
+  
+  // Apply the calculated difference
+  currentWeekStart.setDate(today.getDate() + (isAfterWorkWeekEnd ? diffToStart : -diffToStart));
+  
+  // Set time to start of day
+  currentWeekStart.setHours(0, 0, 0, 0);
+  
+  // Calculate end of current week
+  const currentWeekEnd = new Date(currentWeekStart);
+  const daysToAdd = workWeekEnd < workWeekStart ? 
+    (7 - workWeekStart + workWeekEnd) : // Wrap around to next week if end day is before start day
+    (workWeekEnd - workWeekStart);     // Otherwise calculate normally
+  
+  currentWeekEnd.setDate(currentWeekStart.getDate() + daysToAdd);
+  currentWeekEnd.setHours(17, 0, 0, 0); // End at 5:00pm on the end day
+  
+  // Calculate next week (start of next week)
+  const nextWeekStart = new Date(currentWeekStart);
+  nextWeekStart.setDate(currentWeekStart.getDate() + 7);
+  
+  // Calculate end of next week
+  const nextWeekEnd = new Date(currentWeekEnd);
+  nextWeekEnd.setDate(currentWeekEnd.getDate() + 7);
+  
+  return {
+    currentWeekStart,
+    currentWeekEnd,
+    nextWeekStart,
+    nextWeekEnd
+  };
+};
+
+// FilterDataType interface definition
+interface FilterDataType {
+  id: string;
+  type: 'GAS' | 'DIESEL';
+  quantity: number;
+  visitDate: Date;
+  store: string;
+  visitId: string;
+}
+
+// Extended FilterNeed interface with additional properties we need
+interface ExtendedFilterNeed extends FilterNeed {
+  orderId: string;
+  visitId: string;
+  visitDate: string;
+  storeName: string;
+  filterType?: string;
+}
+
+// Extended FilterWarning interface with additional properties we need
+interface ExtendedFilterWarning extends FilterWarning {
+  partNumber?: string;
+  message?: string;
+  severity?: number;
+  orderId?: string;
+  storeName?: string;
+}
+
+// Define types for CSV data
+interface CSVFilterSummary {
+  'Part Number': string;
+  'Type': string;
+  'Quantity': number | string;
+  'Boxes Needed': number | string;
+  'Stores': string;
+  'Warnings'?: string;
+  'Visit ID'?: string;
+  'Date'?: string;
+}
+
+// Extended Dispenser interface
+interface Dispenser {
+  title: string;
+  serial?: string;
+  make?: string;
+  model?: string;
+  fields?: Record<string, string>;
+  html?: string;
+}
+
+// Station-specific filter part numbers
+const STATION_FILTERS = {
+  '7-Eleven': {
+    GAS: {
+      'Electronic': '400MB-10',
+      'HD Meter': '400MB-10',
+      'Ecometer': '40510A-AD',
+      'default': '400MB-10'
+    },
+    DIESEL: {
+      'Electronic': '400HS-10',
+      'HD Meter': '400HS-10',
+      'Ecometer': '40510W-AD',
+      'default': '400HS-10'
+    },
+    DEF: '800HS-30' // Add DEF filter type for 7-Eleven
+  },
+  'Wawa': {
+    GAS: '450MB-10',
+    DIESEL: '450MG-10'
+  },
+  'Circle K': {
+    GAS: '40510D-AD',
+    DIESEL: '40530W-AD'
+  }
+};
+
+// Debounce utility to prevent multiple rapid calls
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout | null = null;
+  
+  return function(this: any, ...args: Parameters<T>) {
+    const context = this;
+    
+    if (timeout) clearTimeout(timeout);
+    
+    timeout = setTimeout(() => {
+      timeout = null;
+      func.apply(context, args);
+    }, wait);
+  };
+}
+
+const FiltersRedesign: React.FC = () => {
+  const { isDarkMode } = useTheme();
+  const { addToast } = useToast();
+  const { dispenserData, loadDispenserData, isLoaded } = useDispenserData();
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>(scrapedData.workOrders);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [filterNeeds, setFilterNeeds] = useState<ExtendedFilterNeed[]>([]);
+  const [filterWarnings, setFilterWarnings] = useState<Map<string, ExtendedFilterWarning[]>>(new Map());
+  const [currentWeek, setCurrentWeek] = useState<Date>(new Date());
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: 'visitId' | 'store' | 'date'; direction: 'asc' | 'desc' } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const [dispenserToastShown, setDispenserToastShown] = useState(() => {
+    return sessionStorage.getItem('dispenserToastShown') === 'true';
+  });
+  
+  // Use ref to prevent recursive loading
+  const isLoadingRef = useRef(false);
+  const lastLoadTimeRef = useRef(Date.now());
+  
+  // Define default work week as Monday (1) to Friday (5)
+  const workWeekStart = 1; // Monday
+  const workWeekEnd = 5;   // Friday
+  
+  // Dispenser Modal States
+  const [currentDispenserInfo, setCurrentDispenserInfo] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [currentDispenserData, setCurrentDispenserData] = useState<any[]>([]);
+  const [hasDispenserInfo, setHasDispenserInfo] = useState(false);
+  
+  // Filter Type Selection
+  const [selectedFilterType, setSelectedFilterType] = useState<string | null>(null);
+  
+  // Visualization
+  const [showVisualization, setShowVisualization] = useState(false);
+
+  // State variables
+  const [filters, setFilters] = useState<FilterDataType[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  
+  // State for tracking which filter need is being edited
+  const [editingFilterNeed, setEditingFilterNeed] = useState<string | null>(null);
+  const [editedQuantity, setEditedQuantity] = useState<number>(0);
+  
+  // Store edited quantities in localStorage to persist across refreshes
+  const saveEditedQuantity = (orderId: string, partNumber: string, quantity: number) => {
+    try {
+      // Load existing edited quantities
+      const storedEdits = localStorage.getItem('filterQuantityEdits');
+      const edits = storedEdits ? JSON.parse(storedEdits) : {};
+      
+      // Update the quantity for this specific order and part
+      const key = `${orderId}_${partNumber}`;
+      edits[key] = quantity;
+      
+      // Save back to localStorage
+      localStorage.setItem('filterQuantityEdits', JSON.stringify(edits));
+    } catch (error) {
+      console.error('Error saving edited quantity to localStorage', error);
+    }
+  };
+  
+  // Load edited quantity from localStorage
+  const getEditedQuantity = (orderId: string, partNumber: string, defaultQuantity: number | null): number | null => {
+    try {
+      const storedEdits = localStorage.getItem('filterQuantityEdits');
+      if (!storedEdits) return defaultQuantity;
+      
+      const edits = JSON.parse(storedEdits);
+      const key = `${orderId}_${partNumber}`;
+      return edits[key] !== undefined ? edits[key] : defaultQuantity;
+    } catch (error) {
+      console.error('Error loading edited quantity from localStorage', error);
+      return defaultQuantity;
+    }
+  };
+  
+  // Load all edited quantities after filter needs are calculated
+  useEffect(() => {
+    if (filterNeeds.length === 0) return;
+    
+    try {
+      const storedEdits = localStorage.getItem('filterQuantityEdits');
+      if (!storedEdits) return;

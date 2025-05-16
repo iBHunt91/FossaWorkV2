@@ -239,6 +239,47 @@ export const verifyCredentials = async (email: string, password: string): Promis
 };
 
 /**
+ * Update user credentials
+ */
+export const updateUserCredentials = async (
+  userId: string, 
+  email: string, 
+  password: string
+): Promise<boolean> => {
+  try {
+    const url = await buildUrl(`/api/users/${userId}/credentials`);
+    console.log('Update credentials URL:', url);
+    console.log('User ID:', userId);
+    console.log('Email:', email.substring(0, 3) + '***');
+    
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, password })
+    });
+    
+    if (!response.ok) {
+      // Try to parse error message
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    const data: UserResponse = await response.json();
+    
+    if (!data.success) {
+      throw new Error(data.message || 'Failed to update user credentials');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error updating user credentials:', error);
+    throw error;
+  }
+};
+
+/**
  * Rename a user directory with a friendly name
  */
 export const renameUserDirectory = async (userId: string, friendlyName: string): Promise<boolean> => {

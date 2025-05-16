@@ -1,0 +1,11 @@
+# Task ID: 11
+# Title: Enhance UI/UX for Batch Mode
+# Status: pending
+# Dependencies: 4, 7
+# Priority: medium
+# Description: Improve the UI to clearly indicate batch mode, progress, and status, with visual distinction for success/failure.
+# Details:
+Add a dedicated section or indicators for batch mode. Use color coding or icons for success/failure. Ensure 'Stop Processing' button is prominent.
+
+# Test Strategy:
+UI automation and manual tests for visual feedback and accessibility.

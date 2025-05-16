@@ -13,12 +13,16 @@ export interface FilterWarning {
   warning: string;
   grades: string[];
   severity?: number;
+  partNumber?: string;
+  filterType?: string;
 }
 
 export interface FilterCalculationResult {
   gasFilters: number;
   dieselFilters: number;
   warnings: FilterWarning[];
+  gasFilterTypes?: string[];
+  dieselFilterTypes?: string[];
 }
 
 /**
@@ -237,6 +241,8 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
   let gasFilters = 0;
   let dieselFilters = 0;
   const warnings: FilterWarning[] = [];
+  const gasFilterTypes: string[] = [];
+  const dieselFilterTypes: string[] = [];
   
   // Process dispensers if they exist
   if (order.dispensers && order.dispensers.length > 0) {
@@ -273,8 +279,32 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
         if (filterInfo.filterNeeded) {
           if (filterInfo.fuelType === 'GAS') {
             gasFilters++;
+            // Track filter types
+            if (grade.toLowerCase().includes('regular')) {
+              gasFilterTypes.push('regular');
+            } else if (grade.toLowerCase().includes('premium')) {
+              gasFilterTypes.push('premium');
+            } else if (grade.toLowerCase().includes('super')) {
+              gasFilterTypes.push('super');
+            } else if (grade.toLowerCase().includes('ultra')) {
+              gasFilterTypes.push('ultra');
+            } else if (grade.toLowerCase().includes('ethanol-free') || 
+                      grade.toLowerCase().includes('e-0') ||
+                      grade.toLowerCase().includes('non-ethanol')) {
+              gasFilterTypes.push('ethanol-free');
+            } else {
+              gasFilterTypes.push('gas');
+            }
           } else if (filterInfo.fuelType === 'DIESEL') {
             dieselFilters++;
+            // Track diesel filter types
+            if (grade.toLowerCase().includes('high flow') || 
+                grade.toLowerCase().includes('high-flow') ||
+                grade.toLowerCase().includes('highflow')) {
+              dieselFilterTypes.push('high-flow');
+            } else {
+              dieselFilterTypes.push('standard');
+            }
           }
         }
       });
@@ -284,7 +314,8 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
         const warning: FilterWarning = {
           dispenserId: `Dispenser ${index + 1}`,
           warning: 'Unknown fuel grade(s) detected',
-          grades: unknownGrades
+          grades: unknownGrades,
+          partNumber: 'PCP-2-1' // Default part number for unknown grades
         };
         
         // Set the severity for this warning
@@ -304,7 +335,8 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
         const warning: FilterWarning = {
           dispenserId: `Dispenser ${index + 1}`,
           warning: 'Complex configuration with Premium, Super, and Ultra - verify filter needs',
-          grades: [...premiumGrades, ...superGrades, ...ultraGrades].map(f => f.grade)
+          grades: [...premiumGrades, ...superGrades, ...ultraGrades].map(f => f.grade),
+          partNumber: 'PCP-2-1' // Default part number for complex configuration
         };
         
         // Set the severity for this warning
@@ -340,8 +372,19 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
             if (filterInfo.filterNeeded) {
               if (filterInfo.fuelType === 'GAS') {
                 gasFilters++;
+                // Track filter types
+                if (grade.toLowerCase().includes('regular')) {
+                  gasFilterTypes.push('regular');
+                } else if (grade.toLowerCase().includes('premium')) {
+                  gasFilterTypes.push('premium');
+                } else if (grade.toLowerCase().includes('super')) {
+                  gasFilterTypes.push('super');
+                } else {
+                  gasFilterTypes.push('gas');
+                }
               } else if (filterInfo.fuelType === 'DIESEL') {
                 dieselFilters++;
+                dieselFilterTypes.push('standard');
               }
             }
           });
@@ -351,7 +394,8 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
             const warning: FilterWarning = {
               dispenserId: `HTML Dispenser ${index + 1}`,
               warning: 'Unknown fuel grade(s) detected in HTML content',
-              grades: unknownGrades
+              grades: unknownGrades,
+              partNumber: 'PCP-2-1' // Default part number
             };
             
             // Set the severity for this warning
@@ -364,7 +408,8 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
         const warning: FilterWarning = {
           dispenserId: 'HTML Content',
           warning: 'Could not extract grade information from HTML content',
-          grades: []
+          grades: [],
+          partNumber: 'PCP-2-1' // Default part number
         };
         
         // Set the severity for this warning
@@ -379,7 +424,8 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
           const warning: FilterWarning = {
             dispenserId: 'Estimated',
             warning: `Filter estimation using standard calculation - verify actual filter needs`,
-            grades: []
+            grades: [],
+            partNumber: 'PCP-2-1' // Default part number
           };
           
           // Set the severity for this warning
@@ -392,7 +438,8 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
       const warning: FilterWarning = {
         dispenserId: 'Error',
         warning: 'Error processing dispenser information',
-        grades: []
+        grades: [],
+        partNumber: 'PCP-2-1' // Default part number
       };
       
       // Set the severity for this warning
@@ -408,13 +455,37 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
       const warning: FilterWarning = {
         dispenserId: 'No Data',
         warning: `Please verify filter needs - using standard estimates`,
-        grades: []
+        grades: [],
+        partNumber: 'PCP-2-1' // Default part number
       };
       
       // Set the severity for this warning
       warning.severity = determineWarningSeverity(warning);
       warnings.push(warning);
     }
+  }
+  
+  // Create warning objects for gas and diesel filters if they exist
+  if (gasFilters > 0) {
+    const warning: FilterWarning = {
+      dispenserId: 'Gas Filters',
+      warning: `${gasFilters} gas filter(s) required`,
+      grades: gasFilterTypes,
+      partNumber: 'PCP-2-1' // Standard Premier Plus filter
+    };
+    warning.severity = 5; // Medium severity
+    warnings.push(warning);
+  }
+  
+  if (dieselFilters > 0) {
+    const warning: FilterWarning = {
+      dispenserId: 'Diesel Filters',
+      warning: `${dieselFilters} diesel filter(s) required`,
+      grades: dieselFilterTypes,
+      partNumber: 'PCN-2-1' // Standard Phase Coalescer filter
+    };
+    warning.severity = 5; // Medium severity
+    warnings.push(warning);
   }
   
   // Apply severity levels to any warnings that don't have them yet
@@ -427,6 +498,8 @@ export function calculateFiltersForWorkOrder(order: WorkOrder): FilterCalculatio
   return {
     gasFilters,
     dieselFilters,
-    warnings
+    warnings,
+    gasFilterTypes,
+    dieselFilterTypes
   };
 } 

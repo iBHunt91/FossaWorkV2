@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiTool, FiRefreshCw, FiAlertCircle, FiCheckCircle } from 'react-icons/fi';
-import { startDispenserScrapeJob, getDispenserScrapeStatus, ScrapeStatus } from '../services/scrapeService';
+import { startDispenserScrapeJob, getDispenserScrapeStatus, ScrapeStatus, testServerConnection } from '../services/scrapeService';
 
 // Reuse ScrapeStatus interface from scrapeService
 type DispenserScrapeStatus = ScrapeStatus;
@@ -108,6 +108,18 @@ const DispenserScrapeButton: React.FC = () => {
         message: 'Preparing to collect equipment data...',
         error: null
       });
+      
+      // Try to find the server first
+      const testResult = await testServerConnection();
+      if (!testResult.success) {
+        setStatus({
+          status: 'error',
+          progress: 0,
+          message: 'Could not connect to the server. Please make sure the server is running.',
+          error: 'Server connection failed'
+        });
+        return;
+      }
       
       await startDispenserScrapeJob();
       

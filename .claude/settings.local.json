@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node:*)",
+      "Bash(mv:*)",
+      "Bash(grep:*)",
+      "Bash(claude mcp:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(find:*)",
+      "Bash(find:*)",
+      "Bash(mkdir:*)",
+      "mcp__desktop-commander__list_directory",
+      "mcp__desktop-commander__create_directory",
+      "Bash(npm run dev:*)",
+      "Bash(npm start)",
+      "mcp__desktop-commander__search_code",
+      "mcp__desktop-commander__read_file",
+      "Bash(npx tsc:*)",
+      "Bash(ls:*)",
+      "mcp__desktop-commander__edit_block",
+      "mcp__desktop-commander__execute_command",
+      "mcp__desktop-commander__write_file",
+      "Bash(python3:*)",
+      "Bash(ss:*)"
+    ],
+    "deny": []
+  }
+}

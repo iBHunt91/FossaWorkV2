@@ -21,10 +21,11 @@ export const useTheme = () => {
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [theme, setTheme] = useState<Theme>(() => {
     const savedTheme = localStorage.getItem('theme') as Theme;
-    return savedTheme || 'system';
+    // For development, use 'dark' theme by default
+    return savedTheme || 'dark';
   });
   
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(true); // Default to dark mode for development
 
   useEffect(() => {
     // Save theme preference to localStorage
@@ -44,7 +45,22 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
 
     root.classList.add(effectiveTheme);
+    
+    // Also add class to body for components that might need it
+    document.body.classList.remove('light', 'dark');
+    document.body.classList.add(effectiveTheme);
+    
     setIsDarkMode(effectiveTheme === 'dark');
+    
+    // For development: Force dark mode in localStorage
+    if (effectiveTheme !== 'dark') {
+      console.log('Forcing dark mode for development');
+      root.classList.remove('light');
+      root.classList.add('dark');
+      document.body.classList.remove('light');
+      document.body.classList.add('dark');
+      setIsDarkMode(true);
+    }
   }, [theme]);
 
   // Listen for system preference changes

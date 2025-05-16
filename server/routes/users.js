@@ -4,6 +4,7 @@ import {
   listUsers, 
   getUserCredentials, 
   updateUserLabel, 
+  updateUserCredentials,
   deleteUser, 
   getActiveUser, 
   setActiveUser, 
@@ -210,23 +211,20 @@ router.post('/', async (req, res) => {
     
     // Test the credentials before saving
     try {
-      // Temporarily set environment variables
-      const origEmail = process.env.FOSSA_EMAIL;
-      const origPassword = process.env.FOSSA_PASSWORD;
-      
-      process.env.FOSSA_EMAIL = email;
-      process.env.FOSSA_PASSWORD = password;
-      
-      const loginResult = await loginToFossa({ headless: true });
+      const loginResult = await loginToFossa({ 
+        headless: true,
+        email: email,
+        password: password
+      });
       
       // Close the browser
       if (loginResult.browser) {
         await loginResult.browser.close();
       }
       
-      // Restore original environment variables
-      process.env.FOSSA_EMAIL = origEmail;
-      process.env.FOSSA_PASSWORD = origPassword;
+      if (!loginResult.success) {
+        throw new Error(loginResult.error || 'Invalid credentials');
+      }
     } catch (loginError) {
       console.error('Login verification failed:', loginError);
       return res.status(400).json({ 
@@ -302,6 +300,84 @@ router.patch('/:userId', (req, res) => {
   }
 });
 
+// Update user credentials
+router.put('/:userId/credentials', async (req, res) => {
+  console.log('PUT /users/:userId/credentials - Request received');
+  console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  console.log('Params:', req.params);
+  console.log('Body:', { email: req.body.email?.substring(0, 3) + '***', hasPassword: !!req.body.password });
+  
+  try {
+    const { userId } = req.params;
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email and password are required' 
+      });
+    }
+    
+    // Test the new credentials first
+    try {
+      console.log(`=== Starting credential verification for user ${userId} ===`);
+      console.log(`New email to verify: ${email.substring(0, 3) + '***'}`);
+      
+      console.log(`Verifying new credentials for user ${userId}`);
+      const loginResult = await loginToFossa({ 
+        headless: true,
+        email: email,
+        password: password 
+      });
+      
+      console.log(`Login verification result:`, loginResult.success ? 'SUCCESS' : 'FAILED');
+      
+      // Close the browser
+      if (loginResult.browser) {
+        await loginResult.browser.close();
+      }
+      
+      console.log(`=== Credential verification completed ===`);
+    } catch (loginError) {
+      console.error('Login verification failed:', loginError.message);
+      
+      return res.status(400).json({ 
+        success: false, 
+        message: `Invalid credentials: ${loginError.message}` 
+      });
+    }
+    
+    // Update the credentials
+    const success = updateUserCredentials(userId, email, password);
+    
+    if (!success) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+    
+    // If this is the active user, update environment variables
+    const activeUserId = getActiveUser();
+    if (userId === activeUserId) {
+      process.env.FOSSA_EMAIL = email;
+      process.env.FOSSA_PASSWORD = password;
+    }
+    
+    res.json({
+      success: true,
+      message: 'User credentials updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating user credentials:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to update user credentials' 
+    });
+  }
+});
+
 // Delete user
 router.delete('/:userId', (req, res) => {
   try {
@@ -366,24 +442,28 @@ router.post('/verify-credentials', async (req, res) => {
     
     // Test the credentials
     try {
-      // Temporarily set environment variables
-      const origEmail = process.env.FOSSA_EMAIL;
-      const origPassword = process.env.FOSSA_PASSWORD;
-      
-      process.env.FOSSA_EMAIL = email;
-      process.env.FOSSA_PASSWORD = password;
-      
       console.log(`Verifying credentials for ${email}`);
-      const loginResult = await loginToFossa({ headless: true });
+      const loginResult = await loginToFossa({ 
+        headless: true,
+        email: email,
+        password: password 
+      });
+      
+      console.log(`Verification result:`, loginResult.success ? 'SUCCESS' : 'FAILED');
       
       // Close the browser
       if (loginResult.browser) {
         await loginResult.browser.close();
       }
       
-      // Restore original environment variables
-      process.env.FOSSA_EMAIL = origEmail;
-      process.env.FOSSA_PASSWORD = origPassword;
+      // Check if login was successful
+      if (!loginResult.success) {
+        const errorMessage = loginResult.error || 'Invalid credentials';
+        return res.json({
+          success: false,
+          message: errorMessage
+        });
+      }
       
       // Return success
       return res.json({
@@ -391,10 +471,11 @@ router.post('/verify-credentials', async (req, res) => {
         message: 'Credentials verified successfully'
       });
     } catch (loginError) {
-      console.error('Credential verification failed:', loginError);
-      return res.status(400).json({ 
+      console.error('Credential verification failed:', loginError.message);
+      // Return false instead of throwing error for verify endpoint
+      return res.json({ 
         success: false, 
-        message: `Invalid credentials: ${loginError.message}` 
+        message: loginError.message || 'Invalid credentials'
       });
     }
   } catch (error) {
@@ -459,6 +540,50 @@ router.get('/friendly-names', (req, res) => {
       message: `Failed to list user friendly names: ${error.message}`
     });
   }
+});
+
+// Test the route path
+router.get('/test', (req, res) => {
+  console.log('Test route hit!');
+  res.json({ 
+    success: true, 
+    message: 'Test route works',
+    method: req.method,
+    url: req.url
+  });
+});
+
+// Test a dynamic route
+router.get('/:userId/test', (req, res) => {
+  console.log('Dynamic test route hit!', req.params.userId);
+  res.json({ 
+    success: true, 
+    message: 'Dynamic test route works',
+    userId: req.params.userId
+  });
+});
+
+// Debug route to catch all requests
+router.all('*', (req, res) => {
+  console.log('User router catch-all:', req.method, req.url);
+  res.status(404).json({ 
+    success: false, 
+    message: `Route not found: ${req.method} ${req.url}`,
+    availableRoutes: [
+      'GET /',
+      'GET /active', 
+      'POST /active',
+      'POST /',
+      'PATCH /:userId',
+      'DELETE /:userId',
+      'PUT /:userId/credentials',
+      'POST /verify-credentials',
+      'POST /rename',
+      'GET /friendly-names',
+      'GET /test',
+      'GET /:userId/test'
+    ]
+  });
 });
 
 export default router; 

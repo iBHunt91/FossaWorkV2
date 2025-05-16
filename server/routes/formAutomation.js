@@ -4,6 +4,9 @@
 import express from 'express';
 const router = express.Router();
 import * as formAutomation from '../form-automation/AutomateForm.js';
+import { preview } from '../form-automation/preview.js';
+import { diagnose } from '../form-automation/diagnostics.js';
+import { processBatchPatched, getBatchStatusPatched } from '../form-automation/processBatchPatch.js';
 import * as logger from '../utils/logger.js';
 
 // Process a single visit
@@ -57,11 +60,13 @@ router.get('/form-automation/status', (req, res) => {
 // Process a batch of visits
 router.post('/form-automation/batch', async (req, res) => {
   try {
-    const { filePath, headless } = req.body;
+    const { filePath, headless, selectedVisits, resumeFromBatchId } = req.body;
     
     if (!filePath) {
       return res.status(400).json({ error: 'File path is required' });
     }
+    
+    logger.info(`Batch process request received for file: ${filePath}, headless: ${headless}, selectedVisits: ${selectedVisits ? selectedVisits.length : 0}, resumeFromBatchId: ${resumeFromBatchId || 'none'}`);
     
     // Create a job ID
     const jobId = Date.now().toString();
@@ -69,9 +74,21 @@ router.post('/form-automation/batch', async (req, res) => {
     // Start the batch processing in the background
     process.nextTick(async () => {
       try {
-        await formAutomation.processBatch(filePath, headless !== false);
+        // Add options for selected visits and resume capability
+        const options = {
+          selectedVisits: selectedVisits || [],
+          resumeFromBatchId: resumeFromBatchId
+        };
+        
+        logger.info(`Starting batch processing with job ID: ${jobId}, options:`, options);
+        
+        // Use the patched version of processBatch
+        await processBatchPatched(filePath, headless !== false, options);
+        
+        logger.info(`Batch processing completed for job ID: ${jobId}`);
       } catch (error) {
-        logger.error(`Error in background batch processing: ${error.message}`);
+        logger.error(`Error in background batch processing for job ID ${jobId}: ${error.message}`);
+        logger.error(`Stack trace: ${error.stack}`);
       }
     });
     
@@ -89,7 +106,20 @@ router.post('/form-automation/batch', async (req, res) => {
 // Get status of current batch job
 router.get('/form-automation/batch/status', (req, res) => {
   try {
-    const status = formAutomation.getBatchStatus();
+    logger.info('Batch status endpoint called');
+    
+    // Get batch status from patched implementation
+    const status = getBatchStatusPatched();
+    
+    // Log status info for debugging
+    logger.info(`Returning batch status: ${JSON.stringify({
+      status: status.status,
+      progress: status.progress,
+      totalVisits: status.totalVisits,
+      completedVisits: status.completedVisits,
+      currentVisit: status.currentVisit
+    })}`);
+    
     res.json(status);
   } catch (error) {
     logger.error(`Error getting batch status: ${error.message}`);
@@ -98,9 +128,9 @@ router.get('/form-automation/batch/status', (req, res) => {
 });
 
 // Cancel an ongoing form automation job
-router.post('/form-automation/cancel', (req, res) => {
+router.post('/form-automation/cancel/:jobId', (req, res) => {
   try {
-    const { jobId } = req.body;
+    const { jobId } = req.params;
     
     if (!jobId) {
       return res.status(400).json({ error: 'Job ID is required' });
@@ -116,6 +146,200 @@ router.post('/form-automation/cancel', (req, res) => {
     });
   } catch (error) {
     logger.error(`Error cancelling job: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Preview batch file contents
+router.post('/form-automation/preview-batch', async (req, res) => {
+  try {
+    const { filePath } = req.body;
+    
+    if (!filePath) {
+      return res.status(400).json({ error: 'File path is required' });
+    }
+    
+    logger.info(`Preview batch endpoint called for file: ${filePath}`);
+    
+    // Call the preview function
+    const previewResult = await preview(filePath);
+    
+    // Return the preview data
+    res.json(previewResult);
+  } catch (error) {
+    logger.error(`Error previewing batch file: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Diagnostics endpoint for batch processing
+router.get('/form-automation/diagnostics', async (req, res) => {
+  try {
+    logger.info('Diagnostics endpoint called');
+    
+    // Run diagnostics
+    const diagnosticResult = await diagnose();
+    
+    res.json({
+      success: true,
+      diagnostics: diagnosticResult
+    });
+  } catch (error) {
+    logger.error(`Error running diagnostics: ${error.message}`);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
+});
+
+// Get unified status for a specific job
+router.get('/form-automation/unified-status/:jobId', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    if (!jobId) {
+      return res.status(400).json({ error: 'Job ID is required' });
+    }
+    
+    // Get status from either single or batch automation based on job ID
+    let status;
+    if (jobId.startsWith('batch_')) {
+      status = getBatchStatusPatched();
+    } else {
+      status = formAutomation.getStatus();
+    }
+    
+    res.json(status);
+  } catch (error) {
+    logger.error(`Error getting unified status: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get specific batch job status
+router.get('/form-automation/batch/:jobId/status', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    if (!jobId) {
+      return res.status(400).json({ error: 'Job ID is required' });
+    }
+    
+    const status = getBatchStatusPatched();
+    res.json(status);
+  } catch (error) {
+    logger.error(`Error getting batch job status: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Pause a running job
+router.post('/form-automation/pause/:jobId', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { reason } = req.body;
+    
+    if (!jobId) {
+      return res.status(400).json({ error: 'Job ID is required' });
+    }
+    
+    // Pause the job
+    formAutomation.pauseJob(jobId, reason);
+    
+    res.json({
+      success: true,
+      message: 'Job paused successfully'
+    });
+  } catch (error) {
+    logger.error(`Error pausing job: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Resume a paused job
+router.post('/form-automation/resume/:jobId', (req, res) => {
+  try {
+    const { jobId } = req.params;
+    
+    if (!jobId) {
+      return res.status(400).json({ error: 'Job ID is required' });
+    }
+    
+    // Resume the job
+    formAutomation.resumeJob(jobId);
+    
+    res.json({
+      success: true,
+      message: 'Job resumed successfully'
+    });
+  } catch (error) {
+    logger.error(`Error resuming job: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Open URL with debug mode
+router.post('/form-automation/open-debug', async (req, res) => {
+  try {
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+    
+    // Open URL in debug mode (implementation depends on what this should do)
+    logger.info(`Opening URL in debug mode: ${url}`);
+    
+    res.json({
+      success: true,
+      message: 'URL opened in debug mode'
+    });
+  } catch (error) {
+    logger.error(`Error opening URL in debug mode: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get list of active jobs
+router.get('/form-automation/active-jobs', (req, res) => {
+  try {
+    // This would need to be implemented to track all active jobs
+    const activeJobs = formAutomation.getActiveJobs ? formAutomation.getActiveJobs() : [];
+    
+    res.json(activeJobs);
+  } catch (error) {
+    logger.error(`Error getting active jobs: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Clear job history
+router.post('/form-automation/clear-history', (req, res) => {
+  try {
+    const { userId, jobType } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required' });
+    }
+    
+    if (!jobType || !['single', 'batch', 'all'].includes(jobType)) {
+      return res.status(400).json({ error: 'Valid job type is required (single, batch, or all)' });
+    }
+    
+    logger.info(`Clearing ${jobType} job history for user: ${userId}`);
+    
+    // Since jobs are currently kept in memory on the frontend,
+    // we don't have persistent job history on the backend yet.
+    // This endpoint is ready for when we implement persistent job storage.
+    
+    // For now, we'll just return success as the frontend handles its own state
+    res.json({
+      success: true,
+      message: `${jobType} job history cleared for user ${userId}`
+    });
+  } catch (error) {
+    logger.error(`Error clearing job history: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

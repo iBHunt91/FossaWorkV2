@@ -1,0 +1,44 @@
+{
+  "jobs": [
+    {
+      "id": "TUTORIAL-001",
+      "customer": {
+        "name": "Tutorial Store #1",
+        "storeNumber": "TUT-01",
+        "address": {
+          "street": "123 Tutorial Lane",
+          "cityState": "Training City, TS 12345",
+          "latitude": 35.123456,
+          "longitude": -80.654321
+        },
+        "contactName": "Training Manager",
+        "contactPhone": "555-101-0101",
+        "contactEmail": "training@example.com"
+      },
+      "visits": {
+        "nextVisit": {
+          "date": "05/12/2025",
+          "time": "9:00 AM - 12:00 PM",
+          "status": "scheduled"
+        },
+        "previousVisit": {
+          "date": "04/15/2025",
+          "time": "10:00 AM - 2:00 PM",
+          "technician": "Tutorial Tech",
+          "notes": "This shows how the system tracks changes between data updates."
+        }
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 4,
+          "description": "This is the previous version of the data before changes were made."
+        }
+      ],
+      "notes": "This previous version shows how the system tracks changes. Notice the visit date and services are different.",
+      "tutorial": true
+    }
+  ],
+  "lastUpdated": "2025-05-10T12:00:00.000Z",
+  "isTutorial": true
+} 

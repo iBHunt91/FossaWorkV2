@@ -1,0 +1,121 @@
+{
+  "dispensers": [
+    {
+      "id": "TUT-01-D1",
+      "storeId": "TUT-01",
+      "storeName": "Tutorial Store #1",
+      "dispenserNumber": "1",
+      "status": "active",
+      "fuelTypes": ["Regular", "Plus", "Premium"],
+      "lastCalibration": "2025-04-15",
+      "nextCalibration": "2025-05-20",
+      "model": "Example Model X",
+      "notes": "This is an example dispenser. In a real system, this would contain technical details about a gas station dispenser.",
+      "tutorial": true
+    },
+    {
+      "id": "TUT-01-D2",
+      "storeId": "TUT-01",
+      "storeName": "Tutorial Store #1",
+      "dispenserNumber": "2",
+      "status": "active",
+      "fuelTypes": ["Regular", "Plus", "Premium", "Diesel"],
+      "lastCalibration": "2025-04-15",
+      "nextCalibration": "2025-05-20",
+      "model": "Example Model X",
+      "notes": "This dispenser includes diesel fuel. Different dispensers can have different fuel types configured.",
+      "tutorial": true
+    },
+    {
+      "id": "TUT-01-D3",
+      "storeId": "TUT-01",
+      "storeName": "Tutorial Store #1",
+      "dispenserNumber": "3",
+      "status": "maintenance",
+      "fuelTypes": ["Regular", "Plus", "Premium"],
+      "lastCalibration": "2025-03-10",
+      "nextCalibration": "2025-05-20",
+      "model": "Example Model X",
+      "notes": "This dispenser is marked for maintenance. The status indicator helps track which equipment needs attention.",
+      "tutorial": true
+    },
+    {
+      "id": "TUT-01-D4",
+      "storeId": "TUT-01",
+      "storeName": "Tutorial Store #1",
+      "dispenserNumber": "4",
+      "status": "active",
+      "fuelTypes": ["Regular", "Plus", "Premium"],
+      "lastCalibration": "2025-04-15",
+      "nextCalibration": "2025-05-20",
+      "model": "Example Model Y",
+      "notes": "This dispenser uses a different model than the others at this location. The system tracks different equipment types.",
+      "tutorial": true
+    },
+    {
+      "id": "TUT-02-D1",
+      "storeId": "TUT-02",
+      "storeName": "Training Center",
+      "dispenserNumber": "1",
+      "status": "active",
+      "fuelTypes": ["Regular", "Plus", "Premium"],
+      "lastCalibration": "2025-03-10",
+      "nextCalibration": "2025-05-25",
+      "model": "Example Model Z",
+      "notes": "This dispenser belongs to a different location. The system organizes dispensers by their store location.",
+      "tutorial": true
+    },
+    {
+      "id": "TUT-02-D2",
+      "storeId": "TUT-02",
+      "storeName": "Training Center",
+      "dispenserNumber": "2",
+      "status": "active",
+      "fuelTypes": ["Regular", "Plus", "Premium"],
+      "lastCalibration": "2025-03-10",
+      "nextCalibration": "2025-05-25",
+      "model": "Example Model Z",
+      "tutorial": true
+    },
+    {
+      "id": "TUT-02-D3",
+      "storeId": "TUT-02",
+      "storeName": "Training Center",
+      "dispenserNumber": "3",
+      "status": "inactive",
+      "fuelTypes": ["Regular", "Plus", "Premium"],
+      "lastCalibration": "2025-02-05",
+      "nextCalibration": "2025-05-25",
+      "model": "Example Model Z",
+      "notes": "This dispenser is currently inactive. The system tracks active and inactive equipment.",
+      "tutorial": true
+    },
+    {
+      "id": "TUT-03-D1",
+      "storeId": "TUT-03",
+      "storeName": "Demo Location",
+      "dispenserNumber": "1",
+      "status": "active",
+      "fuelTypes": ["Regular", "Plus", "Premium", "Diesel"],
+      "lastCalibration": "2025-02-01",
+      "nextCalibration": "2025-05-15",
+      "model": "Example Model Ultra",
+      "notes": "This location uses a premium dispenser model with additional features.",
+      "tutorial": true
+    },
+    {
+      "id": "TUT-03-D2",
+      "storeId": "TUT-03",
+      "storeName": "Demo Location",
+      "dispenserNumber": "2",
+      "status": "active",
+      "fuelTypes": ["Regular", "Plus", "Premium", "Diesel"],
+      "lastCalibration": "2025-02-01",
+      "nextCalibration": "2025-05-15",
+      "model": "Example Model Ultra",
+      "tutorial": true
+    }
+  ],
+  "lastUpdated": "2025-05-13T16:35:00.000Z",
+  "isTutorial": true
+} 

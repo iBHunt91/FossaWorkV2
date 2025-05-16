@@ -23,6 +23,7 @@ interface DispenserModalProps {
   onClose: () => void;
   dispensers: Dispenser[];
   orderId?: string | null;
+  visitNumber?: string;
   sortFuelTypes?: (gradeString: string) => string[];
 }
 
@@ -31,6 +32,7 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
   onClose, 
   dispensers,
   orderId,
+  visitNumber,
   sortFuelTypes
 }) => {
   const [expandedTechnicalDetails, setExpandedTechnicalDetails] = useState<number[]>([]);
@@ -169,6 +171,12 @@ const DispenserModal: React.FC<DispenserModalProps> = ({
                   <span className="ml-2 font-normal text-blue-100 flex items-center bg-blue-700/40 px-2 py-0.5 rounded-md text-sm">
                     <FiHash className="mr-1 opacity-80" size={14} />
                     <span className="font-semibold">{orderId}</span>
+                  </span>
+                )}
+                {visitNumber && (
+                  <span className="ml-2 font-normal text-blue-100 flex items-center bg-blue-700/40 px-2 py-0.5 rounded-md text-sm">
+                    <FiInfo className="mr-1 opacity-80" size={14} />
+                    <span className="font-semibold">Visit #{visitNumber}</span>
                   </span>
                 )}
               </h3>

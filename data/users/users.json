@@ -4,15 +4,40 @@
     "email": "robert.hunt@owlservices.com",
     "password": "080491Rh!",
     "label": "Robert Hunt",
-    "lastUsed": "2025-05-06T20:06:50.314Z",
-    "friendlyName": "Robert"
+    "lastUsed": "2025-05-16T15:00:51.075Z",
+    "friendlyName": "Robert",
+    "configuredEmail": "bruce.hunt@owlservices.com",
+    "notificationSettings": {
+      "enabled": true,
+      "email": {
+        "enabled": true,
+        "frequency": "immediate",
+        "deliveryTime": "18:00"
+      },
+      "pushover": {
+        "enabled": true,
+        "priority": "normal"
+      }
+    }
   },
   {
     "id": "7bea3bdb7e8e303eacaba442bd824004",
     "email": "bruce.hunt@owlservices.com",
     "password": "Crompco0511",
     "label": "Bruce Hunt",
-    "lastUsed": "2025-05-06T20:37:56.181Z",
-    "friendlyName": "Bruce"
+    "lastUsed": "2025-05-16T19:09:44.651Z",
+    "friendlyName": "Bruce",
+    "notificationSettings": {
+      "email": {
+        "enabled": true,
+        "frequency": "immediate",
+        "deliveryTime": "15:40"
+      },
+      "pushover": {
+        "enabled": true
+      },
+      "enabled": true
+    },
+    "configuredEmail": "bruce.hunt@owlservices.com"
   }
 ]

@@ -21,7 +21,7 @@ interface DispenserContextType {
   loadDispenserData: (forceRefresh?: boolean, showLoading?: boolean) => Promise<void>;
 }
 
-const DispenserContext = createContext<DispenserContextType | undefined>(undefined);
+export const DispenserContext = createContext<DispenserContextType | undefined>(undefined);
 
 export const useDispenserData = () => {
   const context = useContext(DispenserContext);

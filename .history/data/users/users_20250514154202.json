@@ -1,0 +1,65 @@
+[
+  {
+    "id": "c816bd155f7747524492e431040ad8ce",
+    "email": "robert.hunt@owlservices.com",
+    "password": "080491Rh!",
+    "label": "Robert Hunt",
+    "lastUsed": "2025-05-13T17:00:14.694Z",
+    "friendlyName": "Robert",
+    "configuredEmail": "bruce.hunt@owlservices.com",
+    "notificationSettings": {
+      "enabled": true,
+      "email": {
+        "enabled": true,
+        "frequency": "immediate",
+        "deliveryTime": "18:00"
+      },
+      "pushover": {
+        "enabled": true,
+        "priority": "normal"
+      }
+    }
+  },
+  {
+    "id": "7bea3bdb7e8e303eacaba442bd824004",
+    "email": "bruce.hunt@owlservices.com",
+    "password": "Crompco0511",
+    "label": "Bruce Hunt",
+    "lastUsed": "2025-05-13T16:06:48.351Z",
+    "friendlyName": "Bruce",
+    "notificationSettings": {
+      "email": {
+        "enabled": true,
+        "frequency": "immediate",
+        "deliveryTime": "15:40"
+      },
+      "pushover": {
+        "enabled": true
+      },
+      "enabled": true
+    },
+    "configuredEmail": "bruce.hunt@owlservices.com"
+  },
+  {
+    "id": "tutorial",
+    "email": "tutorial@example.com",
+    "password": "tutorial",
+    "label": "Tutorial User",
+    "lastUsed": "2025-05-13T17:00:19.916Z",
+    "friendlyName": "Tutorial",
+    "configuredEmail": "tutorial@example.com",
+    "notificationSettings": {
+      "enabled": true,
+      "email": {
+        "enabled": true,
+        "frequency": "immediate",
+        "deliveryTime": "09:00"
+      },
+      "pushover": {
+        "enabled": true,
+        "priority": "normal"
+      }
+    },
+    "isTutorial": true
+  }
+]

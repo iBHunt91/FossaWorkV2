@@ -1,0 +1,18 @@
+useEffect(() => {
+  addDebugLog('SYSTEM', 'FormPrep component initialized', {
+    workOrders: workOrders.length,
+    formJobs: formJobs.length,
+    batchJobs: batchJobs.length,
+    activeUserId,
+    browserUserAgent: navigator.userAgent
+  });
+  
+  return () => {
+    addDebugLog('SYSTEM', 'FormPrep component unmounting - stopping all polls');
+    
+    // COMPLETELY STOP all polling when unmounting
+    if (pollingManager.current) {
+      pollingManager.current.stopAll();
+    }
+  };
+}, []);

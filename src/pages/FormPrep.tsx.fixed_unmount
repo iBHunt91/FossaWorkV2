@@ -1,0 +1,16 @@
+// Cleanup on unmount
+useEffect(() => {
+  return () => {
+    // IMPORTANT: STOP all polls (not just pause them) when component unmounts
+    addDebugLog('SYSTEM', 'FormPrep component unmounting - stopping all polls');
+    
+    if (pollingManager.current) {
+      pollingManager.current.stopAll(); // Changed from pauseAll to stopAll
+    }
+    
+    // Clear any other intervals
+    if (pollingConfig.interval) {
+      clearInterval(pollingConfig.interval);
+    }
+  };
+}, []);

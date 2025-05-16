@@ -144,6 +144,28 @@ function updateUserLabel(userId, label) {
   return false;
 }
 
+// Update user credentials
+function updateUserCredentials(userId, email, password) {
+  const users = listUsers();
+  const userIndex = users.findIndex(u => u.id === userId);
+  
+  if (userIndex >= 0) {
+    users[userIndex].email = email;
+    users[userIndex].password = password;
+    users[userIndex].lastUsed = new Date().toISOString();
+    
+    fs.writeFileSync(
+      path.join(usersDir, 'users.json'),
+      JSON.stringify(users, null, 2),
+      'utf8'
+    );
+    
+    return true;
+  }
+  
+  return false;
+}
+
 // Delete a user and their data
 function deleteUser(userId) {
   const users = listUsers();
@@ -431,6 +453,7 @@ export {
   getUserCredentials,
   listUsers,
   updateUserLabel,
+  updateUserCredentials,
   deleteUser,
   getActiveUser,
   setActiveUser,

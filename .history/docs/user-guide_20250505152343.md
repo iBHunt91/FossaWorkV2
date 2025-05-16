@@ -1,0 +1,501 @@
+# User Guide
+
+## Overview
+This document provides comprehensive documentation for users of the system, including features, functionality, and usage instructions.
+
+## Table of Contents
+1. [Getting Started](#getting-started)
+2. [Features](#features)
+3. [User Interface](#user-interface)
+4. [Common Tasks](#common-tasks)
+5. [Troubleshooting](#troubleshooting)
+
+## Getting Started
+### Initial Setup
+1. **Install the Application**
+   - Double-click the installer file and follow the on-screen instructions
+   - The application will be installed in your Programs folder
+
+2. **Configure Your Credentials**
+   - When first run, the application will ask for:
+     - Your Fossa account email and password
+     - Your notification email address
+     - Pushover account details (if you want push notifications)
+     - Twilio account details (if you want SMS notifications)
+
+3. **Start the Application**
+   - To start the complete application (recommended):
+     ```bash
+     npm run electron:dev:start
+     ```
+   - This will start:
+     - The backend server
+     - Frontend development server
+     - Electron desktop application
+     - Handle process cleanup and port management
+
+   - Alternative startup options:
+     - `npm run electron:dev`: Start without process management
+     - `npm run electron:start`: Start only the Electron app
+     - `npm run start`: Start only the frontend and server
+
+4. **Start Monitoring**
+   - The application will start automatically in the background
+   - The monitoring icon appears in your system tray
+   - Click "Start Monitoring" to begin the background monitoring service
+
+### Auto-Start Configuration
+To have Fossa Monitor start automatically when you turn on your computer:
+1. Right-click on the Fossa Monitor icon in your system tray
+2. Select "Settings" from the menu
+3. Check the box for "Start at Login" in the submenu
+4. The setting will be applied immediately
+
+## Features
+### Core Functionality
+- Automatic schedule checking
+- Change detection and notification
+- Form automation
+- Data management and backup
+
+### User Management
+The application supports multiple user accounts with user-specific data storage. This allows multiple Fossa users to share the same installation.
+
+#### Features
+- Multi-user support: Multiple users can use the same installation
+- User-specific data: Each user has their own work orders, dispensers, and settings
+- Visual indication: The active user is displayed in the sidebar with a dropdown menu
+- Quick switching: Change between users directly from the sidebar dropdown
+- Full management: Additional user management options in the Settings page
+
+#### Using Multiple Accounts
+1. **Adding a New User**
+   - Go to the Settings page
+   - In the User Management section, click "Add User"
+   - Enter the Fossa email, password, and a display name (label)
+   - Click "Save" to create the new user
+
+2. **Switching Users**
+   - **Quick Switch**: Click the user dropdown in the sidebar
+   - Select the user you want to switch to
+   - The application will automatically:
+     - Update the active user
+     - Reload the application
+     - Load the new user's data
+   - **Alternative Method**: Use the Settings page
+     - Go to Settings > User Management
+     - Click "Set Active" next to the desired user
+
+3. **Managing Users**
+   - **Edit Label**: Change the display name of a user
+   - **Delete User**: Remove a user and all their data
+   - **View Details**: See when a user was last active
+   - **Rename User Directory**: Create a friendly name for the user's data folder
+
+4. **Active User Display**
+   - The active user is always displayed in the sidebar
+   - A dropdown menu provides quick access to switch users
+   - The active user is marked with a checkmark in the dropdown
+   - The sidebar shows the user's label or email address
+
+#### User Switching Process
+When switching users, the following happens automatically:
+1. The application updates the active user in the system
+2. The application reloads to ensure all data is refreshed
+3. The new user's data is loaded and displayed
+4. The sidebar updates to show the new active user
+5. All user-specific settings and preferences are applied
+
+#### Troubleshooting User Switching
+If you encounter issues when switching users:
+
+1. **Application Doesn't Reload**
+   - Try using the browser reload button
+   - Restart the application if needed
+   - Check the DevTools console (Ctrl+Shift+I) for error messages
+   - Verify that the Electron process is responding
+
+2. **Data Not Updating**
+   - Check if the user has completed a data scrape
+   - Verify the user's credentials are correct
+   - Ensure the user's data files exist in their directory
+   - Run a manual scrape to refresh the user's data
+
+3. **User Not Showing in Dropdown**
+   - Go to Settings > User Management
+   - Verify the user exists in the list
+   - Try adding the user again if needed
+   - Check the `data/users/users.json` file for corruption
+
+4. **Switch Appears Stuck**
+   - Clear localStorage by going to DevTools > Application > Storage > Local Storage > Clear
+   - Restart the application completely
+   - Check server logs for errors during the switch process
+   - Verify write permissions to the `data/settings.json` file
+   - Try manually setting the active user through Settings > User Management
+
+5. **Permissions Issues**
+   - Ensure the application has write access to the `data` directory
+   - Check if any files are locked by other processes
+   - Run the application with appropriate privileges
+   - Verify file ownership and permissions on the data files
+
+6. **Recovering from Failed Switches**
+   - The application stores switch state in localStorage
+   - If a switch fails to complete, clear these flags:
+     - `userSwitchInProgress`
+     - `switchTargetUserId`
+     - `switchTargetLabel`
+   - Restart the application after clearing the flags
+
+7. **Verifying Current User**
+   - The active user is displayed in the sidebar
+   - Check the API endpoint `/api/users/active` to confirm the server's active user
+   - Examine `data/settings.json` to verify the `activeUserId` value
+
+#### Renaming User Directories
+The application supports renaming user directories to use friendly names instead of system-generated IDs:
+
+1. **Purpose**
+   - Makes user data folders more identifiable
+   - Improves organization when managing multiple users
+   - Maintains compatibility with existing data
+
+2. **How to Rename a User Directory**
+   - Go to the Settings page
+   - In the User Management section, find the user you want to rename
+   - Click "Rename Directory" next to the user
+   - Enter a friendly name (only letters, numbers, underscores, and hyphens are allowed)
+   - Click "Save" to apply the change
+
+3. **What Happens When You Rename**
+   - A symbolic link is created from the new friendly name to the original directory
+   - All existing data remains in place and accessible
+   - The application will recognize both the original ID and the friendly name
+
+4. **Limitations and Notes**
+   - Each friendly name must be unique
+   - Renaming is one-way (you can't revert to using just the original ID)
+   - Friendly names are converted to be filesystem-safe (special characters are replaced with underscores)
+   - You can still delete users with renamed directories
+
+#### Preset User Accounts
+The application comes with a preset user account for Bruce Hunt:
+   - Email: bruce.hunt@owlservices.com
+   - Display name: Bruce Hunt
+   - Migrated settings: Prover preferences, email settings, and Pushover settings
+   - Access: Switch to this account from the Settings page
+
+#### Step-by-Step: First Time Setup
+If this is your first time using multiple accounts:
+
+1. **Start the Application**
+   - Launch the application using the desktop shortcut or start menu
+   - Wait for the application to fully load
+
+2. **Navigate to Settings**
+   - Click on the "Settings" link in the navigation menu
+   - Scroll to find the "User Management" section
+
+3. **Review Existing Users**
+   - You should see at least two accounts:
+     - Bruce Hunt (bruce.hunt@owlservices.com)
+     - Your original account (if previously set up)
+
+4. **Select the Account to Use**
+   - Click "Set Active" next to the user you want to work with
+   - Wait for the application to reload with the selected user data
+
+5. **Verify Selected User**
+   - Check the sidebar to confirm the active user
+   - Navigate to the Dashboard to ensure data is loaded correctly
+
+#### Step-by-Step: Adding a New User
+To add another user to the system:
+
+1. **Navigate to User Management**
+   - Go to Settings > User Management
+
+2. **Add New User**
+   - Click the "Add User" button
+   - Fill in the form with:
+     - Email address (must be a valid Fossa account)
+     - Password
+     - Display name (optional, will use email if not provided)
+
+3. **Save User**
+   - Click "Save" to create the new user
+   - The new user will appear in the list
+
+4. **Set as Active (Optional)**
+   - Click "Set Active" to immediately switch to this user
+   - Or leave the current user active
+
+#### Data Separation
+Each user account has its own set of data files:
+- Work orders and schedule
+- Dispenser information
+- Prover preferences
+- Email notification settings
+- Pushover notification settings
+
+This ensures that each user works with their own data without affecting other users.
+
+#### Migrating Data
+If you were using a version before multi-user support was added, you can migrate your existing data:
+1. Go to the Settings page
+2. Add your Fossa account as a new user
+3. Set it as active
+4. Run the data migration: `node scripts/migrate_user_data.js`
+5. Your existing data will be associated with your user account
+
+#### Troubleshooting User Management
+- **Can't Switch Users**: Ensure the server is running correctly (restart the application)
+- **Missing Data After Switch**: The selected user may not have completed a data scrape yet
+- **Default User on Startup**: Check settings.json file for correct activeUserId
+- **Login Failed**: Verify the email and password for the active user account
+
+### Form Automation
+The system includes automated form filling functionality for processing work order forms.
+
+#### Features
+- Single Visit Processing: Automate form filling for individual work order visits
+- Batch Processing: Process multiple visits from a JSON data file
+- Smart Status Monitoring: Tracks job status with intelligent timeouts and progress detection
+- Visual or Headless Mode: Run automation with or without visible browser windows
+- Prover Preferences: Intelligently selects appropriate provers based on fuel type
+
+#### Usage
+
+##### Single Visit Processing
+1. Select a work order from the dropdown or search for one
+2. The visit URL will be auto-filled, or you can manually enter one
+3. Choose whether to show the browser during automation (debug mode)
+4. Click "Process Visit Form"
+5. The system will:
+   - Extract relevant information (store name, visit number, dispenser count)
+   - Launch an automated browser session
+   - Fill in all form fields
+   - Submit the form
+   - Monitor progress in real-time
+
+##### Batch Processing
+1. Enter the path to a JSON file containing work orders (default: `data/scraped_content.json`)
+2. Choose whether to show browsers during automation
+3. Click "Start Batch Processing"
+4. The system will process all visits in the file sequentially
+
+##### Prover Preferences
+The automation system uses prover preferences to optimize the AccuMeasure testing process:
+1. Prover preferences are stored in `data/prover_preferences.json`
+2. Each prover is mapped to a preferred fuel type (Unleaded, Premium, Diesel, etc.)
+3. The system selects the appropriate prover based on:
+   - The fuel type being tested
+   - The preferred prover for that fuel type
+   - Availability of the prover (not already used in another test)
+
+##### Managing Prover Preferences
+The application provides a dedicated interface for managing prover preferences:
+
+1. **Accessing Prover Preferences**
+   - Navigate to the Settings page
+   - Find the "Prover Preferences" section
+
+2. **Available Actions**
+   - **Refresh**: Reloads your current prover preferences data from storage
+   - **Rescrape**: Retrieves fresh prover information from Work Fossa
+   - **Save Preferences**: Saves your changes to prover settings
+
+3. **Customizing Preferences**
+   - Assign priority levels (1-3) to each prover
+   - Add or remove preferred fuel types for each prover
+   - Higher priority provers are selected first for their preferred fuel types
+
+4. **Prover Data Management**
+   - Prover information is automatically stored in your user profile
+   - Use the Rescrape button when you need to update your prover list or get the latest information
+   - Changes are not applied until you click "Save Preferences"
+
+#### Troubleshooting
+| Issue | Solution |
+|-------|----------|
+| "Job appears stuck" error | Try increasing the timeout thresholds in `pollingManager` |
+| Browser crashes | Ensure you have the latest Chrome version installed |
+| Forms not fully completed | Run in visible mode to see where automation fails |
+| Batch processing errors | Check that your JSON data file has the correct format |
+| Selector errors | Form structure may have changed; update selectors in automation code |
+| Permission issues | Ensure the app has permissions to access the website |
+
+### Toast Notifications
+The system includes a modern toast notification system that provides temporary notifications to users.
+
+#### Features
+- Beautiful, animated notifications with smooth entrance and exit animations
+- Multiple toast types: Success, Error, Info, and Warning with appropriate colors and icons
+- Progress bar showing remaining time before the toast disappears
+- Pause on hover functionality
+- Customizable duration for each notification
+- Flexible positioning options (6 different positions on screen)
+- Dark mode support
+
+#### Usage
+Toasts can be used to display:
+- Success messages
+- Error notifications
+- Informational updates
+- Warning messages
+
+Each toast type has its own color scheme and icon for easy recognition.
+
+## User Interface
+### Navigation Menu Structure
+The application has a streamlined navigation menu with the following sections:
+
+1. **Dashboard** - Main overview of work orders and system status
+2. **Filters** - Configure and manage data filtering options  
+3. **Form Prep** - Tools for preparing forms and documentation
+4. **Auto Fossa** - Automation controls for Fossa interactions
+5. **History** - View historical data and past activities
+6. **Settings** - Configure application preferences and credentials
+
+### Dashboard Features
+1. **Schedule View**
+   - Current work schedule in a calendar format
+   - Color-coded jobs by type or status
+   - Detailed information available on hover/click
+
+2. **Change History**
+   - Complete history of all detected changes
+   - Filterable by date, change type, and priority
+   - Search functionality to find specific jobs or stores
+
+3. **Notification Log**
+   - Record of all sent notifications
+   - Status of delivery for each notification method
+   - Option to resend notifications if needed
+
+4. **Settings Panel**
+   - Configure notification preferences
+   - Adjust scraping frequency
+   - Set priority levels for different change types
+   - Update credentials and connection settings
+
+### Work Order Cards
+Work order cards display essential information about each scheduled job:
+
+- **Store Name and Number** - The customer name and store number
+- **Work Order ID**
+- **Visit Number** - The unique visit ID number for this specific visit
+- **Visit Date** - The scheduled date for the visit
+- **Dispenser Count** - The number of dispensers at the location
+- **Special Instructions** - Any notes or special requirements
+
+## Common Tasks
+### Understanding Notifications
+The application monitors several types of schedule changes:
+
+1. **Critical Changes** (highest priority)
+   - Jobs removed from your schedule
+   - Jobs replaced with different ones on the same day
+
+2. **High Priority Changes**
+   - New jobs added to your schedule
+   - Date changes for existing jobs
+
+3. **Medium Priority Changes**
+   - Time changes for existing jobs
+   - Changes to job details
+
+4. **Low Priority Changes**
+   - Minor updates to job information
+   - Status changes that don't affect scheduling
+
+### Manual Backup
+To manually back up your monitoring data:
+1. Right-click the Fossa Monitor icon in your system tray
+2. Select "Settings" > "Open Data Folder"
+3. Or run the manual backup command: `npm run full-backup`
+4. Choose a location to save the backup file
+
+### Viewing Historical Changes
+To see a history of detected schedule changes:
+1. Right-click the Fossa Monitor icon
+2. Select "Actions" > "View History"
+3. Browse through past schedule changes by date
+4. Use filters to find specific types of changes
+
+## Troubleshooting
+### Common Issues
+1. **Application Not Checking Schedule**
+   - Check if the application is still running (look for the icon in your system tray)
+   - Right-click the icon and select "Actions" > "View Scraping Logs" to check for errors
+   - If the application has closed, restart it using the desktop shortcut
+   - Check the logs folder for detailed error information
+
+2. **Login Issues**
+   - Right-click the Fossa Monitor icon in your system tray
+   - Select "Settings"
+   - Update your Fossa email and password
+   - Click "Save" and then "Test Connection"
+   - If problems persist, check the logs for specific error messages
+
+3. **Notification Problems**
+   - Check your email spam folder
+   - Verify your email address in the application settings
+   - For Pushover issues, confirm your User Key and App Token are correct
+   - For SMS issues, check your Twilio configuration
+   - Use the "Test Notifications" button in settings to send a test message
+   - Check firewall settings that might be blocking outgoing connections
+
+### Command Line Utilities
+The application includes several useful command-line utilities:
+1. `npm run backup` - Create a quick backup of essential data
+2. `npm run full-backup` - Create a comprehensive backup of all data
+3. `npm run restore` - Restore data from a backup
+4. `npm run enhance-logs` - Process logs for better readability
+5. `npm run cleanup-ports` - Fix port conflicts if the application won't start
+
+## Updates
+* Version history
+* Change log
+* Migration guides 
+
+# Pushover Notification Settings
+
+You can configure which job information fields are included in your Pushover notifications (e.g., Visit Number, Store Number, Store Name, Location, Date, Dispensers). The system will automatically determine the notification priority and sound based on the severity and number of changes. There are no user-configurable options for priority or sound.
+
+To update your Pushover settings:
+- Enter your Application Token and User Key from pushover.net
+- Select which job information fields you want to display in notifications
+- Save your settings
+- Use the Test Notification button to verify your configuration
+
+If you have any issues, please contact support.
+
+## Email Notifications Setup with Gmail
+
+The application supports sending email notifications for schedule changes and other important events. To set up email notifications with Gmail:
+
+1. **Enable Two-Factor Authentication (2FA) for your Gmail account**:
+   - Go to your Google Account settings at [https://myaccount.google.com/security](https://myaccount.google.com/security)
+   - Enable 2-Step Verification
+   - Follow the instructions to set up 2FA with your phone or another method
+
+2. **Generate an App Password**:
+   - After enabling 2FA, go to [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+   - Select "Mail" for the app and "Other" or a custom name (e.g., "FM Application") for the device
+   - Click "Generate"
+   - Copy the 16-character password that appears (without spaces)
+
+3. **Configure Email Settings in the Application**:
+   - Go to Settings > Email in the application
+   - Enter your Gmail address in both "Sender Email" and "Username" fields
+   - Enter the App Password you generated in the "Password" field
+   - Enter recipient email address(es)
+   - Save your settings
+
+4. **Testing Your Configuration**:
+   - Use the "Send Test Email" button to verify your setup
+   - Check your recipient inbox (and spam folder if necessary)
+
+**Note**: Never use your regular Gmail password. App passwords are required when using Gmail's SMTP server with applications like this one. 

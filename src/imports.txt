@@ -1,0 +1,54 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import useWorkOrders from '../hooks/useWorkOrders';
+import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
+import { useTheme } from '../context/ThemeContext';
+import { useWorkerStatus } from '../context/WorkerContext';
+import { useToast } from '../context/ToastContext';
+import { useScrapeStatus } from '../context/ScrapeContext';
+import PersistentView, { usePersistentViewContext } from '../components/PersistentView';
+import LastScrapedTime from '../components/LastScrapedTime';
+import NextScrapeTime from '../components/NextScrapeTime';
+import ScrapeLogsConsole from '../components/ScrapeLogsConsole';
+import DispenserModal from '../components/DispenserModal';
+import InstructionsModal from '../components/InstructionsModal';
+import { SkeletonDashboardStats, SkeletonJobsList } from '../components/Skeleton';
+import fuelGrades from '../data/fuel_grades';
+import { ENDPOINTS } from '../config/api';
+import MarkerClusterer from '@googlemaps/markerclustererplus';
+import ReactDOMServer from 'react-dom/server';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
+import { format, parseISO, isValid } from 'date-fns';
+import { calculateFiltersForWorkOrder } from '../utils/filterCalculation';
+import FiltersByType from '../components/FiltersByType'; // Import the new component
+
+// Type definitions
+type ViewType = 'weekly' | 'calendar' | 'compact';
+type StoreFilter = 'all' | '7-eleven' | 'circle-k' | 'wawa' | 'other' | string;
+
+// Define the Location interface at the top of the file
+interface Location {
+  id: string;
+  lat: number;
+  lng: number;
+  title: string;
+  storeType?: string;
+  isFallback?: boolean;
+}
+
+// Other imports and code...
+
+// Helper function to calculate filter warnings for a work order safely
+const calculateFiltersSafely = (order: WorkOrder) => {
+  try {
+    // Use the unsafe type assertion only within this helper function
+    return calculateFiltersForWorkOrder(order as any);
+  } catch (error) {
+    console.error("Error calculating filters:", error);
+    return { gasFilters: 0, dieselFilters: 0, warnings: [], gasFilterTypes: [], dieselFilterTypes: [] };
+  }
+};
+
+// Remaining of the existing code...

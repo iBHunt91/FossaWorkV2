@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { FiUser, FiPlus, FiEdit2, FiTrash2, FiCheckCircle, FiShield, FiFolder, FiCheck, FiX, FiUsers, FiLock, FiMail, FiClock } from 'react-icons/fi';
-import { getUsers, getActiveUser, setActiveUser, addUser, updateUserLabel, deleteUser, verifyCredentials, renameUserDirectory } from '../services/userService';
+import { FiUser, FiPlus, FiEdit2, FiTrash2, FiCheckCircle, FiShield, FiFolder, FiCheck, FiX, FiUsers, FiLock, FiMail, FiClock, FiKey } from 'react-icons/fi';
+import { getUsers, getActiveUser, setActiveUser, addUser, updateUserLabel, deleteUser, verifyCredentials, renameUserDirectory, updateUserCredentials } from '../services/userService';
 import { useToastNotification } from '../hooks/useToastNotification';
 import { clearUserPageState } from '../hooks/usePageState';
 
@@ -28,6 +28,9 @@ const UserManagement: React.FC = () => {
   const [label, setLabel] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [friendlyName, setFriendlyName] = useState('');
+  const [editingCredentials, setEditingCredentials] = useState<string | null>(null);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   
   const toast = useToastNotification();
   
@@ -265,11 +268,90 @@ const UserManagement: React.FC = () => {
     }
   };
   
+  // Start editing credentials
+  const handleStartEditCredentials = (user: User) => {
+    setNewEmail(user.email);
+    setNewPassword('');
+    setEditingCredentials(user.id);
+  };
+  
+  // Cancel editing credentials
+  const handleCancelEditCredentials = () => {
+    setNewEmail('');
+    setNewPassword('');
+    setEditingCredentials(null);
+  };
+  
+  // Update user credentials
+  const handleUpdateCredentials = async (userId: string) => {
+    // Validate inputs
+    if (!newEmail || !newPassword) {
+      toast.showError('Please enter both email and password');
+      return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) {
+      toast.showError('Please enter a valid email address');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // First verify the new credentials
+      const isValid = await verifyCredentials(newEmail, newPassword);
+      
+      if (!isValid) {
+        toast.showError('Invalid Fossa credentials. Please check your email and password.');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Credentials are valid, proceed to update
+      await updateUserCredentials(userId, newEmail, newPassword);
+      
+      // Reset form
+      setNewEmail('');
+      setNewPassword('');
+      setEditingCredentials(null);
+      
+      // Reload users
+      await loadUsers();
+      
+      // Show success message
+      toast.showSuccess('User credentials updated successfully');
+      
+      // If this was the active user, show a warning about reload
+      if (userId === activeUser) {
+        toast.showInfo('Reloading page to apply new credentials...');
+        // Give user time to see the message
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      }
+    } catch (error: any) {
+      console.error('Error updating user credentials:', error);
+      
+      // Provide more specific error messages
+      if (error.message.includes('Network')) {
+        toast.showError('Network error. Please check your connection and try again.');
+      } else if (error.message.includes('timeout')) {
+        toast.showError('Request timed out. Please try again.');
+      } else {
+        toast.showError(`Failed to update user credentials: ${error.message}`);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-5">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-750">
         <div className="flex items-center">
-          <div className="flex-shrink-0 h-10 w-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mr-4">
+          <div className="h-10 w-10 rounded-lg bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 dark:text-primary-400 mr-4">
             <FiUsers className="h-5 w-5" />
           </div>
           <div>
@@ -284,7 +366,7 @@ const UserManagement: React.FC = () => {
       <div className="p-6 md:p-8">
         {loading ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500"></div>
           </div>
         ) : (
           <>
@@ -292,7 +374,7 @@ const UserManagement: React.FC = () => {
             <div className="mb-8">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
-                  <span className="px-2.5 py-0.5 text-xs bg-blue-600 text-white rounded-full mr-3">
+                  <span className="px-2.5 py-0.5 text-xs bg-primary-600 text-white rounded-full mr-3">
                     {users.length}
                   </span>
                   Users
@@ -300,16 +382,16 @@ const UserManagement: React.FC = () => {
                 <button
                   onClick={() => setAddingUser(true)}
                   disabled={addingUser}
-                  className="flex items-center text-sm px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded dark:bg-blue-600 dark:hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
+                  className="flex items-center text-sm px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg dark:bg-primary-600 dark:hover:bg-primary-700 transition-colors disabled:opacity-50 shadow-sm"
                 >
                   <FiPlus className="mr-2" /> Add User
                 </button>
               </div>
               
               {users.length === 0 ? (
-                <div className="text-center py-16 bg-gray-50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
-                  <div className="inline-flex h-16 w-16 rounded-full bg-blue-50 dark:bg-blue-900/20 items-center justify-center mb-4">
-                    <FiUser className="h-8 w-8 text-blue-500 dark:text-blue-400" />
+                <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-dashed border-gray-300 dark:border-gray-600">
+                  <div className="inline-flex h-16 w-16 rounded-full bg-primary-50 dark:bg-primary-900/20 items-center justify-center mb-4">
+                    <FiUser className="h-8 w-8 text-primary-500 dark:text-primary-400" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No users yet</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6">
@@ -317,7 +399,7 @@ const UserManagement: React.FC = () => {
                   </p>
                   <button
                     onClick={() => setAddingUser(true)}
-                    className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                    className="inline-flex items-center px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
                   >
                     <FiPlus className="mr-2" /> Add Your First User
                   </button>
@@ -329,8 +411,8 @@ const UserManagement: React.FC = () => {
                       key={user.id} 
                       className={`rounded-lg overflow-hidden shadow-md transition-all duration-200 ${
                         user.isActive 
-                          ? 'bg-gradient-to-br from-blue-800 to-blue-900 text-white border border-blue-700' 
-                          : 'bg-gradient-to-br from-slate-700 to-slate-800 text-gray-200 border border-slate-700 hover:border-slate-600 hover:translate-y-[-2px]'
+                          ? 'bg-gradient-to-br from-primary-700 to-primary-800 text-white border border-primary-600' 
+                          : 'bg-gradient-to-br from-gray-700 to-gray-800 text-gray-200 border border-gray-700 hover:border-gray-600 hover:translate-y-[-2px]'
                       }`}
                     >
                       {editingUser === user.id ? (
@@ -342,14 +424,14 @@ const UserManagement: React.FC = () => {
                               value={newLabel}
                               onChange={(e) => setNewLabel(e.target.value)}
                               placeholder="Enter a label for this user"
-                              className="flex-1 px-4 py-2.5 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-700 text-white shadow-inner"
+                              className="flex-1 px-4 py-2.5 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-400 bg-gray-700 text-white shadow-inner"
                               autoFocus
                             />
                             <div className="flex ml-3">
                               <button
                                 onClick={() => handleUpdateLabel(user.id)}
                                 disabled={isSubmitting}
-                                className="p-2.5 text-white bg-green-600 hover:bg-green-500 rounded-md transition-colors shadow-sm"
+                                className="p-2.5 text-white bg-accent-green-600 hover:bg-accent-green-500 rounded-md transition-colors shadow-sm"
                                 title="Save"
                               >
                                 <FiCheck />
@@ -357,7 +439,7 @@ const UserManagement: React.FC = () => {
                               <button
                                 onClick={handleCancelEdit}
                                 disabled={isSubmitting}
-                                className="p-2.5 text-white bg-slate-600 hover:bg-slate-500 rounded-md ml-2 transition-colors shadow-sm"
+                                className="p-2.5 text-white bg-gray-600 hover:bg-gray-500 rounded-md ml-2 transition-colors shadow-sm"
                                 title="Cancel"
                               >
                                 <FiX />
@@ -374,7 +456,7 @@ const UserManagement: React.FC = () => {
                               value={friendlyName}
                               onChange={(e) => setFriendlyName(e.target.value)}
                               placeholder="Enter a friendly name for the directory"
-                              className="w-full px-4 py-2.5 border border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 bg-slate-700 text-white shadow-inner"
+                              className="w-full px-4 py-2.5 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-400 bg-gray-700 text-white shadow-inner"
                               autoFocus
                             />
                             <p className="text-xs text-gray-400 mt-2">
@@ -385,17 +467,68 @@ const UserManagement: React.FC = () => {
                             <button
                               onClick={() => handleRenameDirectory(user.id)}
                               disabled={isSubmitting || !friendlyName}
-                              className="px-4 py-2 text-white bg-green-600 hover:bg-green-500 rounded-md transition-colors shadow-sm"
+                              className="px-4 py-2 text-white bg-accent-green-600 hover:bg-accent-green-500 rounded-md transition-colors shadow-sm"
                             >
                               <FiCheck className="inline mr-1.5" /> Save
                             </button>
                             <button
                               onClick={handleCancelRename}
                               disabled={isSubmitting}
-                              className="px-4 py-2 text-white bg-slate-600 hover:bg-slate-500 rounded-md ml-2 transition-colors shadow-sm"
+                              className="px-4 py-2 text-white bg-gray-600 hover:bg-gray-500 rounded-md ml-2 transition-colors shadow-sm"
                             >
                               <FiX className="inline mr-1.5" /> Cancel
                             </button>
+                          </div>
+                        </div>
+                      ) : editingCredentials === user.id ? (
+                        <div className="p-5">
+                          <h4 className="text-sm font-medium text-gray-200 mb-4">Edit Credentials</h4>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs text-gray-400 mb-1">Email</label>
+                              <input
+                                type="email"
+                                value={newEmail}
+                                onChange={(e) => setNewEmail(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-400 bg-gray-700 text-white text-sm"
+                                placeholder="Enter new email"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-gray-400 mb-1">Password</label>
+                              <input
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-400 bg-gray-700 text-white text-sm"
+                                placeholder="Enter new password"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                onClick={() => handleUpdateCredentials(user.id)}
+                                disabled={isSubmitting || !newEmail || !newPassword}
+                                className="px-4 py-2 text-white bg-accent-green-600 hover:bg-accent-green-500 rounded-md transition-colors shadow-sm text-sm flex items-center justify-center min-w-[120px]"
+                              >
+                                {isSubmitting ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                    Verifying...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FiCheck className="inline mr-1.5" /> Verify & Save
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={handleCancelEditCredentials}
+                                disabled={isSubmitting}
+                                className="px-4 py-2 text-white bg-gray-600 hover:bg-gray-500 rounded-md transition-colors shadow-sm text-sm"
+                              >
+                                <FiX className="inline mr-1.5" /> Cancel
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ) : (
@@ -404,8 +537,8 @@ const UserManagement: React.FC = () => {
                             <div className="flex items-center">
                               <div className={`flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-lg font-medium mr-4 shadow-md ${
                                 user.isActive 
-                                  ? 'bg-gradient-to-br from-blue-700 to-blue-900 text-blue-100' 
-                                  : 'bg-gradient-to-br from-slate-600 to-slate-800 text-slate-300'
+                                  ? 'bg-gradient-to-br from-primary-600 to-primary-800 text-primary-100' 
+                                  : 'bg-gradient-to-br from-gray-600 to-gray-800 text-gray-300'
                               }`}>
                                 {(user.label || user.email).charAt(0).toUpperCase()}
                               </div>
@@ -414,12 +547,19 @@ const UserManagement: React.FC = () => {
                                   <h3 className="font-medium text-lg">
                                     {user.label || user.email.split('@')[0]}
                                   </h3>
-                                  {user.isActive && (
-                                    <span className="ml-2 text-xs px-2.5 py-1 bg-blue-700/50 text-blue-100 rounded-full flex items-center border border-blue-600/50 shadow-inner">
-                                      <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mr-1.5 animate-pulse"></span>
-                                      Active
-                                    </span>
-                                  )}
+                                  <div className="flex items-center">
+                                    {user.id === 'tutorial' && (
+                                      <span className="mr-2 text-xs px-2.5 py-1 bg-amber-700/50 text-amber-100 rounded-full flex items-center border border-amber-600/50 shadow-inner">
+                                        Tutorial
+                                      </span>
+                                    )}
+                                    {user.isActive && (
+                                      <span className="text-xs px-2.5 py-1 bg-primary-700/50 text-primary-100 rounded-full flex items-center border border-primary-600/50 shadow-inner">
+                                        <span className="w-1.5 h-1.5 bg-primary-400 rounded-full mr-1.5 animate-pulse"></span>
+                                        Active
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="text-sm text-gray-300 mt-1 flex items-center">
                                   <FiMail className="inline mr-1.5 text-gray-400" size={14} />
@@ -433,30 +573,36 @@ const UserManagement: React.FC = () => {
                             </div>
                           </div>
                           
-                          <div className="px-5 py-3 flex flex-wrap items-center gap-2 border-t border-opacity-20 border-gray-600 bg-slate-800/60">
+                          <div className="px-5 py-3 flex flex-wrap items-center gap-2 border-t border-opacity-20 border-gray-600 bg-gray-800/60">
                             {!user.isActive ? (
                               <button
                                 onClick={() => handleSetActiveUser(user.id)}
-                                className="text-xs px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors shadow-sm flex items-center"
+                                className="text-xs px-3.5 py-1.5 bg-primary-600 hover:bg-primary-500 text-white rounded-md transition-colors shadow-sm flex items-center"
                               >
                                 <FiCheckCircle className="mr-1.5" /> Set Active
                               </button>
                             ) : null}
                             <button
                               onClick={() => handleStartRename(user)}
-                              className="text-xs px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-md transition-colors shadow-sm flex items-center"
+                              className="text-xs px-3.5 py-1.5 bg-accent-purple-600 hover:bg-accent-purple-500 text-white rounded-md transition-colors shadow-sm flex items-center"
                             >
                               <FiFolder className="mr-1.5" /> Rename Directory
                             </button>
                             <button
                               onClick={() => handleStartEdit(user)}
-                              className="text-xs px-3.5 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-md transition-colors shadow-sm flex items-center"
+                              className="text-xs px-3.5 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-md transition-colors shadow-sm flex items-center"
                             >
                               <FiEdit2 className="mr-1.5" /> Edit Label
                             </button>
                             <button
+                              onClick={() => handleStartEditCredentials(user)}
+                              className="text-xs px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-md transition-colors shadow-sm flex items-center"
+                            >
+                              <FiKey className="mr-1.5" /> Edit Credentials
+                            </button>
+                            <button
                               onClick={() => handleDeleteUser(user.id)}
-                              className="text-xs px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-md transition-colors shadow-sm flex items-center ml-auto"
+                              className="text-xs px-3.5 py-1.5 bg-accent-red-600 hover:bg-accent-red-500 text-white rounded-md transition-colors shadow-sm flex items-center ml-auto"
                             >
                               <FiTrash2 className="mr-1.5" /> Delete
                             </button>
@@ -472,8 +618,8 @@ const UserManagement: React.FC = () => {
             {/* Add User Form */}
             {addingUser && (
               <div className="border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm bg-white dark:bg-gray-800 overflow-hidden mt-8">
-                <div className="bg-gradient-to-r from-blue-50 to-blue-50/30 dark:from-blue-900/20 dark:to-blue-900/5 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
-                  <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-800/50 flex items-center justify-center text-blue-600 dark:text-blue-400 mr-3">
+                <div className="bg-gradient-to-r from-primary-50 to-primary-50/30 dark:from-primary-900/20 dark:to-primary-900/5 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center">
+                  <div className="flex-shrink-0 h-8 w-8 rounded-lg bg-primary-100 dark:bg-primary-800/50 flex items-center justify-center text-primary-600 dark:text-primary-400 mr-3">
                     <FiPlus className="h-4 w-4" />
                   </div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white">Add New User</h3>
@@ -484,9 +630,7 @@ const UserManagement: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-1">
                         <label className="flex items-center text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          <svg className="w-4 h-4 mr-1 text-gray-500 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
+                          <FiMail className="w-4 h-4 mr-1 text-gray-500 dark:text-gray-400" />
                           Work Fossa Email
                         </label>
                         <input
@@ -495,7 +639,7 @@ const UserManagement: React.FC = () => {
                           onChange={(e) => setEmail(e.target.value)}
                           required
                           placeholder="Enter Work Fossa email"
-                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
                         />
                       </div>
                       <div className="space-y-1">
@@ -509,7 +653,7 @@ const UserManagement: React.FC = () => {
                           onChange={(e) => setPassword(e.target.value)}
                           required
                           placeholder="Enter Work Fossa password"
-                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                          className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
                         />
                       </div>
                     </div>
@@ -524,7 +668,7 @@ const UserManagement: React.FC = () => {
                         value={label}
                         onChange={(e) => setLabel(e.target.value)}
                         placeholder="E.g., Work, Personal, Tech 1, Tech 2"
-                        className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                        className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-white"
                       />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                         A friendly name to identify this user in the app
@@ -544,7 +688,7 @@ const UserManagement: React.FC = () => {
                         type="button"
                         onClick={handleVerifyCredentials}
                         disabled={isSubmitting || !email || !password}
-                        className="px-4 py-2 text-sm font-medium text-white bg-green-500 border border-transparent rounded-lg shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 dark:hover:bg-green-500 flex items-center transition-colors"
+                        className="px-4 py-2 text-sm font-medium text-white bg-accent-green-500 border border-transparent rounded-lg shadow-sm hover:bg-accent-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent-green-500 disabled:opacity-50 dark:hover:bg-accent-green-500 flex items-center transition-colors"
                       >
                         <FiShield className="mr-2" />
                         Verify Only
@@ -552,7 +696,7 @@ const UserManagement: React.FC = () => {
                       <button
                         type="submit"
                         disabled={isSubmitting || !email || !password}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-500 border border-transparent rounded-lg shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 dark:hover:bg-blue-500 transition-colors"
+                        className="px-4 py-2 text-sm font-medium text-white bg-primary-500 border border-transparent rounded-lg shadow-sm hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 dark:hover:bg-primary-500 transition-colors"
                       >
                         {isSubmitting ? (
                           <span className="flex items-center">

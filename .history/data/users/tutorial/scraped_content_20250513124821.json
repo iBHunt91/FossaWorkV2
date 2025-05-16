@@ -1,0 +1,145 @@
+{
+  "jobs": [
+    {
+      "id": "TUTORIAL-001",
+      "customer": {
+        "name": "Tutorial Store #1",
+        "storeNumber": "TUT-01",
+        "address": {
+          "street": "123 Tutorial Lane",
+          "cityState": "Training City, TS 12345",
+          "latitude": 35.123456,
+          "longitude": -80.654321
+        },
+        "contactName": "Training Manager",
+        "contactPhone": "555-101-0101",
+        "contactEmail": "training@example.com"
+      },
+      "visits": {
+        "nextVisit": {
+          "date": "05/20/2025",
+          "time": "9:00 AM - 12:00 PM",
+          "status": "scheduled"
+        },
+        "previousVisit": {
+          "date": "04/15/2025",
+          "time": "10:00 AM - 2:00 PM",
+          "technician": "Tutorial Tech",
+          "notes": "This section shows the previous visit details. Notes from past service visits appear here."
+        }
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 4,
+          "description": "Each gas station dispenser has meters that need regular calibration. This card shows which dispensers need service."
+        },
+        {
+          "type": "Nozzle Replacement",
+          "quantity": 2,
+          "description": "Various services like nozzle replacements will appear here with quantities needing service."
+        }
+      ],
+      "notes": "This is a tutorial work order. It demonstrates how work orders are displayed in the system. Click to see more details and explore the different sections.",
+      "tutorial": true
+    },
+    {
+      "id": "TUTORIAL-002",
+      "customer": {
+        "name": "Training Center",
+        "storeNumber": "TUT-02",
+        "address": {
+          "street": "456 Learning Road",
+          "cityState": "Example Town, TS 54321",
+          "latitude": 35.987654,
+          "longitude": -80.123456
+        },
+        "contactName": "Demo Contact",
+        "contactPhone": "555-202-0202",
+        "contactEmail": "demo@example.com"
+      },
+      "visits": {
+        "nextVisit": {
+          "date": "05/25/2025",
+          "time": "1:00 PM - 4:00 PM",
+          "status": "upcoming"
+        },
+        "previousVisit": {
+          "date": "03/10/2025",
+          "time": "9:00 AM - 12:00 PM",
+          "technician": "Example Tech",
+          "notes": "The status indicator shows if a visit is upcoming, urgent, or overdue. This helps prioritize work."
+        }
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 6,
+          "description": "More dispensers at this location need calibration. Each location can have a different number of dispensers."
+        },
+        {
+          "type": "Filter Replacement",
+          "quantity": 8,
+          "description": "Filter replacements are another common service task tracked in the system."
+        },
+        {
+          "type": "Maintenance",
+          "quantity": 1,
+          "description": "General maintenance tasks are also tracked here."
+        }
+      ],
+      "notes": "This example shows a different type of location with more dispensers. Compare this card to others to see how information is organized for different sites.",
+      "tutorial": true
+    },
+    {
+      "id": "TUTORIAL-003",
+      "customer": {
+        "name": "Demo Location",
+        "storeNumber": "TUT-03",
+        "address": {
+          "street": "789 Example Avenue",
+          "cityState": "Sample City, TS 67890",
+          "latitude": 36.246810,
+          "longitude": -79.135790
+        },
+        "contactName": "Test Contact",
+        "contactPhone": "555-303-0303",
+        "contactEmail": "test@example.com"
+      },
+      "visits": {
+        "nextVisit": {
+          "date": "05/15/2025",
+          "time": "10:00 AM - 2:00 PM",
+          "status": "urgent"
+        },
+        "previousVisit": {
+          "date": "02/01/2025",
+          "time": "8:00 AM - 11:00 AM",
+          "technician": "Sample Tech",
+          "notes": "This work order is marked as urgent because the next visit date is approaching soon."
+        }
+      },
+      "services": [
+        {
+          "type": "Meter Calibration",
+          "quantity": 8,
+          "description": "A larger location with more dispensers requiring calibration."
+        },
+        {
+          "type": "Vapor Recovery",
+          "quantity": 4,
+          "description": "Vapor recovery systems need maintenance at this location."
+        },
+        {
+          "type": "Display Repair",
+          "quantity": 2,
+          "description": "Some displays need repair at this site."
+        }
+      ],
+      "notes": "Notice how this card is marked urgent due to the upcoming date. The system automatically prioritizes work orders based on scheduled dates.",
+      "tutorial": true
+    }
+  ],
+  "lastUpdated": "2025-05-13T16:30:00.000Z",
+  "isTutorial": true
+} 

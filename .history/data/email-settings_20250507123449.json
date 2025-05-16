@@ -1,0 +1,9 @@
+{
+  "senderName": "Fossa Monitor",
+  "senderEmail": "fossamonitor@gmail.com",
+  "smtpServer": "smtp.gmail.com",
+  "smtpPort": 587,
+  "useSSL": falze,
+  "username": "fossamonitor@gmail.com",
+  "password": "xaja psvu ilfc konf"
+} 

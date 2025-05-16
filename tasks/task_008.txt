@@ -1,0 +1,11 @@
+# Task ID: 8
+# Title: Integrate 'Show Browser' Configuration
+# Status: pending
+# Dependencies: 2, 3
+# Priority: medium
+# Description: Allow users to toggle browser visibility during batch automation, as in single visit mode.
+# Details:
+Add a checkbox or toggle in the UI to show/hide the browser during batch processing. Ensure browser visibility matches user preference for all visits.
+
+# Test Strategy:
+Manual UI tests for browser visibility toggle. Automated checks for browser state during automation.
