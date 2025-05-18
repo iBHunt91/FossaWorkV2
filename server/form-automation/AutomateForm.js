@@ -21,6 +21,8 @@ import { fileURLToPath } from 'url';
 import * as logger from '../utils/logger.js';
 import { loginToFossa } from '../../scripts/utils/login.js';
 import { resolveUserFilePath, getActiveUser } from '../utils/userManager.js';
+import { sortFuelGrades } from '../utils/fuelGradeUtils.js';
+import { batchConfig, getConfigValue } from './config.js';
 
 // Load environment variables
 dotenv.config();
@@ -54,11 +56,22 @@ const updateStatus = (status, message, progress = null, dispenserProgress = null
     dispenserProgress: dispenserProgress !== null ? dispenserProgress : jobStatus.dispenserProgress
   };
   
+  // Debug logging for dispenser progress
+  if (dispenserProgress !== null) {
+    logger.info(`[DEBUG] Updating status with new dispenserProgress:`, {
+      hasDispenserProgress: true,
+      dispenserCount: dispenserProgress?.dispensers?.length || 0
+    });
+  }
+  
   // Also log the status change
   logger.info(`Status updated: ${status} - ${message}`, 'FORM_PREP');
 };
 
-// Status tracking for batch job
+// Status tracking for batch jobs - now uses a Map to track by job ID
+const batchStatuses = new Map();
+
+// Default batch status for backward compatibility
 let batchStatus = {
   status: 'idle',
   progress: 0,
@@ -69,34 +82,130 @@ let batchStatus = {
 };
 
 // Helper function to update batch status
-const updateBatchStatus = (status, message, progressOrProps = null, currentItem = null, totalItems = null) => {
+const updateBatchStatus = (status, message, progressOrProps = null, currentItem = null, totalItems = null, jobId = null) => {
+  // Get the current batch status for this job
+  const currentBatchStatus = jobId ? batchStatuses.get(jobId) || {} : batchStatus;
+  
   // Parse additional progress properties
   const progressProps = typeof progressOrProps === 'object' ? progressOrProps : {};
   const updatedProgress = {
-    currentItem: currentItem || batchStatus.currentItem,
-    totalItems: totalItems || batchStatus.totalItems,
-    ...(batchStatus || {}),  // preserve existing properties
+    currentItem: currentItem || currentBatchStatus.currentItem,
+    totalItems: totalItems || currentBatchStatus.totalItems,
+    ...(currentBatchStatus || {}),  // preserve existing properties
     ...progressProps  // override with new properties
   };
   
-  // Update the batch status object
-  batchStatus = {
+  // Check if we're updating dispenser progress
+  if (progressProps.dispenserProgress) {
+    // Aggregate dispenser progress from current job
+    updatedProgress.dispenserProgress = progressProps.dispenserProgress;
+    
+    // If we have single job progress, merge it
+    if (jobStatus.dispenserProgress) {
+      updatedProgress.currentVisitDispenserProgress = jobStatus.dispenserProgress;
+    }
+  }
+  
+  // Create the updated batch status
+  const updatedBatchStatus = {
     status,
     message,
     ...updatedProgress,
-    lastUpdated: new Date().toISOString()
+    lastUpdated: new Date().toISOString(),
+    jobId: jobId || progressProps.jobId
   };
   
+  // Update the appropriate batch status
+  if (jobId) {
+    batchStatuses.set(jobId, updatedBatchStatus);
+  } else {
+    batchStatus = updatedBatchStatus;
+  }
+  
   // Log batch status update
-  logger.debug(`Batch Status: ${status} - ${message}`);
+  logger.debug(`Batch Status${jobId ? ` for job ${jobId}` : ''}: ${status} - ${message}`);
   
   // Save batch status to history if it's a completion or error state
   if (status === 'completed' || status === 'error') {
-    saveBatchStatusToHistory(batchStatus);
+    saveBatchStatusToHistory(updatedBatchStatus);
   }
   
-  return batchStatus;
+  return updatedBatchStatus;
 };
+
+/**
+ * Aggregate dispenser progress for batch status
+ * @param {number} visitIndex - Current visit index (0-based)
+ * @param {number} totalVisits - Total number of visits
+ * @param {Object} currentVisitProgress - Current visit's dispenser progress
+ * @param {number} completedVisits - Number of completed visits
+ * @returns {Object} - Aggregated dispenser progress
+ */
+function aggregateDispenserProgress(visitIndex, totalVisits, currentVisitProgress, completedVisits = 0) {
+  const aggregated = {
+    overallProgress: Math.floor((completedVisits / totalVisits) * 100),
+    visitIndex: visitIndex + 1, // 1-based for display
+    totalVisits,
+    completedVisits,
+    currentVisitProgress: currentVisitProgress || null,
+    summary: {
+      totalDispensers: 0,
+      completedDispensers: 0,
+      currentDispenser: null
+    }
+  };
+  
+  // Calculate total dispensers across all visits
+  if (currentVisitProgress && currentVisitProgress.dispensers) {
+    const currentDispensers = currentVisitProgress.dispensers;
+    aggregated.summary.totalDispensers = currentDispensers.length * totalVisits;
+    aggregated.summary.completedDispensers = completedVisits * currentDispensers.length;
+    
+    // Find current active dispenser
+    const activeDispenser = currentDispensers.find(d => d.status === 'processing');
+    if (activeDispenser) {
+      aggregated.summary.currentDispenser = {
+        number: activeDispenser.dispenserNumber,
+        title: activeDispenser.dispenserTitle,
+        formNumber: activeDispenser.formNumber,
+        status: activeDispenser.status,
+        currentAction: activeDispenser.currentAction
+      };
+    }
+  }
+  
+  return aggregated;
+}
+
+/**
+ * Save batch checkpoint for recovery
+ * @param {string} batchId - The batch ID
+ * @param {number} currentIndex - Current visit index
+ * @param {Array} visitsToProcess - All visits in the batch
+ * @param {Object} currentStatus - Current batch status
+ */
+async function saveBatchCheckpoint(batchId, currentIndex, visitsToProcess, currentStatus) {
+  try {
+    const checkpoint = {
+      batchId,
+      timestamp: new Date().toISOString(),
+      currentIndex,
+      totalVisits: visitsToProcess.length,
+      completedVisits: currentStatus.completedVisits || 0,
+      completedVisitIds: currentStatus.completedVisitIds || [],
+      visitsRemaining: visitsToProcess.slice(currentIndex),
+      status: currentStatus
+    };
+    
+    const checkpointPath = resolveUserFilePath(`batch_checkpoint_${batchId}.json`);
+    await fs.promises.writeFile(checkpointPath, JSON.stringify(checkpoint, null, 2));
+    
+    logger.info(`Saved batch checkpoint for ${batchId} at index ${currentIndex}`);
+  } catch (error) {
+    logger.error(`Error saving batch checkpoint: ${error.message}`);
+    // Don't throw - checkpoint saving should not interrupt processing
+  }
+}
 
 /**
  * Save batch status to history file for resume functionality
@@ -141,7 +250,7 @@ async function saveBatchStatusToHistory(batchStatus) {
  * @param {string} formType - Type of form to add (FORM_TYPES.ACCUMEASURE or FORM_TYPES.OPEN_NECK_PROVER)
  * @returns {Promise<boolean>} - Success/failure of form preparation
  */
-async function prepareForm(page, dispensers, formCount = null, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE) {
+async function prepareForm(page, dispensers, formCount = null, isSpecificDispensers = false, formType = FORM_TYPES.ACCUMEASURE, dispenserProgress = null) {
   try {
     // Check for cancellation flag immediately
     if (isCancelled) {
@@ -548,7 +657,9 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
         // Parse fuel grades from dispenser fields
         if (dispenser.fields && dispenser.fields.Grade) {
           const grades = dispenser.fields.Grade.split(',').map(g => g.trim());
-          grades.forEach(grade => {
+          // Sort the grades according to the proper order
+          const sortedGrades = sortFuelGrades(grades);
+          sortedGrades.forEach(grade => {
             fuelGrades.push({
               grade: grade,
               status: 'pending',
@@ -583,6 +694,12 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
     // Process forms in order
     for (let i = 0; i < formUrls.length; i++) {
       const formUrl = formUrls[i];
+      
+      // Add a small delay between forms to allow UI updates
+      if (i > 0) {
+        logger.info(`[DEBUG] Waiting 1 second before processing next form`);
+        await page.waitForTimeout(1000);
+      }
       
       // Use the dispenser matching this form's index, NEVER default to the first dispenser
       // Only use a dispenser if we have one at this index
@@ -1332,7 +1449,15 @@ async function fillFormDetails(page, formUrls, dispensers, isSpecificDispensers 
       logger.info(`Completed processing form ${i + 1}/${formUrls.length}`);
       logger.info(`Completed processing form ${i + 1}/${formUrls.length}`, 'FORM_PREP');
       console.log(`<<< COMPLETED FORM ${i + 1}/${formUrls.length}`);
+      
+      // Update status to indicate form completion
       updateStatus('running', `Completed form ${i + 1}/${formUrls.length}, ${i < formUrls.length - 1 ? 'moving to next form' : 'finishing up'}`, null, dispenserProgress);
+      
+      // If there's a next form, mark it as next to process
+      if (i < formUrls.length - 1 && dispenserProgress && dispenserProgress.dispensers[i + 1]) {
+        dispenserProgress.dispensers[i + 1].currentAction = 'Next to process';
+        logger.info(`[DEBUG] Marked next dispenser (${i + 2}) as next to process`);
+      }
     }
     
     logger.info('Form filling complete');
@@ -3355,7 +3480,11 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
         const fuelGrades = [];
         if (dispenser.fields && dispenser.fields.Grade) {
           const grades = dispenser.fields.Grade.split(',').map(g => g.trim());
-          grades.forEach(grade => {
+          
+          // Sort the grades according to the proper order before creating fuel grade objects
+          const sortedGrades = sortFuelGrades(grades);
+          
+          sortedGrades.forEach(grade => {
             fuelGrades.push({
               grade: grade,
               status: 'pending',
@@ -3378,9 +3507,12 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
       })
     };
     
+    // Log the initial dispenser progress
+    logger.info('[DEBUG] Initial dispenser progress created:', JSON.stringify(dispenserProgress, null, 2));
+    
     // Prepare forms
     updateStatus('running', `Preparing ${formType} forms...`, null, dispenserProgress);
-    const formsAdded = await prepareForm(page, dispensers, formCount, isSpecificDispensers, formType);
+    const formsAdded = await prepareForm(page, dispensers, formCount, isSpecificDispensers, formType, dispenserProgress);
     
     if (!formsAdded) {
       throw new Error('Failed to prepare forms');
@@ -3418,8 +3550,38 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
       throw new Error('Failed to fill form details');
     }
     
-    // Update status
-    updateStatus('running', `Processing complete, closing browser...`, null, dispenserProgress);
+    // Mark all remaining pending dispensers as completed
+    if (dispenserProgress && dispenserProgress.dispensers) {
+      dispenserProgress.dispensers.forEach(dispenser => {
+        if (dispenser.status === 'pending' || dispenser.status === 'processing') {
+          dispenser.status = 'completed';
+          dispenser.currentAction = 'Form completed';
+          
+          // Mark all fuel grades as completed
+          if (dispenser.fuelGrades) {
+            dispenser.fuelGrades.forEach(fg => {
+              if (fg.status !== 'completed') {
+                fg.status = 'completed';
+                fg.message = 'Successfully processed';
+              }
+            });
+          }
+        }
+      });
+    }
+    
+    // Mark all remaining dispensers as completed before finalizing
+    if (dispenserProgress && dispenserProgress.dispensers) {
+      dispenserProgress.dispensers.forEach(dispenser => {
+        if (dispenser.status === 'pending' || dispenser.status === 'processing') {
+          dispenser.status = 'completed';
+          dispenser.currentAction = 'Form completed';
+        }
+      });
+    }
+    
+    // Update status to completed
+    updateStatus('completed', `Successfully processed visit: ${visitUrl}`, null, dispenserProgress);
     
     return { success: true, message: `Visit processed successfully: ${visitUrl}`, jobId: currentJobId };
     
@@ -3429,10 +3591,12 @@ async function processVisit(visitUrl, headless = true, workOrderId = null, exter
     return { success: false, message: `Error: ${error.message}`, jobId: currentJobId };
   } finally {
     if (browser) {
-      // Close browser and update final status
+      // Close browser
       await browser.close();
       global.activeBrowser = null; // Clear the global reference
-      updateStatus('completed', `Successfully processed visit: ${visitUrl}`, null, dispenserProgress);
+      
+      // Small delay to ensure final status has been sent
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // When job is complete (success or error), remove it from active jobs
       if (currentJobId === currentJobId) { // This check is redundant but kept for clarity
@@ -3455,15 +3619,18 @@ async function processBatch(filePath, headless = true, options = {}) {
   let browser = null;
   let page = null;
   
+  // Extract jobId from options
+  const jobId = options.jobId;
+  
   try {
-    logger.info(`Processing batch from: ${filePath}`);
+    logger.info(`Processing batch from: ${filePath} with jobId: ${jobId}`);
     updateBatchStatus('running', `Starting batch processing from: ${filePath}`, {
       totalVisits: 0,
       completedVisits: 0,
       currentVisit: null,
       currentVisitStatus: null,
       startTime: new Date().toISOString()
-    });
+    }, null, null, jobId);
     
     // Log active user info
     const activeUser = getActiveUser();
@@ -3570,20 +3737,26 @@ async function processBatch(filePath, headless = true, options = {}) {
         updateBatchStatus('running', `Resuming batch processing. Skipping ${completedVisitIds.length} completed visits.`, {
           completedVisits: completedVisitIds.length,
           totalVisits: previousBatchStatus.totalVisits
-        });
+        }, null, null, jobId);
       }
     }
     
     // Update batch status with total visits
     updateBatchStatus('running', `Found ${visitsToProcess.length} visits to process`, {
       totalVisits: visitsToProcess.length
-    });
+    }, null, null, jobId);
     
     // Login once for the whole batch
     logger.info('Logging in to Fossa...');
-    updateBatchStatus('running', 'Logging in to Fossa...');
+    updateBatchStatus('running', 'Logging in to Fossa...', null, null, null, jobId);
     
-    const loginResult = await loginToFossa({ headless });
+    // Apply browser configuration
+    const browserOptions = {
+      headless: headless !== false ? getConfigValue('browserOptions.headless', true) : false,
+      slowMo: getConfigValue('browserOptions.slowMo', 50)
+    };
+    
+    const loginResult = await loginToFossa(browserOptions);
     if (!loginResult.success) {
       throw new Error('Failed to login to Fossa');
     }
@@ -3608,7 +3781,7 @@ async function processBatch(filePath, headless = true, options = {}) {
         updateBatchStatus('running', `Processing visit ${i + 1}/${visitsToProcess.length}: Work Order ${visit.id}`, {
           currentVisit: visit.id,
           currentVisitStatus: "Starting"
-        });
+        }, null, null, jobId);
         
         // Navigate to the visit page with absolute URL
         await page.goto(visitUrl);
@@ -3625,7 +3798,9 @@ async function processBatch(filePath, headless = true, options = {}) {
             const fuelGrades = [];
             if (dispenser.fields && dispenser.fields.Grade) {
               const grades = dispenser.fields.Grade.split(',').map(g => g.trim());
-              grades.forEach(grade => {
+              // Sort the grades according to the proper order
+              const sortedGrades = sortFuelGrades(grades);
+              sortedGrades.forEach(grade => {
                 fuelGrades.push({
                   grade: grade,
                   status: 'pending',
@@ -3648,10 +3823,18 @@ async function processBatch(filePath, headless = true, options = {}) {
           })
         };
         
+        // Get current batch status for this job
+        const currentBatchStatus = jobId ? batchStatuses.get(jobId) || batchStatus : batchStatus;
+        
+        // Update batch status with aggregated dispenser progress
+        const aggregatedProgress = aggregateDispenserProgress(i, visitsToProcess.length, dispenserProgress, currentBatchStatus.completedVisits || 0);
+        
         updateBatchStatus('running', `Processing visit ${i + 1}/${visitsToProcess.length}: Work Order ${visit.id}`, {
           currentVisitStatus: `Processing visit for Work Order ${visit.id}`,
-          dispenserProgress: dispenserProgress
-        });
+          dispenserProgress: dispenserProgress,
+          aggregatedDispenserProgress: aggregatedProgress,
+          currentVisitIndex: i
+        }, null, null, jobId);
         
         // Prepare the form with dispenser data and form count
         await prepareForm(
@@ -3659,7 +3842,8 @@ async function processBatch(filePath, headless = true, options = {}) {
           visit.dispensers, 
           visit.formCount, 
           visit.isSpecificDispensers, 
-          visit.formType
+          visit.formType,
+          dispenserProgress
         );
         
         // Get form URLs to fill
@@ -3691,56 +3875,89 @@ async function processBatch(filePath, headless = true, options = {}) {
           dispenserProgress
         );
         
+        // Get current batch status to properly increment completedVisits
+        const currentBatchStatusForComplete = jobId ? batchStatuses.get(jobId) || batchStatus : batchStatus;
+        
         // Update completed count and store the completed visit ID
         updateBatchStatus('running', `Completed visit ${i + 1}/${visitsToProcess.length}: Work Order ${visit.id}`, {
-          completedVisits: batchStatus.completedVisits + 1,
+          completedVisits: (currentBatchStatusForComplete.completedVisits || 0) + 1,
           currentVisitStatus: 'Completed',
-          completedVisitIds: [...(batchStatus.completedVisitIds || []), visit.id]
-        });
+          completedVisitIds: [...(currentBatchStatusForComplete.completedVisitIds || []), visit.id]
+        }, null, null, jobId);
+        
+        // Save checkpoint if configured
+        const checkpointInterval = getConfigValue('checkpointInterval', 5);
+        if ((i + 1) % checkpointInterval === 0) {
+          logger.info(`Saving checkpoint at visit ${i + 1}...`);
+          await saveBatchCheckpoint(batchStatus.jobId || `batch_${Date.now()}`, i + 1, visitsToProcess, batchStatus);
+        }
         
         // Calculate and log time taken
         const visitEndTime = new Date();
         const visitDuration = Math.round((visitEndTime - visitStartTime) / 1000);
         logger.info(`Visit ${i + 1} completed in ${visitDuration} seconds`);
         
+        // Add delay between visits (except for the last one)
+        if (i < visitsToProcess.length - 1) {
+          const delay = getConfigValue('delayBetweenVisits', 2000);
+          logger.info(`Waiting ${delay}ms before next visit...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
       } catch (error) {
         logger.error(`Error processing visit ${visit.url}: ${error.message}`);
         updateBatchStatus('running', `Error processing visit ${i + 1}/${visitsToProcess.length}: ${error.message}`, {
           currentVisitStatus: `Error: ${error.message}`
-        });
+        }, null, null, jobId);
+        
+        // Handle retry if configured
+        if (getConfigValue('retryFailedVisits', false) && !visit.retryAttempt) {
+          logger.info(`Retrying failed visit ${i + 1}...`);
+          // Mark this as a retry attempt
+          visit.retryAttempt = true;
+          // Add back to the queue for retry
+          visitsToProcess.push(visit);
+        }
+        
         // Continue with the next visit even if one fails
       }
     }
     
+    // Get final batch status for completion message
+    const currentBatchStatusFinal = jobId ? batchStatuses.get(jobId) || batchStatus : batchStatus;
+    
     // Log batch completion but don't set status to completed yet - will be set after browser closes
-    logger.info(`Batch processing finished. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.`);
+    logger.info(`Batch processing finished. Processed ${currentBatchStatusFinal.completedVisits}/${currentBatchStatusFinal.totalVisits} visits.`);
     
     return { 
       success: true, 
-      message: `Batch processing completed. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.` 
+      message: `Batch processing completed. Processed ${currentBatchStatusFinal.completedVisits}/${currentBatchStatusFinal.totalVisits} visits.` 
     };
     
   } catch (error) {
     logger.error(`Batch processing error: ${error.message}`);
     updateBatchStatus('error', `Batch processing error: ${error.message}`, {
       endTime: new Date().toISOString()
-    });
+    }, null, null, jobId);
     return { success: false, message: `Error: ${error.message}` };
   } finally {
     // First update status to "closing" to indicate we're in the process of closing
     if (browser) {
       updateBatchStatus('running', `Closing browser and completing automation...`, {
         currentVisitStatus: 'Closing browser'
-      });
+      }, null, null, jobId);
       
       // Close the browser
       await browser.close();
       
+      // Get current batch status for completion message
+      const finalBatchStatus = jobId ? batchStatuses.get(jobId) || batchStatus : batchStatus;
+      
       // Only now that the browser is closed, update to completed
-      updateBatchStatus('completed', `Batch processing completed. Processed ${batchStatus.completedVisits}/${batchStatus.totalVisits} visits.`, {
+      updateBatchStatus('completed', `Batch processing completed. Processed ${finalBatchStatus.completedVisits}/${finalBatchStatus.totalVisits} visits.`, {
         endTime: new Date().toISOString(),
         currentVisitStatus: 'Complete'
-      });
+      }, null, null, jobId);
     }
   }
 }
@@ -3761,18 +3978,29 @@ function getStatus() {
  * Get the current status of batch automation
  * @returns {object} - Current batch status
  */
-function getBatchStatus() {
+function getBatchStatus(jobId = null) {
+  // Get the status for the specific job ID if provided, otherwise use the default
+  const currentBatchStatus = jobId ? batchStatuses.get(jobId) || batchStatus : batchStatus;
+  
   // Ensure the batch status object always has the required properties and backward compatibility
-  return {
-    ...batchStatus,
-    totalVisits: batchStatus.totalItems,
-    completedVisits: batchStatus.currentItem,
-    currentVisit: batchStatus.currentItem > 0 ? `Visit ${batchStatus.currentItem}` : null,
-    currentVisitStatus: batchStatus.message,
-    dispenserProgress: batchStatus.dispenserProgress, // Include dispenser progress
+  const status = {
+    ...currentBatchStatus,
+    totalVisits: currentBatchStatus.totalVisits || currentBatchStatus.totalItems || 0,
+    completedVisits: currentBatchStatus.completedVisits || currentBatchStatus.currentItem || 0,
+    currentVisit: currentBatchStatus.currentVisit || (currentBatchStatus.currentItem > 0 ? `Visit ${currentBatchStatus.currentItem}` : null),
+    currentVisitStatus: currentBatchStatus.currentVisitStatus || currentBatchStatus.message,
+    dispenserProgress: currentBatchStatus.dispenserProgress, // Include current visit dispenser progress
+    aggregatedDispenserProgress: currentBatchStatus.aggregatedDispenserProgress, // Include aggregated progress
     startTime: batchStatus.startTime || new Date().toISOString(),
     lastStatusUpdate: new Date().toISOString()
   };
+  
+  // Add calculated progress if not already present
+  if (!status.progress && status.totalVisits > 0) {
+    status.progress = Math.floor((status.completedVisits / status.totalVisits) * 100);
+  }
+  
+  return status;
 }
 
 /**
@@ -4011,6 +4239,112 @@ async function cancelJob(jobId) {
   };
 }
 
+/**
+ * Open a URL in a new browser window with debug mode
+ * This will login first using the active user's credentials, 
+ * then navigate to the requested URL
+ * 
+ * @param {string} url - The URL to open
+ * @param {boolean} headless - Whether to run in headless mode (false for visible browser)
+ */
+async function openUrlInDebugMode(url, headless = false) {
+  logger.info(`Opening URL in debug mode: ${url}, headless: ${headless}`);
+  let browser = null;
+  let page = null;
+  
+  try {
+    // Get active user for credentials
+    const activeUser = getActiveUser();
+    logger.info(`Active User for debug browser: ${activeUser || 'None'}`);
+    
+    // Use the existing loginToFossa function which is known to work
+    const loginResult = await loginToFossa({ 
+      headless: headless,
+      // No need to pass email/password as it will use environment variables
+    });
+    
+    if (!loginResult.success) {
+      throw new Error('Failed to login to Fossa');
+    }
+    
+    logger.info('Successfully logged in to Fossa');
+    
+    // Get the browser and page objects from the login result
+    browser = loginResult.browser;
+    page = loginResult.page;
+    
+    // Store browser instance globally for cancellation access
+    global.activeDebugBrowser = browser;
+    
+    // Navigate to the target URL
+    logger.info(`Navigating to URL: ${url}`);
+    
+    await page.goto(url, {
+      waitUntil: 'networkidle',
+      timeout: 60000, // 60 second timeout
+    });
+    
+    logger.info(`Successfully opened URL: ${url}`);
+    
+    // Give feedback to user
+    try {
+      await page.evaluate(() => {
+        // Create a temporary notification that will fade away
+        const notification = document.createElement('div');
+        notification.textContent = 'Fossa Monitor: Browser control transferred to you';
+        notification.style.position = 'fixed';
+        notification.style.bottom = '20px';
+        notification.style.right = '20px';
+        notification.style.backgroundColor = '#4CAF50';
+        notification.style.color = 'white';
+        notification.style.padding = '10px';
+        notification.style.borderRadius = '5px';
+        notification.style.zIndex = '10000';
+        notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+        document.body.appendChild(notification);
+        
+        // Fade out after 5 seconds
+        setTimeout(() => {
+          notification.style.transition = 'opacity 1s';
+          notification.style.opacity = '0';
+          setTimeout(() => {
+            document.body.removeChild(notification);
+          }, 1000);
+        }, 5000);
+      });
+    } catch (notifyErr) {
+      // Non-critical error, just log it
+      logger.warn(`Could not inject notification: ${notifyErr.message}`);
+    }
+    
+    // Browser will stay open until manually closed
+    // Don't close it here so user can interact with it
+    
+    return { success: true, message: 'URL opened successfully' };
+  } catch (error) {
+    logger.error(`Error opening URL in debug mode: ${error.message}`);
+    logger.error(`Stack trace: ${error.stack}`);
+    
+    // Clean up on error
+    if (page) {
+      try {
+        await page.close();
+      } catch (closeErr) {
+        logger.error(`Error closing page: ${closeErr.message}`);
+      }
+    }
+    if (browser) {
+      try {
+        await browser.close();
+      } catch (closeErr) {
+        logger.error(`Error closing browser: ${closeErr.message}`);
+      }
+    }
+    
+    throw new Error(`Failed to open URL: ${error.message}`);
+  }
+}
+
 // Export functions for use in API routes
 export {
   processVisit,
@@ -4020,6 +4354,7 @@ export {
   testExtractSpecificDispensers,
   previewBatchFile,
   cancelJob,
+  openUrlInDebugMode,
   // Export these for direct access in case cancelJob isn't recognized
   isCancelled,
   updateStatus,

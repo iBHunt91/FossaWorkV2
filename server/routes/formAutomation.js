@@ -6,8 +6,24 @@ const router = express.Router();
 import * as formAutomation from '../form-automation/AutomateForm.js';
 import { preview } from '../form-automation/preview.js';
 import { diagnose } from '../form-automation/diagnostics.js';
-import { processBatchPatched, getBatchStatusPatched } from '../form-automation/processBatchPatch.js';
+// Remove patched imports - will use real batch functions
+// import { processBatchPatched, getBatchStatusPatched } from '../form-automation/processBatchPatch.js';
 import * as logger from '../utils/logger.js';
+
+// Helper function to calculate estimated time remaining
+function calculateEstimatedTime(status) {
+  if (!status.startTime || status.completedVisits === 0 || status.totalVisits === 0) {
+    return null;
+  }
+  
+  const elapsedTime = Date.now() - new Date(status.startTime).getTime();
+  const avgTimePerVisit = elapsedTime / status.completedVisits;
+  const remainingVisits = status.totalVisits - status.completedVisits;
+  const estimatedMs = remainingVisits * avgTimePerVisit;
+  
+  // Return in minutes
+  return Math.round(estimatedMs / 60000);
+}
 
 // Process a single visit
 router.post('/form-automation', async (req, res) => {
@@ -82,8 +98,8 @@ router.post('/form-automation/batch', async (req, res) => {
         
         logger.info(`Starting batch processing with job ID: ${jobId}, options:`, options);
         
-        // Use the patched version of processBatch
-        await processBatchPatched(filePath, headless !== false, options);
+        // Use the real processBatch function with jobId
+        await formAutomation.processBatch(filePath, headless !== false, { ...options, jobId });
         
         logger.info(`Batch processing completed for job ID: ${jobId}`);
       } catch (error) {
@@ -108,8 +124,20 @@ router.get('/form-automation/batch/status', (req, res) => {
   try {
     logger.info('Batch status endpoint called');
     
-    // Get batch status from patched implementation
-    const status = getBatchStatusPatched();
+    // Get batch status from real implementation
+    const status = formAutomation.getBatchStatus();
+    
+    // Add calculated fields
+    status.progress = status.progress || (status.totalVisits > 0 ? 
+      Math.floor((status.completedVisits / status.totalVisits) * 100) : 0);
+    
+    // Add batch-specific metadata
+    status.batchMetadata = {
+      isResumable: status.completedVisits > 0 && status.completedVisits < status.totalVisits,
+      estimatedTimeRemaining: calculateEstimatedTime(status),
+      averageTimePerVisit: status.completedVisits > 0 ? 
+        Math.round((Date.now() - new Date(status.startTime).getTime()) / status.completedVisits / 1000) : 0
+    };
     
     // Log status info for debugging
     logger.info(`Returning batch status: ${JSON.stringify({
@@ -117,7 +145,9 @@ router.get('/form-automation/batch/status', (req, res) => {
       progress: status.progress,
       totalVisits: status.totalVisits,
       completedVisits: status.completedVisits,
-      currentVisit: status.currentVisit
+      currentVisit: status.currentVisit,
+      hasDispenserProgress: !!status.dispenserProgress,
+      hasBatchProgress: !!status.batchProgress
     })}`);
     
     res.json(status);
@@ -204,10 +234,61 @@ router.get('/form-automation/unified-status/:jobId', (req, res) => {
     
     // Get status from either single or batch automation based on job ID
     let status;
-    if (jobId.startsWith('batch_')) {
-      status = getBatchStatusPatched();
+    // Check if this is a batch job by looking at the actual status
+    const testStatus = formAutomation.getBatchStatus(jobId);
+    
+    if (testStatus && testStatus.status !== 'idle') {
+      // This is a batch job
+      status = testStatus;
+      status.isBatch = true;
+      
+      // Ensure batch-specific fields are properly formatted
+      status.totalVisits = status.totalVisits || 0;
+      status.completedVisits = status.completedVisits || 0;
+      status.currentVisit = status.currentVisit || null;
+      status.currentVisitName = status.currentVisitName || null;
+      status.currentVisitStatus = status.currentVisitStatus || status.message;
+      
+      // Calculate progress if not present
+      if (!status.progress && status.totalVisits > 0) {
+        status.progress = Math.floor((status.completedVisits / status.totalVisits) * 100);
+      }
+      
+      // Ensure batch-specific fields are properly formatted
+      if (status.aggregatedDispenserProgress) {
+        // Make aggregated progress available as main dispenserProgress for UI compatibility
+        status.dispenserProgress = status.aggregatedDispenserProgress.currentVisitProgress;
+        status.batchProgress = status.aggregatedDispenserProgress;
+      }
+      
+      // Add batch-specific metadata
+      status.batchMetadata = {
+        isResumable: status.completedVisits > 0 && status.completedVisits < status.totalVisits,
+        estimatedTimeRemaining: calculateEstimatedTime(status),
+        averageTimePerVisit: status.completedVisits > 0 ? 
+          Math.round((Date.now() - new Date(status.startTime).getTime()) / status.completedVisits / 1000) : 0
+      };
     } else {
       status = formAutomation.getStatus();
+      status.isBatch = false;
+    }
+    
+    // Add job ID and user ID to the response
+    status.jobId = jobId;
+    status.userId = req.query.userId || null;
+    
+    // Add debugging for dispenser progress
+    logger.info(`[DEBUG] Unified status for job ${jobId}:`, {
+      jobId,
+      status: status.status,
+      message: status.message,
+      hasDispenserProgress: !!status.dispenserProgress,
+      dispenserProgressExists: status.dispenserProgress !== null && status.dispenserProgress !== undefined,
+      dispenserCount: status.dispenserProgress?.dispensers?.length || 0
+    });
+    
+    if (status.dispenserProgress) {
+      logger.info(`[DEBUG] Dispenser progress details:`, JSON.stringify(status.dispenserProgress, null, 2));
     }
     
     res.json(status);
@@ -282,14 +363,17 @@ router.post('/form-automation/resume/:jobId', (req, res) => {
 // Open URL with debug mode
 router.post('/form-automation/open-debug', async (req, res) => {
   try {
-    const { url } = req.body;
+    const { url, headless } = req.body;
     
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
     }
     
-    // Open URL in debug mode (implementation depends on what this should do)
-    logger.info(`Opening URL in debug mode: ${url}`);
+    // Call the implemented function to open URL in debug mode
+    logger.info(`Opening URL in debug mode: ${url}, headless: ${headless}`);
+    
+    // Use the function we implemented - pass headless directly
+    await formAutomation.openUrlInDebugMode(url, headless);
     
     res.json({
       success: true,
