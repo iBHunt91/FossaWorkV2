@@ -41,7 +41,9 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
     let todayJobs = 0;
     let tomorrowJobs = 0;
     let currentWeekDispensers = 0;
-    let currentWeekMultiDayJobs = 0;
+    
+    // Track unique stores with multi-day jobs
+    const multiDayStores = new Set<string>();
     
     workOrders.forEach(order => {
       const orderDateStr = order?.visits?.nextVisit?.date || order?.nextVisitDate || order?.visitDate || order?.date;
@@ -63,7 +65,9 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
           order.instructions.match(/Start Day/i) ||
           order.instructions.match(/Finish Day/i)
         )) {
-          currentWeekMultiDayJobs++;
+          // Use store name and number as unique identifier
+          const storeIdentifier = `${order.customer.name}-${order.customer.storeNumber || 'no-number'}`;
+          multiDayStores.add(storeIdentifier);
         }
       }
       
@@ -74,6 +78,8 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
         tomorrowJobs++;
       }
     });
+    
+    const currentWeekMultiDayJobs = multiDayStores.size;
     
     return { todayJobs, tomorrowJobs, currentWeekDispensers, currentWeekMultiDayJobs };
   };
