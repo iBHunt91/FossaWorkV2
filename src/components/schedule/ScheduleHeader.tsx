@@ -2,16 +2,17 @@ import React from 'react';
 import { FiPieChart, FiActivity, FiTrendingUp, FiList, FiBarChart2, FiCalendar, FiClock, FiAlertCircle } from 'react-icons/fi';
 import { GiGasPump } from 'react-icons/gi';
 import { MdRepeat } from 'react-icons/md';
-import { ScheduleStats } from './ScheduleTypes';
+import { ScheduleStats, WorkWeekDates } from './ScheduleTypes';
 import { getStoreStyles } from './ScheduleUtils';
 
 interface ScheduleHeaderProps {
   stats: ScheduleStats;
   isLoading: boolean;
   workOrders?: any[]; // Optional prop to calculate additional stats
+  workWeekDates?: WorkWeekDates; // Optional prop for week boundaries
 }
 
-const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workOrders = [] }) => {
+const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workOrders = [], workWeekDates }) => {
   if (isLoading) return null;
 
   const { currentWeekJobCount, nextWeekJobCount, storeDistributionForCurrentWeek, storeDistributionForNextWeek } = stats;
@@ -23,10 +24,24 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
+    // Use provided workWeekDates or calculate from first order
+    let currentWeekStart: Date;
+    let currentWeekEnd: Date;
+    
+    if (workWeekDates) {
+      currentWeekStart = new Date(workWeekDates.currentWeekStart);
+      currentWeekEnd = new Date(workWeekDates.currentWeekEnd);
+    } else {
+      // Fallback to calculating from first order
+      currentWeekStart = new Date();
+      currentWeekEnd = new Date();
+      currentWeekEnd.setDate(currentWeekEnd.getDate() + 6);
+    }
+    
     let todayJobs = 0;
     let tomorrowJobs = 0;
-    let totalDispensers = 0;
-    let multiDayJobs = 0;
+    let currentWeekDispensers = 0;
+    let currentWeekMultiDayJobs = 0;
     
     workOrders.forEach(order => {
       const orderDateStr = order?.visits?.nextVisit?.date || order?.nextVisitDate || order?.visitDate || order?.date;
@@ -35,21 +50,24 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
       const orderDate = new Date(orderDateStr);
       orderDate.setHours(0, 0, 0, 0);
       
-      // Count dispensers
-      if (order.dispensers) {
-        totalDispensers += order.dispensers.length;
+      // Only count items in the current week
+      if (orderDate >= currentWeekStart && orderDate <= currentWeekEnd) {
+        // Count dispensers for current week only
+        if (order.dispensers) {
+          currentWeekDispensers += order.dispensers.length;
+        }
+        
+        // Check for multi-day jobs in current week only
+        if (order.instructions && (
+          order.instructions.match(/Day \d+ of \d+/i) ||
+          order.instructions.match(/Start Day/i) ||
+          order.instructions.match(/Finish Day/i)
+        )) {
+          currentWeekMultiDayJobs++;
+        }
       }
       
-      // Check for multi-day jobs
-      if (order.instructions && (
-        order.instructions.match(/Day \d+ of \d+/i) ||
-        order.instructions.match(/Start Day/i) ||
-        order.instructions.match(/Finish Day/i)
-      )) {
-        multiDayJobs++;
-      }
-      
-      // Count today and tomorrow jobs
+      // Count today and tomorrow jobs (these might be outside current week)
       if (orderDate.getTime() === today.getTime()) {
         todayJobs++;
       } else if (orderDate.getTime() === tomorrow.getTime()) {
@@ -57,7 +75,7 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
       }
     });
     
-    return { todayJobs, tomorrowJobs, totalDispensers, multiDayJobs };
+    return { todayJobs, tomorrowJobs, currentWeekDispensers, currentWeekMultiDayJobs };
   };
   
   const additionalStats = calculateAdditionalStats();
@@ -118,16 +136,16 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
             <div className="border-t border-gray-200 dark:border-gray-600 pt-2 mt-1">
               <div className="flex items-center justify-between text-sm mb-2">
                 <span className="flex items-center text-gray-600 dark:text-gray-400">
-                  <GiGasPump className="h-4 w-4 mr-1.5 text-indigo-500" /> Total Dispensers
+                  <GiGasPump className="h-4 w-4 mr-1.5 text-indigo-500" /> Week Dispensers
                 </span>
-                <span className="font-semibold text-gray-800 dark:text-gray-200">{additionalStats.totalDispensers}</span>
+                <span className="font-semibold text-gray-800 dark:text-gray-200">{additionalStats.currentWeekDispensers}</span>
               </div>
-              {additionalStats.multiDayJobs > 0 && (
+              {additionalStats.currentWeekMultiDayJobs > 0 && (
                 <div className="flex items-center justify-between text-sm">
                   <span className="flex items-center text-gray-600 dark:text-gray-400">
                     <MdRepeat className="h-4 w-4 mr-1.5 text-pink-500" /> Multi-Day Jobs
                   </span>
-                  <span className="font-semibold text-gray-800 dark:text-gray-200">{additionalStats.multiDayJobs}</span>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">{additionalStats.currentWeekMultiDayJobs}</span>
                 </div>
               )}
             </div>
