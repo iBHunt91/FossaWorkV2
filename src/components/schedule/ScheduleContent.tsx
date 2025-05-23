@@ -18,7 +18,8 @@ import {
   Dispenser 
 } from './ScheduleTypes';
 import { 
-  calculateWorkWeekDates, 
+  calculateWorkWeekDates,
+  calculateWorkWeekDatesSync,
   getStoreTypeForFiltering, 
   extractVisitNumber, 
   processInstructions 
@@ -46,7 +47,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
   const [activeFilter, setActiveFilter] = useState<StoreFilter>('all');
   const [activeView, setActiveView] = useState<ViewMode>('weekly');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [workWeekDates, setWorkWeekDates] = useState<WorkWeekDates>(calculateWorkWeekDates(new Date()));
+  const [workWeekDates, setWorkWeekDates] = useState<WorkWeekDates>(calculateWorkWeekDatesSync(new Date()));
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [operationLoading, setOperationLoading] = useState<Record<string, boolean>>({});
   
@@ -55,6 +56,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
   const [selectedDispensers, setSelectedDispensers] = useState<Dispenser[]>([]);
   const [selectedOrderIdModal, setSelectedOrderIdModal] = useState<string>('');
   const [selectedVisitNumberModal, setSelectedVisitNumberModal] = useState<string>('');
+  const [selectedStoreNumberModal, setSelectedStoreNumberModal] = useState<string>('');
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<WorkOrder | null>(null);
   const [isInstructionsModalOpen, setIsInstructionsModalOpen] = useState(false);
@@ -63,7 +65,18 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
 
   // Update work week dates when selected date changes
   useEffect(() => {
-    setWorkWeekDates(calculateWorkWeekDates(selectedDate));
+    const updateWorkWeekDates = async () => {
+      try {
+        const dates = await calculateWorkWeekDates(selectedDate);
+        setWorkWeekDates(dates);
+      } catch (error) {
+        console.error('Error calculating work week dates:', error);
+        // Fallback to sync method if async fails
+        setWorkWeekDates(calculateWorkWeekDatesSync(selectedDate));
+      }
+    };
+    
+    updateWorkWeekDates();
   }, [selectedDate]);
 
   // Filter work orders based on active filter
@@ -318,6 +331,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
     setSelectedDispensers(currentDispensers);
     setSelectedOrderIdModal(order.id);
     setSelectedVisitNumberModal(extractVisitNumber(order));
+    setSelectedStoreNumberModal(order.customer?.storeNumber || '');
     setShowDispenserModal(true);
   };
 
@@ -348,11 +362,13 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
         setSelectedDispensers(dispensersToShowOnClick);
         setSelectedOrderIdModal(originalOrder.id);
         setSelectedVisitNumberModal(extractVisitNumber(originalOrder));
+        setSelectedStoreNumberModal(originalOrder.customer?.storeNumber || '');
         setShowDispenserModal(true);
       } else {
         setSelectedDispensers([]);
         setSelectedOrderIdModal(originalOrder.id);
         setSelectedVisitNumberModal(extractVisitNumber(originalOrder));
+        setSelectedStoreNumberModal(originalOrder.customer?.storeNumber || '');
         setShowDispenserModal(true);
         addToast('info', 'No dispenser data available for this job.', 2000);
       }
@@ -376,8 +392,8 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
   );
 
   return (
-    <div className="animate-fadeIn">
-      <ScheduleHeader stats={calculateScheduleStats()} isLoading={isLoading} />
+    <div className="animate-fadeIn space-y-4">
+      <ScheduleHeader stats={calculateScheduleStats()} isLoading={isLoading} workOrders={filteredWorkOrders} />
       
       {isLoading && (
         <div className="py-10 text-center">
@@ -387,7 +403,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
       )}
       
       {!isLoading && (
-        <Panel className="mx-2 my-2">
+        <Panel className="mb-6">
           <WeekNavigator
             workWeekDates={workWeekDates}
             onNavigate={setSelectedDate}
@@ -448,31 +464,29 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
       )}
       
       {/* Modals */}
-      {showDispenserModal && (
-        <DispenserModal
-          dispensers={selectedDispensers}
-          visitNumber={selectedVisitNumberModal}
-          onClose={() => setShowDispenserModal(false)}
-          currentWorkOrderId={selectedOrderIdModal}
-          readOnly={false}
-          onForceRescrape={(workOrderId) => handleForceRescrapeDispenserData(workOrderId, new MouseEvent('click') as any)}
-        />
-      )}
+      <DispenserModal
+        isOpen={showDispenserModal}
+        dispensers={selectedDispensers}
+        orderId={selectedOrderIdModal}
+        visitNumber={selectedVisitNumberModal}
+        storeNumber={selectedStoreNumberModal}
+        onClose={() => setShowDispenserModal(false)}
+      />
       
-      {isFilterModalOpen && selectedOrderForModal && (
+      {selectedOrderForModal && (
         <StoreFilterNeedsModal
+          isOpen={isFilterModalOpen}
           workOrder={selectedOrderForModal}
           onClose={() => setIsFilterModalOpen(false)}
         />
       )}
       
-      {isInstructionsModalOpen && (
-        <InstructionsModal 
-          instructions={selectedInstructions}
-          orderName={selectedOrderName}
-          onClose={() => setIsInstructionsModalOpen(false)}
-        />
-      )}
+      <InstructionsModal 
+        isOpen={isInstructionsModalOpen}
+        instructions={selectedInstructions}
+        title={selectedOrderName}
+        onClose={() => setIsInstructionsModalOpen(false)}
+      />
     </div>
   );
 };
