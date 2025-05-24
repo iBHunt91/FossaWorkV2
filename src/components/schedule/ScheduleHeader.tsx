@@ -25,23 +25,25 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    // Use provided workWeekDates or calculate from first order
-    let currentWeekStart: Date;
-    let currentWeekEnd: Date;
+    // Use provided workWeekDates which should reflect the SELECTED week, not necessarily current week
+    let selectedWeekStart: Date;
+    let selectedWeekEnd: Date;
     
     if (workWeekDates) {
-      currentWeekStart = new Date(workWeekDates.currentWeekStart);
-      currentWeekEnd = new Date(workWeekDates.currentWeekEnd);
+      // Note: currentWeekStart/End actually represents the SELECTED week's boundaries
+      selectedWeekStart = new Date(workWeekDates.currentWeekStart);
+      selectedWeekEnd = new Date(workWeekDates.currentWeekEnd);
     } else {
-      // Fallback to calculating from first order
-      currentWeekStart = new Date();
-      currentWeekEnd = new Date();
-      currentWeekEnd.setDate(currentWeekEnd.getDate() + 6);
+      // Fallback - this should not happen as workWeekDates should always be provided
+      console.warn('ScheduleHeader: workWeekDates not provided, using fallback');
+      selectedWeekStart = new Date();
+      selectedWeekEnd = new Date();
+      selectedWeekEnd.setDate(selectedWeekEnd.getDate() + 6);
     }
     
     let todayJobs = 0;
     let tomorrowJobs = 0;
-    let currentWeekDispensers = 0;
+    let selectedWeekDispensers = 0;
     
     // Track unique stores with multi-day jobs
     const multiDayStores = new Set<string>();
@@ -53,19 +55,23 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
       const orderDate = new Date(orderDateStr);
       orderDate.setHours(0, 0, 0, 0);
       
-      // Only count items in the current week
-      if (orderDate >= currentWeekStart && orderDate <= currentWeekEnd) {
-        // Count dispensers for current week only
-        if (order.dispensers && order.dispensers.length > 0) {
-          currentWeekDispensers += order.dispensers.length;
+      // Only count items in the SELECTED week (not necessarily current calendar week)
+      if (orderDate >= selectedWeekStart && orderDate <= selectedWeekEnd) {
+        // Count dispensers for selected week
+        let dispenserCount = 0;
+        
+        if (order.dispensers && Array.isArray(order.dispensers) && order.dispensers.length > 0) {
+          dispenserCount = order.dispensers.length;
         } else if (order.dispenserCount && typeof order.dispenserCount === 'number') {
-          currentWeekDispensers += order.dispenserCount;
+          dispenserCount = order.dispenserCount;
         } else if (dispenserData?.dispenserData?.[order.id]?.dispensers) {
           // Check dispenser context data as fallback
-          currentWeekDispensers += dispenserData.dispenserData[order.id].dispensers.length;
+          dispenserCount = dispenserData.dispenserData[order.id].dispensers.length;
         }
         
-        // Check for multi-day jobs in current week only
+        selectedWeekDispensers += dispenserCount;
+        
+        // Check for multi-day jobs in selected week
         if (order.instructions && (
           order.instructions.match(/Day \d+ of \d+/i) ||
           order.instructions.match(/Start Day/i) ||
@@ -77,7 +83,7 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
         }
       }
       
-      // Count today and tomorrow jobs (these might be outside current week)
+      // Count today and tomorrow jobs (these might be outside selected week)
       if (orderDate.getTime() === today.getTime()) {
         todayJobs++;
       } else if (orderDate.getTime() === tomorrow.getTime()) {
@@ -85,9 +91,14 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
       }
     });
     
-    const currentWeekMultiDayJobs = multiDayStores.size;
+    const selectedWeekMultiDayJobs = multiDayStores.size;
     
-    return { todayJobs, tomorrowJobs, currentWeekDispensers, currentWeekMultiDayJobs };
+    return { 
+      todayJobs, 
+      tomorrowJobs, 
+      currentWeekDispensers: selectedWeekDispensers, // Note: keeping the same property name for compatibility
+      currentWeekMultiDayJobs: selectedWeekMultiDayJobs 
+    };
   };
   
   const additionalStats = calculateAdditionalStats();
@@ -127,7 +138,7 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center text-gray-600 dark:text-gray-400">
-                  <FiTrendingUp className="h-4 w-4 mr-1.5 text-green-500" /> Next Week
+                  <FiTrendingUp className="h-4 w-4 mr-1.5 text-emerald-600" /> Next Week
                 </span>
                 <span className="font-semibold text-gray-800 dark:text-gray-200">{nextWeekJobCount}</span>
               </div>
