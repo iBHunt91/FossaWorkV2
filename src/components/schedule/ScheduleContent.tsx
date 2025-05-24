@@ -393,7 +393,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({ workOrders, isLoading
 
   return (
     <div className="animate-fadeIn space-y-4">
-      <ScheduleHeader stats={calculateScheduleStats()} isLoading={isLoading} workOrders={filteredWorkOrders} workWeekDates={workWeekDates} />
+      <ScheduleHeader stats={calculateScheduleStats()} isLoading={isLoading} workOrders={filteredWorkOrders} workWeekDates={workWeekDates} dispenserData={dispenserData} />
       
       {isLoading && (
         <div className="py-10 text-center">

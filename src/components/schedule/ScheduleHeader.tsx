@@ -10,9 +10,10 @@ interface ScheduleHeaderProps {
   isLoading: boolean;
   workOrders?: any[]; // Optional prop to calculate additional stats
   workWeekDates?: WorkWeekDates; // Optional prop for week boundaries
+  dispenserData?: any; // Optional prop for dispenser context data
 }
 
-const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workOrders = [], workWeekDates }) => {
+const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workOrders = [], workWeekDates, dispenserData }) => {
   if (isLoading) return null;
 
   const { currentWeekJobCount, nextWeekJobCount, storeDistributionForCurrentWeek, storeDistributionForNextWeek } = stats;
@@ -55,8 +56,13 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
       // Only count items in the current week
       if (orderDate >= currentWeekStart && orderDate <= currentWeekEnd) {
         // Count dispensers for current week only
-        if (order.dispensers) {
+        if (order.dispensers && order.dispensers.length > 0) {
           currentWeekDispensers += order.dispensers.length;
+        } else if (order.dispenserCount && typeof order.dispenserCount === 'number') {
+          currentWeekDispensers += order.dispenserCount;
+        } else if (dispenserData?.dispenserData?.[order.id]?.dispensers) {
+          // Check dispenser context data as fallback
+          currentWeekDispensers += dispenserData.dispenserData[order.id].dispensers.length;
         }
         
         // Check for multi-day jobs in current week only
