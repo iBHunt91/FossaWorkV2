@@ -3199,10 +3199,12 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                       {/* Status message - only show meaningful completion details or current action */}
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {job.status === 'completed' ? (
-                          <span className="text-green-600 dark:text-green-400 font-medium">
-                            {job.processedForms ? `${job.processedForms} forms processed` : 'Completed successfully'}
-                            {job.createdForms && job.createdForms > 0 && ` • ${job.createdForms} created`}
-                          </span>
+                          job.processedForms || job.createdForms ? (
+                            <span className="text-green-600 dark:text-green-400 font-medium">
+                              {job.processedForms && `${job.processedForms} forms processed`}
+                              {job.createdForms && job.createdForms > 0 && `${job.processedForms ? ' • ' : ''}${job.createdForms} created`}
+                            </span>
+                          ) : null
                         ) : job.status === 'error' ? (
                           <span className="text-red-600 dark:text-red-400 font-medium">
                             {job.message || 'An error occurred'}
