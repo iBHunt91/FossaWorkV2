@@ -3073,12 +3073,7 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                               {job.storeName || (job.url ? new URL(job.url).pathname.split('/').pop() : 'Visit')}
                             </span>
                             
-                            {/* Status badge */}
-                            {job.status === 'error' && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 font-medium">
-                                Failed
-                              </span>
-                            )}
+                            {/* Status badge - no text for failed jobs, icon and styling is sufficient */}
                             {job.status === 'cancelled' && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 font-medium">
                                 Cancelled
@@ -3171,12 +3166,7 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                               </div>
                             )}
                             
-                            {/* Error message */}
-                            {job.status === 'error' && (
-                              <span className="text-red-600 dark:text-red-400 font-medium">
-                                {job.message || 'Processing failed'}
-                              </span>
-                            )}
+                            {/* Error status - no text message, visual styling is sufficient */}
                             
                             {/* Current action for running jobs */}
                             {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
