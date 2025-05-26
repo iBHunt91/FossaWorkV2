@@ -1692,14 +1692,19 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
     setFormJobs(prev => {
       const updatedJobs = [...prev];
       
-      // Find the right job to update
+      // Find the right job to update (look for running, processing, or unknown status)
       const activeJobUrl = getFromStorage(userStorageKeys.VISIT_URL);
       const jobIndex = updatedJobs.findIndex(job => 
-        job.url === activeJobUrl && job.status === 'running');
+        job.url === activeJobUrl && (job.status === 'running' || job.status === 'processing' || job.status === 'unknown'));
       
       if (jobIndex !== -1) {
-        // Handle automation_complete as completed status
-        const finalStatus = status.status === 'automation_complete' ? 'completed' : status.status;
+        // Handle various backend status values
+        let finalStatus = status.status;
+        if (status.status === 'automation_complete') {
+          finalStatus = 'completed';
+        } else if (status.status === 'processing') {
+          finalStatus = 'running';
+        }
         
         // Update the job's status
         updatedJobs[jobIndex] = {
@@ -3092,7 +3097,7 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                                 Cancelled
                               </span>
                             )}
-                            {(job.status === 'running' || job.status === 'unknown') && (
+                            {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
                               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 font-medium">
                                 Running
                               </span>
@@ -3177,7 +3182,7 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                       )}
                       
                       {/* Cancel button for running jobs */}
-                      {(job.status === 'running' || job.status === 'unknown') && (
+                      {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
                         <button
                           onClick={() => handleCancelJob(job.jobId)}
                           className="inline-flex items-center px-2 py-1 text-xs rounded-md text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-800/30"
@@ -3206,7 +3211,7 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                           <span className="text-amber-600 dark:text-amber-400 font-medium">
                             Cancelled by user
                           </span>
-                        ) : (job.status === 'running' || job.status === 'unknown') ? (
+                        ) : (job.status === 'running' || job.status === 'processing' || job.status === 'unknown') ? (
                           <span className="text-blue-600 dark:text-blue-400 font-medium">
                             {job.message || job.currentStep || 'Processing automation...'}
                             {job.progress !== undefined && ` • ${job.progress}%`}
@@ -3222,7 +3227,7 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                     {/* Duration Timer - simplified */}
                     {job.startTime && (
                       <div className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-600 dark:text-gray-300">
-                        {(job.status === 'running' || job.status === 'unknown') ? (
+                        {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') ? (
                           formatDuration(job.startTime, null, false)
                         ) : job.endTime ? (
                           formatDuration(job.startTime, job.endTime, true)
@@ -3235,14 +3240,14 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                     )}
                   </div>
                   
-                  {(job.status === 'running' || job.status === 'unknown') && (
+                  {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1 mt-2 overflow-hidden">
                       <div className="bg-blue-500 h-1 rounded-full w-1/4 animate-pulse"></div>
                     </div>
                   )}
                   
                   {/* Enhanced Visual Progress for Running Jobs */}
-                  {(job.status === 'running' || job.status === 'unknown') && (
+                  {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
                     <div className="mt-3 space-y-2">
                       {/* WebSocket-driven progress (preferred) */}
                       {jobProgress && jobProgress.dispenser && singleJobId === job.jobId && (
