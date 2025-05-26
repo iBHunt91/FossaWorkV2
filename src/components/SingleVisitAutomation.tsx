@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   FiPlay, FiX, FiExternalLink, FiCheckCircle, FiXCircle, FiAlertTriangle, FiTool, FiList, FiPause, FiSkipForward
 } from 'react-icons/fi';
+import { GiGasPump } from 'react-icons/gi';
 import { useToast } from '../hooks/useToast';
 import {
   processSingleVisit,
@@ -3065,54 +3066,55 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                           <FiX className="mr-2 h-4 w-4 text-amber-500" />
                         )}
                         
-                        <div className="flex flex-col">
-                          {/* Compact header with all key information in one line */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                {job.storeName || (job.url ? new URL(job.url).pathname.split('/').pop() : 'Visit')}
-                              </span>
-                              
-                              {/* Status badge */}
-                              {job.status === 'error' && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 font-medium">
-                                  Failed
-                                </span>
-                              )}
-                              {job.status === 'cancelled' && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 font-medium">
-                                  Cancelled
-                                </span>
-                              )}
-                              {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 font-medium">
-                                  Running
-                                </span>
-                              )}
-                              
-                              {/* Key details inline */}
-                              {job.visitNumber && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium">
-                                  #{job.visitNumber}
-                                </span>
-                              )}
-                              
-                              {job.dispenserCount && job.dispenserCount > 0 && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 font-medium">
-                                  {job.dispenserCount}D
-                                </span>
-                              )}
-                              
-                              {job.serviceCode && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 font-medium">
-                                  {job.serviceCode}
-                                </span>
-                              )}
-                            </div>
+                        <div className="flex items-center justify-between">
+                          {/* Single line with all information */}
+                          <div className="flex items-center gap-2 flex-1">
+                            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                              {job.storeName || (job.url ? new URL(job.url).pathname.split('/').pop() : 'Visit')}
+                            </span>
                             
-                            {/* Duration on the right */}
+                            {/* Status badge */}
+                            {job.status === 'error' && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 font-medium">
+                                Failed
+                              </span>
+                            )}
+                            {job.status === 'cancelled' && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 font-medium">
+                                Cancelled
+                              </span>
+                            )}
+                            {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 font-medium">
+                                Running
+                              </span>
+                            )}
+                            
+                            {/* Visit number with single # */}
+                            {job.visitNumber && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium">
+                                #{job.visitNumber}
+                              </span>
+                            )}
+                            
+                            {/* Dispenser count with gas pump icon */}
+                            {job.dispenserCount && job.dispenserCount > 0 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 font-medium">
+                                <GiGasPump className="w-3 h-3 mr-1" />
+                                {job.dispenserCount}
+                              </span>
+                            )}
+                            
+                            {/* Service code */}
+                            {job.serviceCode && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 font-medium">
+                                {job.serviceCode}
+                              </span>
+                            )}
+                            
+                            {/* Duration timer */}
                             {job.startTime && (
-                              <div className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-700 dark:text-gray-300 font-medium">
+                              <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-300 font-medium">
                                 {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') ? (
                                   formatDuration(job.startTime, null, false)
                                 ) : job.endTime ? (
@@ -3122,46 +3124,11 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                                 ) : (
                                   formatDuration(job.startTime, null, false)
                                 )}
-                              </div>
+                              </span>
                             )}
-                          </div>
-                          
-                          {/* Compact results/status line */}
-                          <div className="flex items-center justify-between mt-1 text-xs">
-                            <div className="flex items-center gap-2">
-                              {/* Completion results */}
-                              {job.status === 'completed' && (job.processedForms || job.createdForms) && (
-                                <div className="flex items-center gap-1">
-                                  {job.processedForms && (
-                                    <span className="text-green-600 dark:text-green-400 font-medium">
-                                      {job.processedForms} processed
-                                    </span>
-                                  )}
-                                  {job.createdForms && job.createdForms > 0 && (
-                                    <span className="text-blue-600 dark:text-blue-400 font-medium">
-                                      {job.processedForms ? ', ' : ''}{job.createdForms} created
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              
-                              {/* Error message */}
-                              {job.status === 'error' && (
-                                <span className="text-red-600 dark:text-red-400 font-medium">
-                                  {job.message || 'Processing failed'}
-                                </span>
-                              )}
-                              
-                              {/* Current action for running jobs */}
-                              {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
-                                <span className="text-blue-600 dark:text-blue-400 font-medium">
-                                  {job.message || job.currentStep || 'Processing...'}
-                                </span>
-                              )}
-                            </div>
                             
                             {/* Start time */}
-                            <span className="text-gray-500 dark:text-gray-400">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
                               {job.timestamp ? new Date(job.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Starting...'}
                               {job.status === 'completed' && job.timestamp && (
                                 <span className="ml-1">
@@ -3182,6 +3149,43 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                             </span>
                           </div>
                         </div>
+                        
+                        {/* Second line for results/status when needed */}
+                        {((job.status === 'completed' && (job.processedForms || job.createdForms)) || 
+                          job.status === 'error' || 
+                          (job.status === 'running' || job.status === 'processing' || job.status === 'unknown')) && (
+                          <div className="flex items-center mt-1 text-xs">
+                            {/* Completion results */}
+                            {job.status === 'completed' && (job.processedForms || job.createdForms) && (
+                              <div className="flex items-center gap-1">
+                                {job.processedForms && (
+                                  <span className="text-green-600 dark:text-green-400 font-medium">
+                                    {job.processedForms} processed
+                                  </span>
+                                )}
+                                {job.createdForms && job.createdForms > 0 && (
+                                  <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                    {job.processedForms ? ', ' : ''}{job.createdForms} created
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Error message */}
+                            {job.status === 'error' && (
+                              <span className="text-red-600 dark:text-red-400 font-medium">
+                                {job.message || 'Processing failed'}
+                              </span>
+                            )}
+                            
+                            {/* Current action for running jobs */}
+                            {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
+                              <span className="text-blue-600 dark:text-blue-400 font-medium">
+                                {job.message || job.currentStep || 'Processing...'}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     
