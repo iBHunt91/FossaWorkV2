@@ -3066,74 +3066,82 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                         )}
                         
                         <div className="flex flex-col">
-                          {/* Single consolidated header line */}
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">
-                                {job.storeName || (job.url ? new URL(job.url).pathname.split('/').pop() : 'Visit')}
-                              </span>
-                              {/* Show visit number prominently */}
-                              {job.visitNumber && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 font-medium">
-                                  Visit {job.visitNumber}
+                          {/* Clear header with store name and key information */}
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                  {job.storeName || (job.url ? new URL(job.url).pathname.split('/').pop() : 'Visit')}
                                 </span>
-                              )}
-                              {/* Show dispenser count */}
-                              {job.dispenserCount && job.dispenserCount > 0 && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 font-medium">
-                                  {job.dispenserCount} dispenser{job.dispenserCount !== 1 ? 's' : ''}
+                                {/* Status-specific visual indicators */}
+                                {job.status === 'error' && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 font-medium">
+                                    Failed
+                                  </span>
+                                )}
+                                {job.status === 'cancelled' && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 font-medium">
+                                    Cancelled
+                                  </span>
+                                )}
+                                {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 font-medium">
+                                    Running
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {/* Key job details in a readable format */}
+                              <div className="flex items-center gap-3 text-xs">
+                                {/* Visit number */}
+                                {job.visitNumber && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium">
+                                    Visit #{job.visitNumber}
+                                  </span>
+                                )}
+                                
+                                {/* Dispenser count */}
+                                {job.dispenserCount && job.dispenserCount > 0 && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 font-medium">
+                                    {job.dispenserCount} dispenser{job.dispenserCount !== 1 ? 's' : ''}
+                                  </span>
+                                )}
+                                
+                                {/* Service code */}
+                                {job.serviceCode && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 font-medium">
+                                    Service {job.serviceCode}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Timing information */}
+                          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">
+                                Started: {job.timestamp ? new Date(job.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Starting...'}
+                              </span>
+                              
+                              {/* Show completion time for finished jobs */}
+                              {job.status === 'completed' && job.timestamp && (
+                                <span className="text-gray-400 dark:text-gray-500">
+                                  ({(() => {
+                                    const now = Date.now();
+                                    const jobTime = new Date(job.timestamp).getTime();
+                                    const diffMinutes = Math.floor((now - jobTime) / (1000 * 60));
+                                    
+                                    if (diffMinutes < 1) return 'just now';
+                                    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+                                    const diffHours = Math.floor(diffMinutes / 60);
+                                    if (diffHours < 24) return `${diffHours}h ago`;
+                                    const diffDays = Math.floor(diffHours / 24);
+                                    return `${diffDays}d ago`;
+                                  })()})
                                 </span>
                               )}
                             </div>
-                            
-                            {/* Status-specific visual indicators */}
-                            {job.status === 'error' && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 font-medium">
-                                Failed
-                              </span>
-                            )}
-                            {job.status === 'cancelled' && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 font-medium">
-                                Cancelled
-                              </span>
-                            )}
-                            {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 font-medium">
-                                Running
-                              </span>
-                            )}
-                          </div>
-                          
-                          {/* Single consolidated info line with start time and service code */}
-                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                            <span>
-                              {job.timestamp ? new Date(job.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Starting...'}
-                            </span>
-                            
-                            {/* Show service code if available */}
-                            {job.serviceCode && (
-                              <span className="text-green-600 dark:text-green-400">
-                                • Service {job.serviceCode}
-                              </span>
-                            )}
-                            
-                            {/* Show time ago for completed jobs only */}
-                            {job.status === 'completed' && job.timestamp && (
-                              <span className="text-gray-400 dark:text-gray-500">
-                                • {(() => {
-                                  const now = Date.now();
-                                  const jobTime = new Date(job.timestamp).getTime();
-                                  const diffMinutes = Math.floor((now - jobTime) / (1000 * 60));
-                                  
-                                  if (diffMinutes < 1) return 'Just now';
-                                  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-                                  const diffHours = Math.floor(diffMinutes / 60);
-                                  if (diffHours < 24) return `${diffHours}h ago`;
-                                  const diffDays = Math.floor(diffHours / 24);
-                                  return `${diffDays}d ago`;
-                                })()}
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -3194,50 +3202,77 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                     </div>
                   </div>
                   
-                  <div className="flex justify-between items-center">
+                  {/* Results and timing section */}
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
                     <div className="flex flex-col gap-1">
-                      {/* Status message - only show meaningful completion details or current action */}
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {job.status === 'completed' ? (
-                          job.processedForms || job.createdForms ? (
-                            <span className="text-green-600 dark:text-green-400 font-medium">
-                              {job.processedForms && `${job.processedForms} forms processed`}
-                              {job.createdForms && job.createdForms > 0 && `${job.processedForms ? ' • ' : ''}${job.createdForms} created`}
-                            </span>
-                          ) : null
-                        ) : job.status === 'error' ? (
+                      {/* Completion results or current status */}
+                      {job.status === 'completed' && (job.processedForms || job.createdForms) && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-gray-600 dark:text-gray-400 font-medium">Results:</span>
+                          <div className="flex items-center gap-2">
+                            {job.processedForms && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 font-medium">
+                                {job.processedForms} processed
+                              </span>
+                            )}
+                            {job.createdForms && job.createdForms > 0 && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium">
+                                {job.createdForms} created
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Error message */}
+                      {job.status === 'error' && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-gray-600 dark:text-gray-400 font-medium">Error:</span>
                           <span className="text-red-600 dark:text-red-400 font-medium">
-                            {job.message || 'An error occurred'}
+                            {job.message || 'An error occurred during processing'}
                           </span>
-                        ) : job.status === 'cancelled' ? (
+                        </div>
+                      )}
+                      
+                      {/* Current action for running jobs */}
+                      {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-gray-600 dark:text-gray-400 font-medium">Status:</span>
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">
+                            {job.message || job.currentStep || 'Processing automation...'}
+                            {job.progress !== undefined && ` (${job.progress}%)`}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Cancellation message */}
+                      {job.status === 'cancelled' && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-gray-600 dark:text-gray-400 font-medium">Status:</span>
                           <span className="text-amber-600 dark:text-amber-400 font-medium">
                             Cancelled by user
                           </span>
-                        ) : (job.status === 'running' || job.status === 'processing' || job.status === 'unknown') ? (
-                          <span className="text-blue-600 dark:text-blue-400 font-medium">
-                            {job.message || job.currentStep || 'Processing automation...'}
-                            {job.progress !== undefined && ` • ${job.progress}%`}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500 dark:text-gray-400">
-                            {job.message || `Status: ${job.status}`}
-                          </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                     
-                    {/* Duration Timer - simplified */}
+                    {/* Duration display */}
                     {job.startTime && (
-                      <div className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-600 dark:text-gray-300">
-                        {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') ? (
-                          formatDuration(job.startTime, null, false)
-                        ) : job.endTime ? (
-                          formatDuration(job.startTime, job.endTime, true)
-                        ) : job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' ? (
-                          formatDuration(job.startTime, Date.now(), true)
-                        ) : (
-                          formatDuration(job.startTime, null, false)
-                        )}
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                          Duration
+                        </div>
+                        <div className="text-sm font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-700 dark:text-gray-300 font-medium">
+                          {(job.status === 'running' || job.status === 'processing' || job.status === 'unknown') ? (
+                            formatDuration(job.startTime, null, false)
+                          ) : job.endTime ? (
+                            formatDuration(job.startTime, job.endTime, true)
+                          ) : job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled' ? (
+                            formatDuration(job.startTime, Date.now(), true)
+                          ) : (
+                            formatDuration(job.startTime, null, false)
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
