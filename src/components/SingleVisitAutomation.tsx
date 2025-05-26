@@ -3196,16 +3196,10 @@ const SingleVisitAutomation: React.FC<SingleVisitAutomationProps> = ({
                           onClick={async () => {
                             try {
                               // Use our updated service to open the URL via Electron
-                              const result = await openUrlWithDebugMode(job.url, false);
-                              
-                              if (result.success) {
-                                addToast('success', 'Browser opened successfully');
-                              } else {
-                                addToast('error', result.error || 'Failed to open browser');
-                              }
+                              await openUrlWithDebugMode(job.url, false);
                             } catch (error) {
                               console.error('Error opening URL:', error);
-                              addToast('error', error instanceof Error ? error.message : 'Failed to open browser');
+                              // No toast message - visual feedback through button state is sufficient
                             }
                           }}
                           className="inline-flex items-center px-2 py-1 text-xs rounded-md text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500"
