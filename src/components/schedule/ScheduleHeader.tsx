@@ -138,7 +138,7 @@ const ScheduleHeader: React.FC<ScheduleHeaderProps> = ({ stats, isLoading, workO
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="flex items-center text-gray-600 dark:text-gray-400">
-                  <FiTrendingUp className="h-4 w-4 mr-1.5 text-emerald-600" /> Next Week
+                  <FiTrendingUp className="h-4 w-4 mr-1.5 text-green-500" /> Next Week
                 </span>
                 <span className="font-semibold text-gray-800 dark:text-gray-200">{nextWeekJobCount}</span>
               </div>

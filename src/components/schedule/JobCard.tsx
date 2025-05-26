@@ -146,17 +146,17 @@ const JobCard: React.FC<JobCardProps> = ({
             
             {/* Right side - Fixed width for consistent alignment */}
             <div className="flex-shrink-0 text-right">
-              <div className="flex items-center gap-1.5 mb-1">
-                <FiCalendar className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+              <div className="flex items-center gap-1.5 mb-1 justify-end">
+                <FiCalendar className="h-4 w-4 text-blue-500" />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {formattedJobDate}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 justify-end">
+                <GiGasPump className="h-4 w-4 text-indigo-500" />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {dispenserCount} {dispenserCount === 1 ? 'dispenser' : 'dispensers'}
+                  {dispenserCount} {dispenserCount === 1 ? 'Dispenser' : 'Dispensers'}
                 </span>
-                <GiGasPump className="h-4 w-4 text-gray-500 dark:text-gray-400" />
               </div>
             </div>
           </div>
