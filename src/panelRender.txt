@@ -1,2 +1,0 @@
-// In the JSX where you render the Filters Needed panel
-{renderPanel('filters', 'Filter Breakdown', <FiFilter className="w-5 h-5" />, renderFiltersPanel())}

@@ -1,4 +1,0 @@
-Summary: 1 job removed
-All Changes:
-----------------
-- Visit #W-126770 (Store #33272, 6 dispensers) was removed on 05/16/2025

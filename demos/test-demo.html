@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FossaWork V2 Demo Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-result { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background-color: #e2e3e5; border: 1px solid #d6d8db; color: #383d41; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🎯 FossaWork V2 Demo - API Test</h1>
+    
+    <div class="info test-result">
+        <strong>Demo Status:</strong> Use this page to test your backend API before starting the full React app.
+    </div>
+
+    <h2>API Tests</h2>
+    <button onclick="testBackendHealth()">Test Backend Health</button>
+    <button onclick="testWorkOrders()">Test Work Orders</button>
+    <button onclick="testAPIDocumentation()">Open API Docs</button>
+    <button onclick="openFrontend()">Open React App</button>
+
+    <div id="results"></div>
+
+    <h2>Expected Demo Data</h2>
+    <div class="info test-result">
+        <strong>Work Orders:</strong> 2 sample work orders (Shell #1247, BP #8842)<br>
+        <strong>Dispensers:</strong> 3 dispensers with fuel grade configurations<br>
+        <strong>Features:</strong> Status tracking, progress percentages, automation flags
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        function showResult(title, success, data) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${success ? 'success' : 'error'}`;
+            
+            let content = `<strong>${title}:</strong> ${success ? '✅ SUCCESS' : '❌ FAILED'}<br>`;
+            if (data) {
+                if (typeof data === 'string') {
+                    content += data;
+                } else {
+                    content += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            }
+            
+            div.innerHTML = content;
+            results.appendChild(div);
+        }
+
+        async function testBackendHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('Backend Health Check', true, data);
+                } else {
+                    showResult('Backend Health Check', false, `HTTP ${response.status}: ${data.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                showResult('Backend Health Check', false, `Connection failed: ${error.message}. Make sure backend is running on port 8000.`);
+            }
+        }
+
+        async function testWorkOrders() {
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/work-orders?user_id=demo-user`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('Work Orders API', true, `Found ${data.length} work orders`);
+                    if (data.length > 0) {
+                        showResult('Sample Work Order', true, data[0]);
+                    }
+                } else {
+                    showResult('Work Orders API', false, `HTTP ${response.status}: ${data.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                showResult('Work Orders API', false, `Connection failed: ${error.message}`);
+            }
+        }
+
+        function testAPIDocumentation() {
+            window.open(`${API_BASE}/docs`, '_blank');
+        }
+
+        function openFrontend() {
+            window.open('http://localhost:3000', '_blank');
+        }
+
+        // Auto-test on page load
+        window.onload = () => {
+            showResult('Demo Test Page', true, 'Ready to test FossaWork V2 backend API');
+        };
+    </script>
+</body>
+</html>

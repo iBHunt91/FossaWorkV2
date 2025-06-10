@@ -1,0 +1,29 @@
+# Core dependencies - simplified for easy installation
+fastapi>=0.100.0
+uvicorn[standard]>=0.20.0
+sqlalchemy>=2.0.0
+pydantic[email]>=2.0.0
+
+# Real-time logging and WebSocket support
+websockets>=12.0  # For real-time features
+python-multipart>=0.0.5  # For file uploads and form data
+
+# Email and notification support
+jinja2>=3.1.0  # For email templates
+
+# Browser automation and async operations
+playwright>=1.40.0  # For browser automation
+aiofiles>=23.0.0  # For async file operations
+psutil>=5.9.0  # For memory monitoring
+
+# Authentication and security
+passlib[bcrypt]>=1.7.0  # For password hashing
+python-jose[cryptography]>=3.3.0  # For JWT tokens
+cryptography>=41.0.0  # For secure credential encryption
+
+# HTTP client for notifications
+aiohttp>=3.9.0  # For async HTTP client (Pushover notifications)
+
+# Optional dependencies (can be installed later)
+# psycopg2-binary>=2.9.0  # For PostgreSQL
+# alembic>=1.12.0  # For database migrations

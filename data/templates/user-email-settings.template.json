@@ -1,9 +1,0 @@
-{
-  "recipientEmail": "your-email@example.com",
-  "showJobId": true,
-  "showStoreNumber": true,
-  "showStoreName": true,
-  "showLocation": true,
-  "showDate": true,
-  "showDispensers": true
-} 

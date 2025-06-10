@@ -3,9 +3,9 @@
 # Use ! to exclude files/folders (anti-patterns)
 # After changing this file, refresh the Grouped Timeline view to see the updates
 
- Track all files by default (commented out because it might be slow for large projects)
- *
- */**
+# Track all files by default (commented out because it might be slow for large projects)
+# *
+# */**
 
 # Common exclusions
 !node_modules/**

@@ -1,0 +1,94 @@
+[
+  {
+    "job_id": "3eaae3de-7d98-42c0-a82b-8dc112f49c98",
+    "user_id": "test_user",
+    "job_type": "single_visit",
+    "priority": 3,
+    "status": "queued",
+    "queue_type": "single_visit",
+    "work_order_id": "WO-001",
+    "visit_url": "https://app.workfossa.com/visit/123",
+    "dispensers": [
+      {
+        "dispenser_number": "1",
+        "fuel_grades": {
+          "regular": {}
+        }
+      }
+    ],
+    "batch_data": null,
+    "scheduled_at": null,
+    "deadline": null,
+    "max_retries": 3,
+    "retry_delay_seconds": 60,
+    "resource_requirements": {
+      "browser_sessions": 1,
+      "memory_mb": 512,
+      "cpu_cores": 0.5,
+      "max_duration_minutes": 30,
+      "network_bandwidth_mbps": 10.0
+    },
+    "created_at": "2025-06-08 07:57:23.568602",
+    "queued_at": "2025-06-08 07:57:23.568626",
+    "started_at": null,
+    "completed_at": null,
+    "result_data": null,
+    "error_message": null,
+    "retry_count": 0,
+    "execution_time_seconds": 0.0,
+    "depends_on": [],
+    "dependency_mode": "all"
+  },
+  {
+    "job_id": "2aadc08a-91f6-4c87-b5bc-74058b12e4fc",
+    "user_id": "test_user",
+    "job_type": "batch_processing",
+    "priority": 2,
+    "status": "queued",
+    "queue_type": "batch_processing",
+    "work_order_id": null,
+    "visit_url": null,
+    "dispensers": [],
+    "batch_data": {
+      "visits": [
+        {
+          "work_order_id": "WO-002",
+          "dispensers": [
+            {
+              "dispenser_number": "1"
+            }
+          ]
+        },
+        {
+          "work_order_id": "WO-003",
+          "dispensers": [
+            {
+              "dispenser_number": "2"
+            }
+          ]
+        }
+      ]
+    },
+    "scheduled_at": null,
+    "deadline": null,
+    "max_retries": 3,
+    "retry_delay_seconds": 60,
+    "resource_requirements": {
+      "browser_sessions": 2,
+      "memory_mb": 612,
+      "cpu_cores": 0.7,
+      "max_duration_minutes": 20,
+      "network_bandwidth_mbps": 10.0
+    },
+    "created_at": "2025-06-08 07:57:23.568622",
+    "queued_at": "2025-06-08 07:57:23.571904",
+    "started_at": null,
+    "completed_at": null,
+    "result_data": null,
+    "error_message": null,
+    "retry_count": 0,
+    "execution_time_seconds": 0.0,
+    "depends_on": [],
+    "dependency_mode": "all"
+  }
+]
