@@ -2,7 +2,15 @@
 
 A complete rebuild of the FossaWork application with modern architecture, security, and multi-user support.
 
+## 🖥️ Cross-Platform Support
+
+FossaWork V2 runs on Windows, macOS, and Linux. See the [Cross-Platform Guide](docs/guides/CROSS_PLATFORM_GUIDE.md) for platform-specific instructions.
+
 ## 🎉 Status: Day 2 Complete - 100% Implementation
+
+### 🆕 Recent Updates (June 11, 2025):
+- **WorkFossa Scraper Enhancement**: Fixed custom dropdown detection to properly change page size from 25 to 100 work orders
+- **Documentation**: Added detailed fix documentation in `ai_docs/systems/workfossa-dropdown-fix.md`
 
 ### ✅ What's Been Built:
 
@@ -10,6 +18,7 @@ A complete rebuild of the FossaWork application with modern architecture, securi
 - Complete REST API with multi-user support
 - Secure password hashing with BCrypt  
 - WorkFossa scraping service with async architecture
+- **Fixed**: Custom dropdown handling for WorkFossa page size (25→100 work orders)
 - Comprehensive data models for all business entities
 - Full CRUD operations for users and work orders
 - Background task processing for scraping
@@ -67,13 +76,17 @@ FossaWork/
 
 ### 🚀 Quick Start
 
-**One-Command Startup (Recommended):**
-```cmd
-# Start everything with one command
-tools\start-fossawork.bat
+**Windows:**
+```batch
+tools\windows\start-fossawork.bat
 ```
 
-This single script handles:
+**macOS/Linux:**
+```bash
+./tools/unix/start-fossawork.sh
+```
+
+These scripts handle:
 - ✅ Python environment setup
 - ✅ All dependency installation
 - ✅ Process cleanup
