@@ -789,9 +789,15 @@ class WorkFossaScraper:
             )
             
             # Try to get dispenser information if available
+            # First try basic extraction from the list page
             dispensers = await self._extract_dispensers(page, element)
             work_order.dispensers = dispensers
             work_order.dispenser_count = len(dispensers)
+            
+            # DISABLED: Automatic dispenser scraping - now done separately for performance
+            # if visit_url and service_info.get("code") in ["2861", "2862", "3146", "3002"]:
+            #     logger.info(f"Service code {service_info.get('code')} detected - dispenser scraping available")
+            #     # Dispenser scraping is now done via separate button/endpoint
             
             return work_order
             
@@ -986,7 +992,7 @@ class WorkFossaScraper:
             }
     
     async def _extract_address_components(self, element) -> Dict[str, str]:
-        """Extract address components matching V1 structure"""
+        """Extract address components matching V1 structure - now more flexible"""
         try:
             components = {
                 "street": None,
@@ -997,70 +1003,210 @@ class WorkFossaScraper:
             
             cells = await element.query_selector_all("td")
             
-            # Address is usually in the customer cell (cell 2)
+            # Try multiple cell positions as address can be in different locations
+            cells_to_check = []
+            
+            # Prioritize cell 2 (most common location)
             if len(cells) >= 3:
-                customer_cell = cells[2]
-                cell_text = await customer_cell.text_content()
+                cells_to_check.append(cells[2])
+            
+            # Also check adjacent cells (1, 3, 4) as fallbacks
+            if len(cells) >= 2:
+                cells_to_check.append(cells[1])
+            if len(cells) >= 4:
+                cells_to_check.append(cells[3])
+            if len(cells) >= 5:
+                cells_to_check.append(cells[4])
+            
+            # Also check all remaining cells if needed
+            for i, cell in enumerate(cells):
+                if cell not in cells_to_check:
+                    cells_to_check.append(cell)
+            
+            # Try to find address in each cell
+            for cell in cells_to_check:
+                cell_text = await cell.text_content()
                 
                 if cell_text:
-                    lines = [line.strip() for line in cell_text.split('\n') if line.strip()]
+                    # Quick check if this cell likely contains address info
+                    address_indicators = [
+                        r'\d+\s+\w+',  # Street number pattern
+                        r'Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Highway|Hwy',
+                        r',\s*[A-Z]{2}\s*\d{5}',  # State and zip pattern
+                        r'#\d+.*,.*[A-Z]{2}',  # Store number with state
+                    ]
                     
-                    # Parse address from lines
-                    # Typical structure:
-                    # Line 0: Customer name
-                    # Line 1: Store number or address line 1
-                    # Line 2: Address line 2 or city/state
-                    # Line 3: City/State if not in line 2
+                    has_address_content = any(re.search(pattern, cell_text, re.IGNORECASE) for pattern in address_indicators)
                     
-                    address_lines = []
-                    for line in lines:
-                        # Skip customer name (usually first line with company indicators)
-                        if any(word in line.lower() for word in ['inc', 'llc', 'corp', 'company', 'stores']):
-                            continue
-                        # Skip store numbers
-                        if line.startswith('#') or re.match(r'^Store\s+\d+', line, re.IGNORECASE):
-                            continue
-                        # This is likely an address line
-                        address_lines.append(line)
-                    
-                    if address_lines:
-                        # First address line is street
-                        components["street"] = address_lines[0]
+                    if has_address_content:
+                        lines = [line.strip() for line in cell_text.split('\n') if line.strip()]
                         
-                        # Look for city, state pattern (e.g., "City, ST 12345")
-                        city_state_pattern = r'^([^,]+),\s*([A-Z]{2})\s*(\d{5})?'
+                        # Enhanced parsing logic
+                        address_lines = []
+                        store_number_line = None
                         
-                        for line in address_lines[1:]:
-                            city_state_match = re.match(city_state_pattern, line)
-                            if city_state_match:
-                                components["cityState"] = line
+                        for line in lines:
+                            # Skip customer name (usually first line with company indicators)
+                            # But be careful not to skip addresses that contain these words
+                            if (any(word in line.lower() for word in ['inc', 'llc', 'corp', 'corporation', 'company', 'stores']) and 
+                                not any(pattern in line for pattern in ['Street', 'St', 'Ave', 'Rd', 'Drive', 'Dr', 'Lane', 'Ln', 'Way']) and
+                                not re.search(r'\d{5}', line)):  # Don't skip if it contains a zip code
+                                continue
+                            
+                            # Capture store numbers separately but don't skip them entirely
+                            if line.startswith('#') or re.match(r'^Store\s+\d+', line, re.IGNORECASE):
+                                store_number_line = line
+                                # Sometimes address follows store number on same line
+                                store_addr_match = re.search(r'(#\d+|Store\s+\d+)\s*[,-]?\s*(.+)', line, re.IGNORECASE)
+                                if store_addr_match and len(store_addr_match.group(2).strip()) > 5:
+                                    address_lines.append(store_addr_match.group(2).strip())
+                                continue
+                            
+                            # Skip pure numbers or very short lines
+                            if re.match(r'^\d+$', line) or len(line) < 5:
+                                continue
+                            
+                            # This is likely an address line
+                            address_lines.append(line)
+                        
+                        if address_lines:
+                            # Look for complete address in single line first
+                            for line in address_lines:
+                                # Check if line contains both street and city/state
+                                full_addr_match = re.match(r'(.+?)\s*,\s*([^,]+,\s*[A-Z]{2}\s*\d{5})', line)
+                                if full_addr_match:
+                                    components["street"] = full_addr_match.group(1).strip()
+                                    components["cityState"] = full_addr_match.group(2).strip()
+                                    logger.info(f"Found complete address in single line: {line}")
+                                    return components
+                            
+                            # Otherwise parse multi-line address
+                            # First address line is typically the street
+                            components["street"] = address_lines[0]
+                            
+                            # Look for city, state pattern in remaining lines
+                            city_state_pattern = r'^([^,]+),\s*([A-Z]{2})\s*(\d{5})?'
+                            
+                            for line in address_lines[1:]:
+                                city_state_match = re.match(city_state_pattern, line)
+                                if city_state_match:
+                                    components["cityState"] = line
+                                    break
+                                # Check if line contains intersection info
+                                elif ('&' in line or 'and' in line.lower()) and any(road in line.lower() for road in ['st', 'street', 'ave', 'road', 'rd']):
+                                    components["intersection"] = line
+                                # Check for county info
+                                elif 'county' in line.lower():
+                                    components["county"] = line
+                                # Otherwise might be additional street info or city/state without standard format
+                                elif not components["cityState"]:
+                                    # Check if this might be city/state even without perfect format
+                                    if re.search(r'[A-Z]{2}\s*\d{5}', line):
+                                        components["cityState"] = line
+                                    # Special handling for addresses where street info might be after store number
+                                    elif re.search(r'\d+\s+\w+', line) and any(road in line.lower() for road in ['street', 'st', 'avenue', 'ave', 'road', 'rd', 'drive', 'dr', 'lane', 'ln', 'way', 'blvd', 'boulevard', 'highway', 'hwy']):
+                                        # This looks like a street address - use it as primary if we don't have one yet
+                                        if not components["street"] or components["street"].startswith('#'):
+                                            components["street"] = line
+                                        else:
+                                            # Append to existing street
+                                            components["street"] = f"{components['street']}, {line}"
+                                    else:
+                                        # Only append to street if it's not just a store number
+                                        if not line.startswith('#') and not re.match(r'^Store\s+\d+', line, re.IGNORECASE):
+                                            components["street"] = f"{components['street']}, {line}"
+                            
+                            # If we found address components, we're done
+                            if components["street"] or components["cityState"]:
+                                logger.info(f"Found address in cell {cells.index(cell)}: Street='{components['street']}', City/State='{components['cityState']}'")
                                 break
-                            # Check if line contains intersection info (e.g., "& Main St")
-                            elif '&' in line or 'and' in line.lower():
-                                components["intersection"] = line
-                            # Otherwise might be additional street info
-                            elif not components["cityState"]:
-                                components["street"] = f"{components['street']}, {line}"
+                        
+                        # Special case: Sometimes the entire address is in one field but separated by store info
+                        # Try to extract address from text that might include store numbers
+                        if not components["street"] and not components["cityState"]:
+                            # Look for patterns like "#1234, 567 Main St, City, ST 12345"
+                            full_text = ' '.join(lines)
+                            # Try to match addresses that come after store numbers
+                            after_store_match = re.search(r'#\d+[,\s]+(.+)', full_text)
+                            if after_store_match:
+                                potential_address = after_store_match.group(1).strip()
+                                # Check if this contains address-like content
+                                if re.search(r'\d+\s+\w+|[A-Z][a-z]+,\s*[A-Z]{2}\s*\d{5}', potential_address):
+                                    # Try to split into street and city/state
+                                    parts = [p.strip() for p in potential_address.split(',')]
+                                    if len(parts) >= 2:
+                                        # Assume first part is street
+                                        components["street"] = parts[0]
+                                        # Remaining parts are city/state
+                                        components["cityState"] = ', '.join(parts[1:]).strip()
+                                        logger.info(f"Extracted address from store info: Street='{components['street']}', City/State='{components['cityState']}'")
+                                        break
             
-            # Fallback: try to extract from full text
+            # Enhanced fallback: try to extract from full text with more patterns
             if not components["street"]:
                 text_content = await element.text_content()
                 if text_content:
-                    # Look for address patterns
-                    # Match street addresses (e.g., "123 Main St")
-                    street_match = re.search(r'\d+\s+[\w\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Highway|Hwy)', text_content, re.IGNORECASE)
-                    if street_match:
-                        components["street"] = street_match.group(0).strip()
+                    # Remove excessive whitespace and newlines for better pattern matching
+                    clean_text = ' '.join(text_content.split())
                     
-                    # Match city, state zip
-                    city_state_match = re.search(r'([^,\n]+),\s*([A-Z]{2})\s*(\d{5})', text_content)
-                    if city_state_match:
-                        components["cityState"] = city_state_match.group(0).strip()
+                    # Try multiple address extraction patterns
+                    address_patterns = [
+                        # Standard US address with street number
+                        r'(\d+\s+[\w\s]+?(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Highway|Hwy|Circle|Cir|Court|Ct|Plaza|Place|Pl|Parkway|Pkwy|Trail|Trl|Path|Row|Terrace|Ter)\.?)',
+                        # Address with PO Box
+                        r'(P\.?O\.?\s*Box\s*\d+)',
+                        # Highway addresses
+                        r'(\d+\s+(?:Highway|Hwy|Route|Rt|State Route|SR|US Route|US|Interstate|I-)\s*\d+[A-Za-z]?)',
+                        # Rural route addresses
+                        r'((?:RR|Rural Route)\s*\d+\s*Box\s*\d+)',
+                        # Addresses starting with building/suite
+                        r'((?:Suite|Ste|Building|Bldg|Unit|Apt|Apartment)\s*\d+[A-Za-z]?\s*,?\s*\d+\s+[\w\s]+)',
+                        # Addresses without explicit road type (common in some areas)
+                        r'(\d{3,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})(?=\s*,?\s*[A-Z][a-z]+\s*,?\s*[A-Z]{2})',
+                        # Named locations without numbers
+                        r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4}\s+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Way|Highway|Hwy)\.?)'
+                    ]
+                    
+                    for pattern in address_patterns:
+                        street_match = re.search(pattern, clean_text, re.IGNORECASE)
+                        if street_match:
+                            components["street"] = street_match.group(1).strip()
+                            logger.info(f"Found street address using pattern: {components['street']}")
+                            break
+                    
+                    # Enhanced city, state, zip patterns
+                    city_state_patterns = [
+                        # Standard format: City, ST 12345
+                        r'([A-Za-z\s]+),\s*([A-Z]{2})\s*(\d{5}(?:-\d{4})?)',
+                        # Format without comma: City ST 12345
+                        r'([A-Za-z\s]+)\s+([A-Z]{2})\s+(\d{5}(?:-\d{4})?)',
+                        # Just state and zip
+                        r'([A-Z]{2})\s*(\d{5}(?:-\d{4})?)'
+                    ]
+                    
+                    for pattern in city_state_patterns:
+                        city_state_match = re.search(pattern, clean_text)
+                        if city_state_match:
+                            if len(city_state_match.groups()) == 3:
+                                components["cityState"] = f"{city_state_match.group(1).strip()}, {city_state_match.group(2)} {city_state_match.group(3)}"
+                            else:
+                                components["cityState"] = city_state_match.group(0).strip()
+                            logger.info(f"Found city/state using pattern: {components['cityState']}")
+                            break
             
-            # Clean up components
+            # Clean up components - remove duplicates and extra whitespace
             for key in components:
                 if components[key]:
-                    components[key] = components[key].strip()
+                    # Remove duplicate words and clean up
+                    components[key] = ' '.join(components[key].split())
+                    # Remove trailing commas
+                    components[key] = components[key].rstrip(',').strip()
+            
+            # Log what we found for debugging
+            if components["street"] or components["cityState"]:
+                logger.info(f"Address extraction complete: {components}")
+            else:
+                logger.warning("Could not extract address components from any cell")
             
             return components
             
@@ -1069,18 +1215,32 @@ class WorkFossaScraper:
             return {"street": None, "intersection": None, "cityState": None, "county": None}
     
     def _format_address(self, components: Dict[str, str]) -> str:
-        """Format address components into a single string"""
+        """Format address components into a single string with better handling of missing components"""
         parts = []
+        
+        # Add street address if available
         if components.get("street"):
             parts.append(components["street"])
-        if components.get("intersection"):
-            parts.append(components["intersection"])
+        
+        # Add intersection if available and no street
+        if components.get("intersection") and not components.get("street"):
+            parts.append(f"Near {components['intersection']}")
+        elif components.get("intersection"):
+            parts.append(f"({components['intersection']})")
+        
+        # Always include city/state if available
         if components.get("cityState"):
             parts.append(components["cityState"])
+        
+        # Add county if available
         if components.get("county"):
             parts.append(components["county"])
         
-        return ", ".join(parts) if parts else "Address not available"
+        # If we only have city/state, that's still useful information
+        if parts:
+            return ", ".join(parts)
+        else:
+            return "Address not available"
     
     async def _extract_service_info(self, element) -> Dict[str, Any]:
         """Extract service information matching V1 structure"""
@@ -1192,44 +1352,61 @@ class WorkFossaScraper:
             if len(cells) >= 5:
                 visits_cell = cells[4]
                 
+                # Log the visits cell content for debugging
+                visits_cell_text = await visits_cell.text_content()
+                logger.debug(f"Visits cell content: {visits_cell_text}")
+                
                 # Look for visit links in this cell
                 visit_links = await visits_cell.query_selector_all("a")
                 if visit_links:
-                    # Get the first visit link
-                    first_visit = visit_links[0]
+                    logger.info(f"Found {len(visit_links)} visit link(s) in visits cell")
                     
-                    # Extract URL
-                    href = await first_visit.get_attribute("href")
-                    if href:
-                        # Make it absolute if relative
-                        if href.startswith('/'):
-                            href = f"https://app.workfossa.com{href}"
-                        visit_info["url"] = href
+                    # Look for the NEXT VISIT link specifically
+                    for visit_link in visit_links:
+                        link_text = await visit_link.text_content()
+                        link_href = await visit_link.get_attribute("href")
                         
-                        # Extract visit ID from URL
-                        visit_id_match = re.search(r'/visits/(\d+)', href)
-                        if visit_id_match:
-                            visit_info["visit_id"] = visit_id_match.group(1)
+                        # Log each link found
+                        logger.debug(f"Visit link: text='{link_text}', href='{link_href}'")
                         
-                        logger.info(f"Found visit URL: {href}")
-                    
-                    # Extract date from link text
-                    link_text = await first_visit.text_content()
-                    if link_text:
-                        # Parse date from text (e.g., "Mon, Jul 8" or "07/08/2024")
-                        date_patterns = [
-                            r'(\w+,\s+\w+\s+\d+)',  # Mon, Jul 8
-                            r'(\d{1,2}/\d{1,2}/\d{4})',  # 07/08/2024
-                            r'(\d{4}-\d{2}-\d{2})',  # 2024-07-08
-                        ]
-                        
-                        for pattern in date_patterns:
-                            date_match = re.search(pattern, link_text)
-                            if date_match:
-                                visit_info["date"] = self._parse_date_string(date_match.group(1))
-                                if visit_info["date"]:
-                                    logger.info(f"Found visit date: {visit_info['date']}")
-                                break
+                        # Prioritize links that contain dates or "NEXT VISIT" pattern
+                        if link_href and ('/visits/' in link_href or '/app/work/' in link_href):
+                            # Make it absolute if relative
+                            if link_href.startswith('/'):
+                                link_href = f"https://app.workfossa.com{link_href}"
+                            
+                            # Extract visit ID from URL pattern
+                            # Handle both /work/{work_order_id}/visits/{visit_id} and /visits/{visit_id}
+                            visit_id_match = re.search(r'/visits/(\d+)', link_href)
+                            if visit_id_match:
+                                visit_info["visit_id"] = visit_id_match.group(1)
+                                visit_info["url"] = link_href
+                                logger.info(f"✅ Found visit URL: {link_href}")
+                                logger.info(f"✅ Extracted visit ID: {visit_info['visit_id']}")
+                                
+                                # Parse date from link text if available
+                                if link_text:
+                                    # Enhanced date patterns including "06/12/2025 (anytime)" format
+                                    date_patterns = [
+                                        r'(\d{1,2}/\d{1,2}/\d{4})',  # 07/08/2024 or 06/12/2025
+                                        r'(\w+,\s+\w+\s+\d+)',  # Mon, Jul 8
+                                        r'(\d{4}-\d{2}-\d{2})',  # 2024-07-08
+                                    ]
+                                    
+                                    for pattern in date_patterns:
+                                        date_match = re.search(pattern, link_text)
+                                        if date_match:
+                                            visit_info["date"] = self._parse_date_string(date_match.group(1))
+                                            if visit_info["date"]:
+                                                logger.info(f"✅ Found visit date: {visit_info['date']}")
+                                            break
+                                
+                                # If this is the first valid visit URL, use it
+                                # Continue checking other links in case there's a better match
+                                if not visit_info["url"] or "NEXT VISIT" in visits_cell_text.upper():
+                                    break
+                else:
+                    logger.warning("No visit links found in visits cell")
             
             # Fallback: Look for visit info in the entire row
             if not visit_info["url"]:
@@ -1487,41 +1664,80 @@ class WorkFossaScraper:
             return []
     
     @with_error_recovery(operation_type="dispenser_scraping")
-    async def scrape_dispenser_details(self, session_id: str, work_order_id: str) -> List[Dict[str, Any]]:
-        """Scrape detailed dispenser information for a work order"""
+    async def scrape_dispenser_details(self, session_id: str, work_order_id: str, visit_url: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Scrape detailed dispenser information for a work order using enhanced scraper"""
         try:
+            # Import the enhanced dispenser scraper
+            from .dispenser_scraper import dispenser_scraper
+            
+            # Get page from session
+            page = None
+            
+            # Try to get page from parameter first
             page = self.browser_automation.pages.get(session_id)
+            
+            # If not found, check WorkFossa automation service
             if not page:
-                raise Exception("No active browser session found")
-            
-            # Navigate to work order details page
-            work_order_url = f"{self.url_generator.config.base_url}/work-orders/{work_order_id}"
-            await page.goto(work_order_url, wait_until="networkidle")
-            
-            # Look for dispenser list
-            dispenser_elements = await page.query_selector_all(self.selectors.DISPENSER_ITEM)
-            
-            dispensers = []
-            for i, element in enumerate(dispenser_elements):
                 try:
-                    dispenser_number = await self._extract_dispenser_number(element, i)
-                    dispenser_type = await self._extract_dispenser_type(element)
-                    fuel_grades = await self._extract_fuel_grades(element)
-                    
-                    dispensers.append({
-                        'dispenser_number': dispenser_number,
-                        'dispenser_type': dispenser_type,
-                        'fuel_grades': fuel_grades
-                    })
-                    
+                    from .workfossa_automation import WorkFossaAutomationService
+                    # Access the global instance sessions
+                    workfossa_sessions = getattr(WorkFossaAutomationService, '_instance', None)
+                    if workfossa_sessions and hasattr(workfossa_sessions, 'sessions'):
+                        session_data = workfossa_sessions.sessions.get(session_id)
+                        if session_data:
+                            page = session_data.get('page')
+                            logger.info(f"Found page in WorkFossa automation service for dispenser scraping")
                 except Exception as e:
-                    logger.error(f"Error scraping dispenser {i}: {e}")
-                    continue
+                    logger.debug(f"Could not check WorkFossa automation service: {e}")
             
-            return dispensers
+            if not page:
+                raise Exception("No active browser session found for dispenser scraping")
+            
+            # If no visit URL provided, try to get it from work order
+            if not visit_url:
+                # Navigate to work orders page to find the visit URL
+                work_order_url = f"{self.url_generator.config.base_url}/work-orders/{work_order_id}"
+                logger.info(f"No visit URL provided, trying work order URL: {work_order_url}")
+                visit_url = work_order_url
+            
+            # Use the enhanced dispenser scraper
+            logger.info(f"🔧 Using enhanced dispenser scraper for work order {work_order_id}")
+            dispensers, dispenser_html = await dispenser_scraper.scrape_dispensers_for_work_order(
+                page=page,
+                work_order_id=work_order_id,
+                visit_url=visit_url
+            )
+            
+            # Convert DispenserInfo objects to dicts
+            dispenser_dicts = []
+            for dispenser in dispensers:
+                dispenser_dict = {
+                    'dispenser_id': dispenser.dispenser_id,
+                    'dispenser_number': dispenser.dispenser_number,
+                    'title': dispenser.title,
+                    'serial_number': dispenser.serial_number,
+                    'make': dispenser.make,
+                    'model': dispenser.model,
+                    'dispenser_type': f"{dispenser.make} {dispenser.model}" if dispenser.make and dispenser.model else 'Unknown',
+                    'fuel_grades': dispenser.fuel_grades,
+                    'custom_fields': dispenser.custom_fields,
+                    'last_updated': dispenser.last_updated.isoformat() if dispenser.last_updated else None
+                }
+                dispenser_dicts.append(dispenser_dict)
+            
+            logger.info(f"✅ Successfully scraped {len(dispenser_dicts)} dispensers for work order {work_order_id}")
+            
+            # Store the HTML content if needed
+            if dispenser_html:
+                # Could store this in a separate field or file
+                logger.debug(f"Captured dispenser HTML content: {len(dispenser_html)} characters")
+            
+            return dispenser_dicts
             
         except Exception as e:
             logger.error(f"Error scraping dispenser details: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
     
     async def _extract_dispenser_number(self, element, index: int) -> str:
