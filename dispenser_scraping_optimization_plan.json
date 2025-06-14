@@ -1,0 +1,75 @@
+{
+  "generated_at": "2025-06-12T11:18:43.515891",
+  "current_performance": {
+    "current_total_ms": 39500,
+    "optimized_total_ms": 7500,
+    "savings_ms": 32000,
+    "savings_percent": 81.0126582278481,
+    "time_per_work_order": {
+      "current_seconds": 39.5,
+      "optimized_seconds": 7.5
+    },
+    "time_for_40_work_orders": {
+      "current_minutes": 26.333333333333332,
+      "optimized_minutes": 5.0
+    }
+  },
+  "optimizations": [
+    {
+      "name": "navigation_to_customer_page",
+      "details": {
+        "current_ms": 30000,
+        "optimized_ms": 5000,
+        "description": "Navigation to customer page",
+        "optimization": "Change wait_until from 'networkidle' to 'domcontentloaded'"
+      },
+      "priority": 1
+    },
+    {
+      "name": "page_stabilization",
+      "details": {
+        "current_ms": 3000,
+        "optimized_ms": 500,
+        "description": "Wait for page to stabilize after navigation",
+        "optimization": "Reduce to 500ms with smart selector waiting"
+      },
+      "priority": 2
+    },
+    {
+      "name": "equipment_tab_wait",
+      "details": {
+        "current_ms": 3000,
+        "optimized_ms": 1000,
+        "description": "Wait after clicking Equipment tab",
+        "optimization": "Use wait_for_selector for tab content instead of fixed wait"
+      },
+      "priority": 3
+    },
+    {
+      "name": "dispenser_section_wait",
+      "details": {
+        "current_ms": 3000,
+        "optimized_ms": 1000,
+        "description": "Wait for Dispenser section to expand",
+        "optimization": "Use wait_for_selector for dispenser elements"
+      },
+      "priority": 4
+    },
+    {
+      "name": "between_work_orders",
+      "details": {
+        "current_ms": 500,
+        "optimized_ms": 0,
+        "description": "Delay between processing work orders",
+        "optimization": "Remove delay - not needed for customer page navigation"
+      },
+      "priority": 5
+    }
+  ],
+  "code_changes": {
+    "navigation_optimization": "\n# BEFORE:\nawait page.goto(customer_url, wait_until=\"networkidle\", timeout=30000)\n\n# AFTER:\nawait page.goto(customer_url, wait_until=\"domcontentloaded\", timeout=15000)\n# Then wait for specific content\ntry:\n    await page.wait_for_selector(\".equipment-tab, [data-tab='equipment']\", timeout=5000)\nexcept:\n    # Fallback if selector not found\n    await page.wait_for_timeout(500)\n",
+    "smart_waiting": "\n# BEFORE:\nawait page.wait_for_timeout(3000)\n\n# AFTER:\nasync def smart_wait_for_content(page, selectors, timeout=5000):\n    \"\"\"Wait for any of the selectors to appear\"\"\"\n    try:\n        await page.wait_for_selector(\n            \", \".join(selectors),\n            timeout=timeout,\n            state=\"visible\"\n        )\n    except:\n        # Minimal fallback wait\n        await page.wait_for_timeout(500)\n\n# Usage:\nawait smart_wait_for_content(page, [\n    \".dispenser-list\",\n    \"[data-equipment-type='dispenser']\",\n    \".equipment-item:has-text('Dispenser')\"\n])\n",
+    "remove_unnecessary_delays": "\n# Remove delay between work orders when navigating to different pages\n# BEFORE:\nawait asyncio.sleep(self.config['delay_between_pages'] / 1000)\n\n# AFTER:\n# Only add delay if staying on same page (rate limiting)\nif not navigating_to_new_page:\n    await asyncio.sleep(self.config['delay_between_pages'] / 1000)\n",
+    "batch_progress_updates": "\n# Batch progress updates instead of emitting for each work order\nprogress_queue = []\n\n# During scraping:\nprogress_queue.append(progress_data)\n\n# Emit in batches every N items or X seconds\nif len(progress_queue) >= 5 or time_since_last_emit > 2:\n    await self._emit_batch_progress(progress_queue)\n    progress_queue.clear()\n"
+  }
+}

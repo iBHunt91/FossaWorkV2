@@ -1,0 +1,10 @@
+{
+  "form_field_delay": 750,
+  "page_navigation_delay": 3000,
+  "click_action_delay": 400,
+  "dropdown_select_delay": 600,
+  "overall_speed_multiplier": 1.5,
+  "browser_timeout": 45000,
+  "retry_delay": 4000,
+  "max_retries": 5
+}

@@ -19,6 +19,7 @@ class WorkFossaURLConfig:
     visit_base: str = "/app/visits"
     work_order_base: str = "/app/work/list"
     dashboard_url: str = "/app/dashboard"
+    work_orders_url: str = "/app/work/list"
     
     # URL patterns based on V1 research
     visit_patterns = {
@@ -36,6 +37,10 @@ class WorkFossaURLGenerator:
     
     def __init__(self, config: Optional[WorkFossaURLConfig] = None):
         self.config = config or WorkFossaURLConfig()
+    
+    def get_work_orders_url(self) -> str:
+        """Get the work orders list URL"""
+        return f"{self.config.base_url}{self.config.work_orders_url}"
         
     def generate_visit_url(self, work_order: Dict[str, Any]) -> Optional[str]:
         """

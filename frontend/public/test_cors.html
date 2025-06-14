@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test CORS</title>
+</head>
+<body>
+    <h1>Test CORS from Frontend Port</h1>
+    <button onclick="testLogin()">Test Login</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testLogin() {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'Testing login...\n';
+            
+            try {
+                console.log('Sending login request...');
+                const response = await fetch('http://localhost:8000/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        username: 'bruce.hunt@owlservices.com',
+                        password: 'Crompco0511'
+                    })
+                });
+                
+                console.log('Response:', response);
+                resultEl.textContent += `Status: ${response.status}\n`;
+                resultEl.textContent += `Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2)}\n`;
+                
+                const data = await response.json();
+                resultEl.textContent += `Data: ${JSON.stringify(data, null, 2)}\n`;
+                
+                if (response.ok) {
+                    console.log('Login successful!', data);
+                } else {
+                    console.error('Login failed:', data);
+                }
+            } catch (error) {
+                resultEl.textContent += `Error: ${error.message}\n`;
+                console.error('Error:', error);
+            }
+        }
+        
+        // Test immediately on load
+        window.onload = () => {
+            console.log('Page loaded, ready to test');
+        };
+    </script>
+</body>
+</html>

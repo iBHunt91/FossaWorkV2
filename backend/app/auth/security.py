@@ -4,7 +4,7 @@ Handles JWT tokens and user authentication using WorkFossa credentials
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, Union
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -39,26 +39,45 @@ class AuthenticationService:
         self.credential_manager = CredentialManager()
         self.workfossa = WorkFossaAutomationService()
     
-    async def authenticate_with_workfossa(self, username: str, password: str) -> Optional[User]:
+    async def authenticate_with_workfossa(self, username: str, password: str, verification_id: str = None, status_callback = None) -> Union[Tuple[User, bool], Tuple[None, bool]]:
         """
         Authenticate user with WorkFossa credentials
         If successful and user doesn't exist, create new user profile
+        Returns tuple of (User, is_new_user) or (None, False) if authentication fails
         """
         try:
             # Verify credentials with WorkFossa
             logger.info(f"Attempting WorkFossa authentication for user: {username}")
             
-            # Create a temporary session to verify credentials
-            session_id = f"auth_verify_{datetime.now().timestamp()}"
-            logger.info(f"[AUTH] Calling workfossa.verify_credentials with session_id: {session_id}")
+            # Basic validation
+            if not username or not password:
+                logger.warning(f"[AUTH] Missing username or password")
+                return None
+            
+            logger.info(f"[AUTH] Starting WorkFossa verification for: {username}")
+            
+            # Verify credentials with WorkFossa
+            if status_callback:
+                status_callback("verifying", "Verifying credentials with WorkFossa...", 40)
+            
+            session_id = f"auth_{username}_{datetime.utcnow().timestamp()}"
+            logger.info(f"[AUTH] Creating verification session: {session_id}")
+            
             verification_result = await self.workfossa.verify_credentials(
-                session_id, username, password
+                session_id=session_id,
+                username=username,
+                password=password,
+                status_callback=status_callback
             )
             
-            logger.info(f"[AUTH] WorkFossa verification result: {verification_result}")
-            if not verification_result.get("success"):
-                logger.warning(f"WorkFossa authentication failed for user: {username}")
+            logger.info(f"[AUTH] Verification result: {verification_result}")
+            
+            if not verification_result.get("success", False):
+                logger.warning(f"[AUTH] WorkFossa verification failed for user: {username}")
+                logger.warning(f"[AUTH] Failure reason: {verification_result.get('message', 'Unknown')}")
                 return None
+                
+            logger.info(f"[AUTH] WorkFossa credentials verified for: {username}")
             
             # Generate user ID from email/username
             user_id = generate_user_id(username)
@@ -68,37 +87,93 @@ class AuthenticationService:
             
             if existing_user:
                 logger.info(f"Existing user found: {user_id}")
-                # Update last login
-                existing_user.last_login = datetime.utcnow()
+                # Update last used timestamp
+                existing_user.last_used = datetime.utcnow()
+                
+                # Update or create WorkFossa credentials
+                from ..models.user_models import UserCredential
+                credential = self.db.query(UserCredential).filter(
+                    UserCredential.user_id == user_id,
+                    UserCredential.service_name == "workfossa"
+                ).first()
+                
+                if credential:
+                    # Update existing credentials
+                    credential.encrypted_username = username
+                    credential.encrypted_password = password
+                    credential.is_verified = True
+                    credential.last_verified = datetime.utcnow()
+                    logger.info(f"Updated WorkFossa credentials for user: {user_id}")
+                else:
+                    # Create new credentials
+                    credential = UserCredential(
+                        user_id=user_id,
+                        service_name="workfossa",
+                        encrypted_username=username,
+                        encrypted_password=password,
+                        is_active=True,
+                        is_verified=True,
+                        last_verified=datetime.utcnow()
+                    )
+                    self.db.add(credential)
+                    logger.info(f"Created WorkFossa credentials for user: {user_id}")
+                
+                # Also update in credential manager
+                from ..services.credential_manager import WorkFossaCredentials
+                workfossa_creds = WorkFossaCredentials(
+                    username=username,
+                    password=password,
+                    user_id=user_id,
+                    is_valid=True
+                )
+                self.credential_manager.store_credentials(workfossa_creds)
+                
                 self.db.commit()
-                return existing_user
+                return existing_user, False  # Not a new user
             
             # Create new user profile
             logger.info(f"Creating new user profile for: {username}")
             
+            # Extract display name from email format (firstname.lastname@domain.com)
+            email_prefix = username.split('@')[0]
+            name_parts = email_prefix.split('.')
+            
+            # Extract first and last name
+            first_name = name_parts[0].title() if name_parts else email_prefix.title()
+            last_name = name_parts[1].title() if len(name_parts) > 1 else ""
+            display_name = f"{first_name} {last_name}".strip()
+            
             new_user = User(
                 id=user_id,
-                username=username,
                 email=username,  # WorkFossa uses email as username
-                hashed_password=pwd_context.hash(password),  # Store hashed password
-                is_active=True,
-                is_verified=True,  # Verified through WorkFossa
-                created_at=datetime.utcnow(),
-                last_login=datetime.utcnow()
+                password_hash=pwd_context.hash(password),  # Store hashed password
+                label=display_name,  # Full display name
+                friendly_name=first_name,  # First name only
+                created_at=datetime.utcnow()
             )
             
             self.db.add(new_user)
             
-            # Store encrypted WorkFossa credentials
-            from ..models.user_models import UserCredential
-            encrypted_username = self.credential_manager.encrypt_credential(username)
-            encrypted_password = self.credential_manager.encrypt_credential(password)
+            # Store encrypted WorkFossa credentials using credential manager
+            from ..services.credential_manager import WorkFossaCredentials
             
+            workfossa_creds = WorkFossaCredentials(
+                username=username,
+                password=password,
+                user_id=user_id,
+                is_valid=True
+            )
+            
+            # Store in credential manager's secure storage
+            self.credential_manager.store_credentials(workfossa_creds)
+            
+            # Also store in database for backward compatibility
+            from ..models.user_models import UserCredential
             credential = UserCredential(
                 user_id=user_id,
-                service_name="work_fossa",
-                encrypted_username=encrypted_username,
-                encrypted_password=encrypted_password,
+                service_name="workfossa",
+                encrypted_username=username,  # Will be encrypted by DB model
+                encrypted_password=password,  # Will be encrypted by DB model
                 is_active=True,
                 is_verified=True,
                 last_verified=datetime.utcnow()
@@ -111,16 +186,16 @@ class AuthenticationService:
             default_preferences = [
                 UserPreference(
                     user_id=user_id,
-                    preference_type="notification_settings",
-                    preference_data={
+                    category="notification_settings",
+                    settings={
                         "email": {"enabled": True, "frequency": "immediate"},
                         "pushover": {"enabled": False}
                     }
                 ),
                 UserPreference(
                     user_id=user_id,
-                    preference_type="work_week",
-                    preference_data={
+                    category="work_week",
+                    settings={
                         "monday": True,
                         "tuesday": True,
                         "wednesday": True,
@@ -138,12 +213,12 @@ class AuthenticationService:
             self.db.commit()
             
             logger.info(f"Successfully created new user profile: {user_id}")
-            return new_user
+            return new_user, True  # This is a new user
             
         except Exception as e:
             logger.error(f"Authentication error: {str(e)}")
             self.db.rollback()
-            return None
+            return None, False
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token"""
@@ -201,11 +276,8 @@ async def get_current_user(
             detail="User not found"
         )
     
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Inactive user"
-        )
+    # User model doesn't have is_active field, so we skip this check
+    # All authenticated users are considered active
     
     return user
 

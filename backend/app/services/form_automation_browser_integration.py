@@ -19,16 +19,19 @@ from dataclasses import dataclass
 from enum import Enum
 from fastapi import Depends
 
-from ..services.form_automation_v1 import (
-    FormAutomationV1Service, 
-    FormAutomationJob, 
+from ..services.form_automation import (
+    FormAutomationService, 
+    AutomationJob,  # Main class
+    FormAutomationJob,  # Alias for compatibility
     ServiceCode, 
-    AutomationTemplate
+    AutomationTemplate,
+    AutomationPhase,
+    AutomationProgress
 )
+# Alias for compatibility
+FormAutomationV1Service = FormAutomationService
 from ..services.browser_automation import (
-    BrowserAutomationService, 
-    AutomationPhase, 
-    AutomationProgress,
+    BrowserAutomationService,
     FuelGrade
 )
 from ..services.logging_service import LoggingService

@@ -192,6 +192,15 @@ async def get_work_orders(
                 "visit_id": wo.visit_id,
                 "instructions": wo.instructions,
                 "scraped_data": wo.scraped_data,
+                # New fields
+                "service_name": wo.service_name,
+                "service_items": wo.service_items,
+                "street": wo.street,
+                "city_state": wo.city_state,
+                "county": wo.county,
+                "created_date": wo.created_date.isoformat() if wo.created_date else None,
+                "created_by": wo.created_by,
+                "customer_url": wo.customer_url,
                 "dispensers": [
                     {
                         "id": d.id,
@@ -275,6 +284,15 @@ async def get_work_order(
             "visit_id": work_order.visit_id,
             "instructions": work_order.instructions,
             "scraped_data": work_order.scraped_data,
+            # New fields
+            "service_name": work_order.service_name,
+            "service_items": work_order.service_items,
+            "street": work_order.street,
+            "city_state": work_order.city_state,
+            "county": work_order.county,
+            "created_date": work_order.created_date.isoformat() if work_order.created_date else None,
+            "created_by": work_order.created_by,
+            "customer_url": work_order.customer_url,
             "dispensers": [
                 {
                     "id": d.id,
@@ -552,6 +570,15 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
                 existing.visit_id = wo_data.visit_id
                 existing.visit_url = wo_data.visit_url
                 existing.instructions = wo_data.instructions
+                # Update new fields
+                existing.service_name = wo_data.service_name
+                existing.service_items = wo_data.service_items
+                existing.street = wo_data.street
+                existing.city_state = wo_data.city_state
+                existing.county = wo_data.county
+                existing.created_date = wo_data.created_date
+                existing.created_by = wo_data.created_by
+                existing.customer_url = wo_data.customer_url
                 existing.scraped_data = {
                     "raw_html": wo_data.raw_html,
                     "address_components": wo_data.address_components,
@@ -579,6 +606,15 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
                     visit_id=wo_data.visit_id,
                     visit_url=wo_data.visit_url,
                     instructions=wo_data.instructions,
+                    # New fields
+                    service_name=wo_data.service_name,
+                    service_items=wo_data.service_items,
+                    street=wo_data.street,
+                    city_state=wo_data.city_state,
+                    county=wo_data.county,
+                    created_date=wo_data.created_date,
+                    created_by=wo_data.created_by,
+                    customer_url=wo_data.customer_url,
                     scraped_data={
                         "raw_html": wo_data.raw_html,
                         "address_components": wo_data.address_components,

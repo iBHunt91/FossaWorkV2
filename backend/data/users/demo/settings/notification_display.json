@@ -1,0 +1,14 @@
+{
+  "show_job_id": false,
+  "show_store_number": true,
+  "show_store_name": true,
+  "show_location": false,
+  "show_date": true,
+  "show_time": false,
+  "show_dispenser_count": true,
+  "show_service_code": true,
+  "show_duration": true,
+  "date_format": "YYYY-MM-DD",
+  "time_format": "24h",
+  "timezone": "America/Chicago"
+}

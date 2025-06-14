@@ -4,7 +4,7 @@ User Credentials API routes - Secure WorkFossa credential management
 Enhanced with file-based encrypted storage and database fallback
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 import base64
@@ -30,8 +30,8 @@ def simple_decrypt(encrypted_password: str) -> str:
 
 @router.post("/workfossa")
 async def save_workfossa_credentials(
-    user_id: str,
-    credentials: Dict[str, str],
+    user_id: str = Query(..., description="User ID to save credentials for"),
+    credentials: Dict[str, str] = Body(..., description="Username and password credentials"),
     db: Session = Depends(get_db)
 ):
     """Save WorkFossa credentials securely - validates against app.workfossa.com first"""
@@ -41,10 +41,8 @@ async def save_workfossa_credentials(
         if not user:
             # Auto-create demo user for demo mode
             user = User(
-                id=user_id,
-                username=user_id,
                 email=f"{user_id}@fossawork.com",
-                hashed_password=User.hash_password("demo123")  # Demo password
+                password_hash=User.hash_password("demo123")  # Demo password
             )
             db.add(user)
             db.flush()  # Get the user ID
@@ -108,7 +106,7 @@ async def save_workfossa_credentials(
 
 @router.get("/workfossa")
 async def get_workfossa_credentials(
-    user_id: str,
+    user_id: str = Query(..., description="User ID to get credentials for"),
     db: Session = Depends(get_db)
 ):
     """Get WorkFossa credentials for a user (username only, no password)"""
@@ -138,7 +136,7 @@ async def get_workfossa_credentials(
 
 @router.get("/workfossa/decrypt")
 async def get_workfossa_credentials_decrypted(
-    user_id: str,
+    user_id: str = Query(..., description="User ID to get decrypted credentials for"),
     db: Session = Depends(get_db)
 ):
     """Get decrypted WorkFossa credentials for automation use (internal only)"""
@@ -179,7 +177,7 @@ async def get_workfossa_credentials_decrypted(
 
 @router.delete("/workfossa")
 async def delete_workfossa_credentials(
-    user_id: str,
+    user_id: str = Query(..., description="User ID to delete credentials for"),
     db: Session = Depends(get_db)
 ):
     """Delete WorkFossa credentials for a user"""
@@ -211,8 +209,8 @@ async def delete_workfossa_credentials(
 
 @router.post("/workfossa/test")
 async def test_workfossa_credentials(
-    user_id: str,
-    test_credentials: Dict[str, str] = None,
+    user_id: str = Query(..., description="User ID to test credentials for"),
+    test_credentials: Dict[str, str] = Body(None, description="Optional credentials to test"),
     db: Session = Depends(get_db)
 ):
     """Test WorkFossa credentials by attempting login to app.workfossa.com"""

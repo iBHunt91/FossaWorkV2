@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Play, Square, CheckCircle2, AlertCircle, Clock, Settings } from 'lucide-react';
-import Card from './Card';
-import LoadingSpinner from './LoadingSpinner';
+import { Play, Square, CheckCircle2, AlertCircle, Clock, Settings, ListChecks, Pause, RotateCcw } from 'lucide-react';
+import { AnimatedCard, GlowCard } from '@/components/ui/animated-card';
+import { AnimatedButton, RippleButton, MagneticButton } from '@/components/ui/animated-button';
+import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text';
+import { ProgressLoader, DotsLoader, SkeletonLoader } from '@/components/ui/animated-loader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getWorkOrders, submitJob } from '../services/api';
 
 interface WorkOrder {
@@ -278,12 +285,12 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
 
   const getBatchStatusIcon = (status: BatchJob['status']) => {
     switch (status) {
-      case 'pending': return <Clock className="w-4 h-4 text-gray-500" />;
-      case 'running': return <Play className="w-4 h-4 text-blue-500" />;
+      case 'pending': return <Clock className="w-4 h-4 text-muted-foreground animate-pulse" />;
+      case 'running': return <Play className="w-4 h-4 text-primary animate-spin-slow" />;
       case 'completed': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      case 'failed': return <AlertCircle className="w-4 h-4 text-red-500" />;
-      case 'paused': return <Square className="w-4 h-4 text-orange-500" />;
-      default: return <Clock className="w-4 h-4 text-gray-500" />;
+      case 'failed': return <AlertCircle className="w-4 h-4 text-destructive animate-pulse" />;
+      case 'paused': return <Pause className="w-4 h-4 text-orange-500" />;
+      default: return <Clock className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
@@ -294,39 +301,47 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
 
   if (isLoading) {
     return (
-      <Card className="p-6">
-        <div className="flex items-center justify-center">
-          <LoadingSpinner size="medium" />
-          <span className="ml-2">Loading work orders...</span>
-        </div>
-      </Card>
+      <AnimatedCard animate="fade" hover="none" className="glass-dark">
+        <CardContent className="p-6">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <DotsLoader />
+            <AnimatedText text="Loading work orders..." animationType="fade" className="text-muted-foreground" />
+          </div>
+        </CardContent>
+      </AnimatedCard>
     );
   }
 
   return (
     <div className="space-y-6">
       {/* Batch Configuration */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Batch Processing</h3>
-          <button
-            onClick={() => setShowConfig(!showConfig)}
-            className="flex items-center gap-2 px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200"
-          >
-            <Settings className="w-4 h-4" />
-            Settings
-          </button>
-        </div>
+      <AnimatedCard animate="slide" hover="lift" className="glass-dark">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">
+              <ShimmerText text="Batch Processing" />
+            </h3>
+            <MagneticButton
+              onClick={() => setShowConfig(!showConfig)}
+              variant="outline"
+              size="sm"
+              strength={0.1}
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Settings
+            </MagneticButton>
+          </div>
 
         {showConfig && (
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="font-medium mb-3">Batch Configuration</h4>
+          <GlowCard className="mb-6 p-4 bg-muted/50 animate-slide-in-from-top">
+            <h4 className="font-medium mb-3">
+              <AnimatedText text="Batch Configuration" animationType="reveal" />
+            </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Concurrent Jobs
-                </label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="concurrent-jobs">Concurrent Jobs</Label>
+                <Input
+                  id="concurrent-jobs"
                   type="number"
                   min="1"
                   max="5"
@@ -335,14 +350,13 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
                     ...prev,
                     concurrent_jobs: parseInt(e.target.value)
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="input-modern"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Delay Between Jobs (ms)
-                </label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="delay-jobs">Delay Between Jobs (ms)</Label>
+                <Input
+                  id="delay-jobs"
                   type="number"
                   min="1000"
                   max="30000"
@@ -352,14 +366,13 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
                     ...prev,
                     delay_between_jobs: parseInt(e.target.value)
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="input-modern"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Retry Attempts
-                </label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="retry-attempts">Retry Attempts</Label>
+                <Input
+                  id="retry-attempts"
                   type="number"
                   min="0"
                   max="5"
@@ -368,11 +381,11 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
                     ...prev,
                     retry_attempts: parseInt(e.target.value)
                   }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className="input-modern"
                 />
               </div>
               <div className="flex items-center space-x-4">
-                <label className="flex items-center">
+                <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
                     checked={batchConfig.auto_continue_on_error}
@@ -380,11 +393,11 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
                       ...prev,
                       auto_continue_on_error: e.target.checked
                     }))}
-                    className="mr-2"
+                    className="mr-2 w-4 h-4 rounded border-border text-primary focus:ring-primary"
                   />
                   Continue on Error
                 </label>
-                <label className="flex items-center">
+                <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
                     checked={batchConfig.notify_on_completion}
@@ -392,56 +405,62 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
                       ...prev,
                       notify_on_completion: e.target.checked
                     }))}
-                    className="mr-2"
+                    className="mr-2 w-4 h-4 rounded border-border text-primary focus:ring-primary"
                   />
                   Notify on Completion
                 </label>
               </div>
             </div>
-          </div>
+          </GlowCard>
         )}
 
         {/* Work Order Selection */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h4 className="font-medium">Select Work Orders</h4>
-            <button
+            <h4 className="font-medium flex items-center gap-2">
+              <ListChecks className="w-4 h-4 text-primary" />
+              <AnimatedText text="Select Work Orders" animationType="fade" />
+            </h4>
+            <AnimatedButton
               onClick={handleSelectAll}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              variant="ghost"
+              size="sm"
+              animation="pulse"
             >
               {selectedWorkOrders.length === availableWorkOrders.length ? 'Deselect All' : 'Select All'}
-            </button>
+            </AnimatedButton>
           </div>
           
-          <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-lg">
+          <div className="max-h-64 overflow-y-auto border border-border rounded-lg glass">
             {availableWorkOrders.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                No work orders available for automation
+              <div className="p-4 text-center text-muted-foreground">
+                <AnimatedText text="No work orders available for automation" animationType="reveal" />
               </div>
             ) : (
-              availableWorkOrders.map((workOrder: WorkOrder) => (
+              availableWorkOrders.map((workOrder: WorkOrder, index: number) => (
                 <div
                   key={workOrder.basic_info.id}
-                  className="flex items-center p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                  className="flex items-center p-3 border-b border-border/50 last:border-b-0 hover:bg-accent/50 transition-colors animate-fade-in"
+                  style={{animationDelay: `${index * 0.05}s`}}
                 >
                   <input
                     type="checkbox"
                     checked={selectedWorkOrders.includes(workOrder.basic_info.id)}
                     onChange={(e) => handleWorkOrderSelection(workOrder.basic_info.id, e.target.checked)}
-                    className="mr-3"
+                    className="mr-3 w-4 h-4 rounded border-border text-primary focus:ring-primary"
                   />
                   <div className="flex-1">
                     <div className="font-medium">{workOrder.basic_info.external_id}</div>
-                    <div className="text-sm text-gray-600">{workOrder.basic_info.site_name}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-sm text-muted-foreground">{workOrder.basic_info.site_name}</div>
+                    <div className="text-xs text-muted-foreground">
                       {workOrder.dispensers?.length || 0} dispensers
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-medium text-gray-900">
+                    <Badge variant="outline">
                       {workOrder.scheduling?.status}
-                    </div>
-                    <div className="text-xs text-gray-500">
+                    </Badge>
+                    <div className="text-xs text-muted-foreground mt-1">
                       {workOrder.scheduling?.scheduled_date && 
                         new Date(workOrder.scheduling.scheduled_date).toLocaleDateString()
                       }
@@ -455,50 +474,60 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
 
         {/* Batch Creation */}
         {selectedWorkOrders.length > 0 && (
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Batch Name
-              </label>
-              <input
+          <div className="space-y-3 animate-slide-in-from-bottom" style={{animationDelay: '0.3s'}}>
+            <div className="space-y-2">
+              <Label htmlFor="batch-name">Batch Name</Label>
+              <Input
+                id="batch-name"
                 type="text"
                 value={batchName}
                 onChange={(e) => setBatchName(e.target.value)}
                 placeholder="Enter batch name..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                className="input-modern"
               />
             </div>
-            <button
+            <RippleButton
               onClick={createBatch}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="w-full"
+              size="lg"
             >
               Queue Batch ({selectedWorkOrders.length} work orders)
-            </button>
+            </RippleButton>
           </div>
         )}
-      </Card>
+        </CardContent>
+      </AnimatedCard>
 
       {/* Active/Recent Batches */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Batch Jobs</h3>
+      <AnimatedCard animate="slide" delay={0.2} hover="lift" className="glass-dark">
+        <CardContent className="p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            <ShimmerText text="Batch Jobs" />
+          </h3>
         
         {batchJobs.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            No batch jobs created yet
+          <div className="text-center py-8 text-muted-foreground">
+            <ListChecks className="w-12 h-12 mx-auto mb-3 animate-bounce" />
+            <AnimatedText text="No batch jobs created yet" animationType="reveal" />
           </div>
         ) : (
           <div className="space-y-4">
-            {batchJobs.map((batch) => (
-              <div
+            {batchJobs.map((batch, index) => (
+              <AnimatedCard
                 key={batch.id}
-                className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+                className="p-4 glass"
+                animate="slide"
+                delay={index * 0.1}
+                hover="lift"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
                     {getBatchStatusIcon(batch.status)}
                     <div>
-                      <h4 className="font-medium">{batch.name}</h4>
-                      <p className="text-sm text-gray-600">
+                      <h4 className="font-medium">
+                        <AnimatedText text={batch.name} animationType="fade" />
+                      </h4>
+                      <p className="text-sm text-muted-foreground">
                         {batch.work_orders.length} work orders, {batch.progress.total_dispensers} dispensers
                       </p>
                     </div>
@@ -506,28 +535,36 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
                   
                   <div className="flex items-center gap-2">
                     {batch.status === 'pending' && (
-                      <button
+                      <AnimatedButton
                         onClick={() => startBatch(batch)}
-                        className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                        size="sm"
+                        animation="shimmer"
                       >
+                        <Play className="w-4 h-4 mr-1" />
                         Start
-                      </button>
+                      </AnimatedButton>
                     )}
                     
                     {batch.status === 'running' && (
                       <>
-                        <button
+                        <AnimatedButton
                           onClick={() => pauseBatch(batch.id)}
-                          className="px-3 py-1 text-sm bg-orange-600 text-white rounded hover:bg-orange-700"
+                          size="sm"
+                          variant="secondary"
+                          animation="pulse"
                         >
+                          <Pause className="w-4 h-4 mr-1" />
                           Pause
-                        </button>
-                        <button
+                        </AnimatedButton>
+                        <AnimatedButton
                           onClick={() => cancelBatch(batch.id)}
-                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                          size="sm"
+                          variant="destructive"
+                          animation="pulse"
                         >
+                          <Square className="w-4 h-4 mr-1" />
                           Cancel
-                        </button>
+                        </AnimatedButton>
                       </>
                     )}
                   </div>
@@ -535,40 +572,37 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
 
                 {/* Progress Bar */}
                 <div className="mb-3">
-                  <div className="flex justify-between text-sm text-gray-600 mb-1">
+                  <div className="flex justify-between text-sm text-muted-foreground mb-1">
                     <span>Progress</span>
-                    <span>{getProgressPercentage(batch)}%</span>
+                    <span className="font-semibold">{getProgressPercentage(batch)}%</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${getProgressPercentage(batch)}%` }}
-                    ></div>
-                  </div>
+                  <ProgressLoader progress={getProgressPercentage(batch)} showPercentage={false} />
                 </div>
 
                 {/* Progress Details */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Work Orders:</span>
+                  <div className="animate-fade-in" style={{animationDelay: '0.1s'}}>
+                    <span className="text-muted-foreground">Work Orders:</span>
                     <div className="font-medium">
-                      {batch.progress.completed_work_orders} / {batch.progress.total_work_orders}
+                      <span className="number-display">{batch.progress.completed_work_orders}</span>
+                      <span className="text-muted-foreground"> / {batch.progress.total_work_orders}</span>
                     </div>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Dispensers:</span>
+                  <div className="animate-fade-in" style={{animationDelay: '0.2s'}}>
+                    <span className="text-muted-foreground">Dispensers:</span>
                     <div className="font-medium">
-                      {batch.progress.completed_dispensers} / {batch.progress.total_dispensers}
+                      <span className="number-display">{batch.progress.completed_dispensers}</span>
+                      <span className="text-muted-foreground"> / {batch.progress.total_dispensers}</span>
                     </div>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Started:</span>
+                  <div className="animate-fade-in" style={{animationDelay: '0.3s'}}>
+                    <span className="text-muted-foreground">Started:</span>
                     <div className="font-medium">
                       {batch.started_at ? new Date(batch.started_at).toLocaleTimeString() : 'Not started'}
                     </div>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Duration:</span>
+                  <div className="animate-fade-in" style={{animationDelay: '0.4s'}}>
+                    <span className="text-muted-foreground">Duration:</span>
                     <div className="font-medium">
                       {batch.started_at ? 
                         Math.round((new Date().getTime() - new Date(batch.started_at).getTime()) / 1000 / 60) + 'm'
@@ -580,24 +614,27 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
 
                 {/* Results */}
                 {batch.results && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="mt-3 pt-3 border-t border-border/50">
                     <div className="flex gap-4 text-sm">
-                      <span className="text-green-600">
-                        ✓ {batch.results.successful} successful
-                      </span>
+                      <Badge variant="default" className="badge-gradient">
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        {batch.results.successful} successful
+                      </Badge>
                       {batch.results.failed > 0 && (
-                        <span className="text-red-600">
-                          ✗ {batch.results.failed} failed
-                        </span>
+                        <Badge variant="destructive">
+                          <AlertCircle className="w-3 h-3 mr-1" />
+                          {batch.results.failed} failed
+                        </Badge>
                       )}
                     </div>
                   </div>
                 )}
-              </div>
+              </AnimatedCard>
             ))}
           </div>
         )}
-      </Card>
+        </CardContent>
+      </AnimatedCard>
     </div>
   );
 };

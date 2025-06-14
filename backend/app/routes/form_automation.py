@@ -11,13 +11,22 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from ..database import get_db
-from ..services.form_automation_v1 import FormAutomationV1Service, get_form_automation_v1_service
+from ..services.form_automation import FormAutomationService
 from ..services.form_automation_browser_integration import FormAutomationBrowserIntegration, get_form_automation_browser_integration
 from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
 from ..models.user_schemas import APIResponse
+from ..services.browser_automation import browser_automation
+# V1 import removed - no longer needed after migration
 
 router = APIRouter(prefix="/api/form-automation", tags=["form_automation"])
+
+# Alias for compatibility
+FormAutomationV1Service = FormAutomationService
+
+def get_form_automation_v1_service():
+    """Get form automation service instance"""
+    return FormAutomationService(browser_automation)
 
 def get_user_service(db: Session = Depends(get_db)):
     return UserManagementService(db)

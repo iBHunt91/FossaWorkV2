@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Card from './Card';
-import LoadingSpinner from './LoadingSpinner';
+import { Play, StopCircle, Eye, EyeOff, CheckCircle, Clock, Activity, Fuel, Zap, Settings2, Settings } from 'lucide-react';
+import { AnimatedCard, GlowCard } from '@/components/ui/animated-card';
+import { AnimatedButton, RippleButton, MagneticButton } from '@/components/ui/animated-button';
+import { Button } from '@/components/ui/button';
+import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text';
+import { ProgressLoader, DotsLoader } from '@/components/ui/animated-loader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/contexts/AuthContext';
+import { DispenserInfoModal } from './DispenserInfoModal';
 
 interface FuelGrade {
   octane?: number;
@@ -63,6 +74,7 @@ export const DispenserAutomation: React.FC<DispenserAutomationProps> = ({
   onComplete,
   onError
 }) => {
+  const { user } = useAuth();
   const [dispensers, setDispensers] = useState<Dispenser[]>(workOrder.dispensers || []);
   const [isRunning, setIsRunning] = useState(false);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
@@ -73,11 +85,13 @@ export const DispenserAutomation: React.FC<DispenserAutomationProps> = ({
   const [websocket, setWebsocket] = useState<WebSocket | null>(null);
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [showCredentials, setShowCredentials] = useState(false);
+  const [selectedDispenser, setSelectedDispenser] = useState<Dispenser | null>(null);
+  const [showDispenserModal, setShowDispenserModal] = useState(false);
 
   // WebSocket connection for real-time progress
   const connectWebSocket = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/v1/automation/ws/user123`; // TODO: Get actual user ID
+    const wsUrl = `${protocol}//${window.location.host}/api/v1/automation/ws/${user?.id || 'demo-user'}`;
     
     const ws = new WebSocket(wsUrl);
     
@@ -196,7 +210,7 @@ export const DispenserAutomation: React.FC<DispenserAutomationProps> = ({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: 'user123', // TODO: Get actual user ID
+          user_id: user?.id || 'demo-user',
           visit_url: `https://app.workfossa.com/work-orders/${workOrder.id}`, // TODO: Get actual visit URL
           work_order_id: workOrder.id,
           dispensers: dispensers,
@@ -258,153 +272,198 @@ export const DispenserAutomation: React.FC<DispenserAutomationProps> = ({
       .join(', ');
   };
 
+  const handleDispenserInfoClick = (dispenser: Dispenser) => {
+    setSelectedDispenser(dispenser);
+    setShowDispenserModal(true);
+  };
+
   return (
-    <Card className="p-6">
-      <div className="space-y-6">
+    <AnimatedCard animate="fade" hover="lift" className="glass-dark">
+      <CardContent className="p-6">
+        <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-start">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Dispenser Automation
+            <h3 className="text-lg font-semibold">
+              <ShimmerText text="Dispenser Automation" />
             </h3>
-            <p className="text-sm text-gray-600">
-              {workOrder.site_name} - {workOrder.external_id}
+            <p className="text-sm text-muted-foreground">
+              <AnimatedText text={`${workOrder.site_name} - ${workOrder.external_id}`} animationType="fade" delay={0.2} />
             </p>
           </div>
           
           <div className="flex space-x-2">
             {!isRunning ? (
-              <button
+              <AnimatedButton
                 onClick={startAutomation}
                 disabled={dispensers.length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                animation="shimmer"
               >
+                <Play className="w-4 h-4 mr-2" />
                 Start Automation
-              </button>
+              </AnimatedButton>
             ) : (
-              <button
+              <AnimatedButton
                 onClick={stopAutomation}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                variant="destructive"
+                animation="pulse"
               >
+                <StopCircle className="w-4 h-4 mr-2" />
                 Stop Automation
-              </button>
+              </AnimatedButton>
             )}
             
-            <button
+            <MagneticButton
               onClick={() => setShowCredentials(!showCredentials)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              variant="outline"
+              strength={0.1}
             >
+              {showCredentials ? <EyeOff className="w-4 h-4 mr-2" /> : <Eye className="w-4 h-4 mr-2" />}
               Credentials
-            </button>
+            </MagneticButton>
           </div>
         </div>
 
         {/* Credentials Section */}
         {showCredentials && (
-          <Card className="p-4 bg-gray-50">
-            <h4 className="font-semibold mb-3">WorkFossa Credentials</h4>
+          <GlowCard className="p-4 bg-muted/50 animate-slide-in-from-top">
+            <h4 className="font-semibold mb-3">
+              <AnimatedText text="WorkFossa Credentials" animationType="reveal" />
+            </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Username/Email
-                </label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="username">Username/Email</Label>
+                <Input
+                  id="username"
                   type="text"
                   value={credentials.username}
                   onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="input-modern"
                   placeholder="Enter WorkFossa username"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
-                </label>
-                <input
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
                   type="password"
                   value={credentials.password}
                   onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="input-modern"
                   placeholder="Enter WorkFossa password"
                 />
               </div>
             </div>
-          </Card>
+          </GlowCard>
         )}
 
         {/* Overall Progress */}
         {isRunning && (
-          <Card className="p-4 bg-blue-50">
-            <div className="flex items-center space-x-3">
-              <LoadingSpinner size="small" />
-              <div className="flex-1">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-medium text-blue-900">
-                    {getPhaseDescription(currentPhase)}
-                  </span>
-                  <span className="text-sm font-semibold text-blue-900">
-                    {Math.round(overallProgress)}%
-                  </span>
+          <GlowCard className="p-4 bg-primary/5 animate-pulse-glow" glowColor="rgba(59, 130, 246, 0.3)">
+            <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <DotsLoader />
+                <div className="flex-1">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium leading-tight">
+                      <AnimatedText text={getPhaseDescription(currentPhase)} animationType="fade" />
+                    </span>
+                    <span className="text-sm font-semibold">
+                      {Math.round(overallProgress)}%
+                    </span>
+                  </div>
+                  <ProgressLoader progress={overallProgress} showPercentage={false} />
                 </div>
-                <div className="w-full bg-blue-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${overallProgress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-blue-700 mt-1">{statusMessage}</p>
               </div>
+              
+              {statusMessage && (
+                <div className="bg-muted/20 rounded-md p-3 border border-border/30">
+                  <p className="text-xs text-muted-foreground break-words leading-relaxed">
+                    <AnimatedText text={statusMessage} animationType="fade" />
+                  </p>
+                </div>
+              )}
+              
+              {currentDispenser && (
+                <div className="flex items-center gap-2 pt-2 border-t border-border/30">
+                  <Badge variant="secondary" className="animate-pulse">
+                    <Activity className="w-3 h-3 mr-1" />
+                    Processing Dispenser {currentDispenser}
+                  </Badge>
+                </div>
+              )}
             </div>
-          </Card>
+          </GlowCard>
         )}
 
         {/* Dispensers List */}
         <div>
-          <h4 className="text-sm font-semibold text-gray-900 mb-3">
-            Dispensers ({dispensers.length})
+          <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <Fuel className="w-4 h-4 text-primary" />
+            <ShimmerText text={`Dispensers (${dispensers.length})`} />
           </h4>
           
           {dispensers.length === 0 ? (
-            <Card className="p-4 text-center text-gray-500">
-              <p>No dispensers found for this work order.</p>
-              <p className="text-sm mt-1">
-                Try running "Scrape Work Orders" first to load dispenser data.
+            <AnimatedCard className="p-4 text-center" animate="bounce" hover="glow">
+              <Activity className="w-12 h-12 text-muted-foreground mx-auto mb-2 animate-pulse" />
+              <p className="text-muted-foreground">
+                <AnimatedText text="No dispensers found for this work order." animationType="reveal" />
               </p>
-            </Card>
+              <p className="text-sm text-muted-foreground mt-1">
+                <AnimatedText text='Try running "Scrape Work Orders" first to load dispenser data.' animationType="fade" delay={0.2} />
+              </p>
+              <Button
+                onClick={() => {
+                  setSelectedDispenser(null);
+                  setShowDispenserModal(true);
+                }}
+                variant="outline"
+                size="sm"
+                className="mt-3"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                View Dispenser Info
+              </Button>
+            </AnimatedCard>
           ) : (
             <div className="space-y-3">
-              {dispensers.map((dispenser) => (
-                <Card
+              {dispensers.map((dispenser, index) => (
+                <AnimatedCard
                   key={dispenser.dispenser_number}
                   className={`p-4 transition-all duration-200 ${
                     dispenser.dispenser_number === currentDispenser
-                      ? 'ring-2 ring-blue-500 bg-blue-50'
-                      : ''
+                      ? 'ring-2 ring-primary bg-primary/5 glass'
+                      : 'glass-dark'
                   }`}
+                  hover="lift"
+                  animate="slide"
+                  delay={index * 0.1}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
-                        <span className="font-medium text-gray-900">
-                          Dispenser {dispenser.dispenser_number}
+                        <span className="font-medium">
+                          <AnimatedText text={`Dispenser ${dispenser.dispenser_number}`} animationType="fade" />
                         </span>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-muted-foreground">
                           {dispenser.dispenser_type}
                         </span>
                         {dispenser.automation_completed && (
-                          <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                            ✓ Completed
-                          </span>
+                          <Badge variant="default" className="badge-gradient">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Completed
+                          </Badge>
                         )}
                         {dispenser.dispenser_number === currentDispenser && (
-                          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
-                            ⚡ Processing
-                          </span>
+                          <Badge variant="secondary" className="animate-pulse">
+                            <Zap className="w-3 h-3 mr-1 animate-spin-slow" />
+                            Processing
+                          </Badge>
                         )}
                       </div>
                       
                       <div className="mt-2">
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                           Fuel Grades: {formatFuelGrades(dispenser.fuel_grades)}
                         </p>
                       </div>
@@ -412,59 +471,82 @@ export const DispenserAutomation: React.FC<DispenserAutomationProps> = ({
                       {(isRunning || dispenser.automation_completed) && (
                         <div className="mt-2">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs text-gray-600">Progress</span>
+                            <span className="text-xs text-muted-foreground">Progress</span>
                             <span className="text-xs font-semibold">
                               {Math.round(dispenser.progress_percentage)}%
                             </span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-1.5">
-                            <div
-                              className={`h-1.5 rounded-full transition-all duration-300 ${
-                                dispenser.automation_completed
-                                  ? 'bg-green-500'
-                                  : dispenser.dispenser_number === currentDispenser
-                                  ? 'bg-blue-500'
-                                  : 'bg-gray-300'
-                              }`}
-                              style={{ width: `${dispenser.progress_percentage}%` }}
-                            />
-                          </div>
+                          <ProgressLoader progress={dispenser.progress_percentage} showPercentage={false} />
                         </div>
                       )}
                     </div>
                     
-                    <div className={`text-right ${getDispenserStatusColor(dispenser)}`}>
-                      <p className="text-sm font-medium capitalize">{dispenser.status}</p>
+                    <div className="flex items-center space-x-2">
+                      <Badge
+                        variant={
+                          dispenser.automation_completed ? 'default' :
+                          dispenser.dispenser_number === currentDispenser ? 'secondary' :
+                          'outline'
+                        }
+                        className={dispenser.automation_completed ? 'badge-gradient' : ''}
+                      >
+                        {dispenser.status}
+                      </Badge>
+                      <Button
+                        onClick={() => handleDispenserInfoClick(dispenser)}
+                        variant="outline"
+                        size="sm"
+                        className="p-2 hover:bg-primary/10 transition-colors"
+                        title="View Dispenser Details"
+                      >
+                        <Settings className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                </Card>
+                </AnimatedCard>
               ))}
             </div>
           )}
         </div>
 
         {/* Summary */}
-        <Card className="p-4 bg-gray-50">
+        <GlowCard className="p-4 bg-gradient-to-br from-primary/5 to-purple-500/5 animate-slide-in-from-bottom" style={{animationDelay: '0.5s'}}>
           <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-2xl font-bold text-gray-900">{dispensers.length}</p>
-              <p className="text-sm text-gray-600">Total Dispensers</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-green-600">
-                {dispensers.filter(d => d.automation_completed).length}
+            <div className="animate-scale-in" style={{animationDelay: '0.6s'}}>
+              <p className="text-2xl font-bold">
+                <GradientText text={String(dispensers.length)} gradient="from-blue-600 to-purple-600" />
               </p>
-              <p className="text-sm text-gray-600">Completed</p>
+              <p className="text-sm text-muted-foreground">Total Dispensers</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-blue-600">
-                {dispensers.filter(d => !d.automation_completed).length}
+            <div className="animate-scale-in" style={{animationDelay: '0.7s'}}>
+              <p className="text-2xl font-bold">
+                <GradientText text={String(dispensers.filter(d => d.automation_completed).length)} gradient="from-green-600 to-emerald-600" />
               </p>
-              <p className="text-sm text-gray-600">Remaining</p>
+              <p className="text-sm text-muted-foreground">Completed</p>
+            </div>
+            <div className="animate-scale-in" style={{animationDelay: '0.8s'}}>
+              <p className="text-2xl font-bold">
+                <GradientText text={String(dispensers.filter(d => !d.automation_completed).length)} gradient="from-orange-600 to-red-600" />
+              </p>
+              <p className="text-sm text-muted-foreground">Remaining</p>
             </div>
           </div>
-        </Card>
+        </GlowCard>
       </div>
-    </Card>
+      </CardContent>
+      
+      {/* Dispenser Info Modal */}
+      <DispenserInfoModal
+        isOpen={showDispenserModal}
+        onClose={() => {
+          setShowDispenserModal(false);
+          setSelectedDispenser(null);
+        }}
+        dispenserData={selectedDispenser ? {
+          workOrder: workOrder,
+          dispensers: [selectedDispenser]
+        } : null}
+      />
+    </AnimatedCard>
   );
 };

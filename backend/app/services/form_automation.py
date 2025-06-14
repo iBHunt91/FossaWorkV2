@@ -31,6 +31,21 @@ except ImportError:
 # Configure logging
 logger = logging.getLogger(__name__)
 
+class ServiceCode(Enum):
+    """Service codes for different automation types"""
+    SERVICE_2861 = "2861"  # AccuMeasure for all dispensers
+    SERVICE_2862 = "2862"  # AccuMeasure for specific dispensers
+    SERVICE_3002 = "3002"  # All dispensers (variant)
+    SERVICE_3146 = "3146"  # Open Neck Prover
+
+class AutomationTemplate(Enum):
+    """Automation templates based on fuel grade configurations"""
+    REGULAR_PLUS_PREMIUM = "regular_plus_premium"
+    REGULAR_PLUS_PREMIUM_DIESEL = "regular_plus_premium_diesel"
+    ETHANOL_FREE_VARIANTS = "ethanol_free_variants"
+    THREE_GRADE_ETHANOL_DIESEL = "three_grade_ethanol_diesel"
+    CUSTOM = "custom"
+
 class AutomationPhase(Enum):
     """Automation phases for progress tracking"""
     INITIALIZING = "initializing"
@@ -55,12 +70,31 @@ class AutomationProgress:
     dispenser_title: Optional[str] = None
     fuel_grades: List[str] = None
     timestamp: datetime = None
+    session_id: Optional[str] = None  # Added for browser integration
     
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
         if self.fuel_grades is None:
             self.fuel_grades = []
+
+@dataclass
+class DispenserStrategy:
+    """Strategy for dispenser automation"""
+    service_code: ServiceCode
+    automation_template: AutomationTemplate
+    dispenser_numbers: List[int]
+    metered_grades: Dict[int, List[str]]
+    non_metered_grades: Dict[int, List[str]]
+    total_iterations: int
+    
+    def __post_init__(self):
+        if self.metered_grades is None:
+            self.metered_grades = {}
+        if self.non_metered_grades is None:
+            self.non_metered_grades = {}
+        if self.total_iterations is None:
+            self.total_iterations = len(self.dispenser_numbers)
 
 @dataclass
 class AutomationJob:
@@ -76,12 +110,19 @@ class AutomationJob:
     completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
     progress: List[AutomationProgress] = None
+    # Additional properties expected by integration
+    visit_id: Optional[str] = None
+    service_code: ServiceCode = ServiceCode.SERVICE_2861
+    dispenser_strategy: Optional[DispenserStrategy] = None
+    station_info: Dict[str, Any] = None
     
     def __post_init__(self):
         if self.created_at is None:
             self.created_at = datetime.now()
         if self.progress is None:
             self.progress = []
+        if self.station_info is None:
+            self.station_info = {}
 
 class FuelGradeTemplates:
     """Fuel grade templates based on V1 patterns"""
@@ -495,6 +536,83 @@ class FormAutomationService:
         
         return True
     
+    async def create_automation_job(self, user_id: str, work_order_data: Dict[str, Any], 
+                                   user_preferences: Optional[Dict[str, Any]] = None) -> AutomationJob:
+        """Create automation job from work order data"""
+        # Extract data from work order
+        work_order_id = work_order_data.get('basic_info', {}).get('id', '')
+        visit_url = work_order_data.get('visit_url', '')
+        dispensers = work_order_data.get('dispensers', [])
+        
+        # Determine service code
+        service_type = work_order_data.get('service_type', '2861')
+        service_code = ServiceCode(f"SERVICE_{service_type}") if f"SERVICE_{service_type}" in ServiceCode.__members__ else ServiceCode.SERVICE_2861
+        
+        # Create dispenser strategy
+        dispenser_numbers = [int(d.get('dispenser_number', i+1)) for i, d in enumerate(dispensers)]
+        metered_grades = {}
+        non_metered_grades = {}
+        
+        for i, dispenser in enumerate(dispensers):
+            dispenser_num = int(dispenser.get('dispenser_number', i+1))
+            fuel_grades = dispenser.get('fuel_grades', {})
+            
+            # Simple classification - can be enhanced
+            grade_list = list(fuel_grades.keys())
+            metered_grades[dispenser_num] = grade_list[:3] if len(grade_list) > 3 else grade_list
+            non_metered_grades[dispenser_num] = grade_list[3:] if len(grade_list) > 3 else []
+        
+        # Detect automation template
+        template = AutomationTemplate.CUSTOM
+        if all(len(grades) == 3 for grades in metered_grades.values()):
+            template = AutomationTemplate.REGULAR_PLUS_PREMIUM
+        elif any(len(grades) == 4 for grades in metered_grades.values()):
+            template = AutomationTemplate.REGULAR_PLUS_PREMIUM_DIESEL
+        
+        strategy = DispenserStrategy(
+            service_code=service_code,
+            automation_template=template,
+            dispenser_numbers=dispenser_numbers,
+            metered_grades=metered_grades,
+            non_metered_grades=non_metered_grades,
+            total_iterations=len(dispenser_numbers)
+        )
+        
+        # Create job
+        job_id = str(uuid.uuid4())
+        job = AutomationJob(
+            job_id=job_id,
+            user_id=user_id,
+            visit_url=visit_url,
+            work_order_id=work_order_id,
+            dispensers=dispensers,
+            service_code=service_code,
+            dispenser_strategy=strategy,
+            station_info=work_order_data.get('station_info', {})
+        )
+        
+        return job
+    
+    async def update_job_progress(self, job_id: str, phase: str, current_dispenser: Optional[int] = None,
+                                 current_iteration: Optional[int] = None, fuel_grade: Optional[str] = None):
+        """Update job progress"""
+        if job_id not in self.active_jobs:
+            return
+        
+        job = self.active_jobs[job_id]
+        
+        # Create progress update
+        progress = AutomationProgress(
+            job_id=job_id,
+            phase=AutomationPhase[phase.upper()] if phase.upper() in AutomationPhase.__members__ else AutomationPhase.FORM_FILLING,
+            percentage=50.0,  # Simple calculation
+            message=f"Processing phase: {phase}",
+            dispenser_id=str(current_dispenser) if current_dispenser else None,
+            fuel_grades=[fuel_grade] if fuel_grade else []
+        )
+        
+        await self._emit_progress(progress)
+    
     async def process_batch(self, user_id: str, batch_data: List[Dict[str, Any]], 
                           options: Dict[str, Any] = None) -> List[str]:
         """
@@ -527,6 +645,9 @@ class FormAutomationService:
 form_automation_service = FormAutomationService(
     browser_automation=browser_automation
 )
+
+# Alias for backward compatibility
+FormAutomationJob = AutomationJob
 
 # Testing function
 async def test_form_automation():

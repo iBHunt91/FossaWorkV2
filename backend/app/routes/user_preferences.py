@@ -9,8 +9,8 @@ from typing import Dict, Any
 import json
 from datetime import datetime
 
-from database import get_db
-from models_simple import User
+from ..database import get_db
+from ..models.user_models import User
 
 router = APIRouter(prefix="/api/v1/users", tags=["user_preferences"])
 
@@ -30,6 +30,10 @@ DEFAULT_PREFERENCES = {
         "theme": "light",
         "default_view": "work_orders",
         "show_animations": True
+    },
+    "work_week": {
+        "days": [1, 2, 3, 4, 5],  # Default Monday-Friday (0=Sunday, 1=Monday, etc.)
+        "custom": True  # Whether using custom days selection
     }
 }
 
@@ -47,9 +51,9 @@ async def get_user_preferences(
             return DEFAULT_PREFERENCES
         
         # Parse user preferences or return defaults
-        if user.preferences:
+        if user.preferences_json:
             try:
-                preferences = json.loads(user.preferences) if isinstance(user.preferences, str) else user.preferences
+                preferences = json.loads(user.preferences_json) if isinstance(user.preferences_json, str) else user.preferences_json
                 # Merge with defaults to ensure all keys exist
                 result = DEFAULT_PREFERENCES.copy()
                 result.update(preferences)
@@ -76,19 +80,19 @@ async def update_user_preference(
         if not user:
             # Create demo user for demo mode
             user = User(
-                id=user_id,
-                username="demo-user",
                 email="demo@fossawork.com",
-                preferences=json.dumps(DEFAULT_PREFERENCES)
+                password_hash="demo-hash"  # Required field
             )
+            user.id = user_id  # Override the generated ID
+            user.preferences_json = json.dumps(DEFAULT_PREFERENCES)
             db.add(user)
             db.flush()
         
         # Get current preferences
         current_prefs = DEFAULT_PREFERENCES.copy()
-        if user.preferences:
+        if user.preferences_json:
             try:
-                current_prefs.update(json.loads(user.preferences) if isinstance(user.preferences, str) else user.preferences)
+                current_prefs.update(json.loads(user.preferences_json) if isinstance(user.preferences_json, str) else user.preferences_json)
             except:
                 pass
         
@@ -99,7 +103,7 @@ async def update_user_preference(
             current_prefs[preference_type] = preference_data
         
         # Save back to user
-        user.preferences = json.dumps(current_prefs)
+        user.preferences_json = json.dumps(current_prefs)
         user.updated_at = datetime.now()
         
         db.commit()
@@ -130,11 +134,11 @@ async def update_all_user_preferences(
         if not user:
             # Create demo user for demo mode
             user = User(
-                id=user_id,
-                username="demo-user",
                 email="demo@fossawork.com",
-                preferences=json.dumps(DEFAULT_PREFERENCES)
+                password_hash="demo-hash"  # Required field
             )
+            user.id = user_id  # Override the generated ID
+            user.preferences_json = json.dumps(DEFAULT_PREFERENCES)
             db.add(user)
             db.flush()
         
@@ -143,7 +147,7 @@ async def update_all_user_preferences(
         final_prefs.update(preferences)
         
         # Save to user
-        user.preferences = json.dumps(final_prefs)
+        user.preferences_json = json.dumps(final_prefs)
         user.updated_at = datetime.now()
         
         db.commit()
@@ -173,7 +177,7 @@ async def reset_user_preferences(
             raise HTTPException(status_code=404, detail="User not found")
         
         # Reset to default preferences
-        user.preferences = json.dumps(DEFAULT_PREFERENCES)
+        user.preferences_json = json.dumps(DEFAULT_PREFERENCES)
         user.updated_at = datetime.now()
         
         db.commit()

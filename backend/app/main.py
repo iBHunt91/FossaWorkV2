@@ -7,10 +7,11 @@ import asyncio
 from .database import get_db, create_tables
 from .models.user_models import User
 from .core_models import WorkOrder, Dispenser
-from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, migration, schedule_detection, form_automation
-# Temporarily disabled due to FastAPI validation errors: notifications, filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
+from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings
+# Temporarily disabled due to FastAPI validation errors: filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
 from .services.logging_service import get_logger, log_api_request
 from .utils.memory_monitor import setup_memory_monitoring, start_memory_monitoring
+from .middleware.auth_middleware import AuthenticationMiddleware
 
 # Initialize logger
 logger = get_logger("fossawork.main")
@@ -22,7 +23,7 @@ app = FastAPI(
     description="Modern Fuel Dispenser Automation System with Browser Automation and Real-time Logging"
 )
 
-# CORS for development
+# CORS for development (must be added BEFORE authentication middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3001", "http://localhost:5173"],  # Vite dev server
@@ -30,6 +31,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Authentication middleware (must be added AFTER CORS)
+app.add_middleware(AuthenticationMiddleware)
 
 # Logging middleware
 @app.middleware("http")
@@ -72,11 +76,12 @@ app.include_router(credentials.router)
 app.include_router(logging.router)
 app.include_router(file_logging.router)
 app.include_router(url_generation.router)
-app.include_router(migration.router)
+# app.include_router(migration.router)  # Migration route removed
 app.include_router(schedule_detection.router)
 app.include_router(form_automation.router)
+app.include_router(user_preferences.router)
+app.include_router(settings.router)
 # Temporarily disabled routes due to FastAPI validation errors:
-# app.include_router(notifications.router)
 # app.include_router(filter_calculation.router, prefix="/api/filters", tags=["filters"])
 # app.include_router(filter_inventory.router, prefix="/api/inventory", tags=["inventory"])
 # app.include_router(filter_scheduling.router, prefix="/api/scheduling", tags=["scheduling"])
@@ -168,3 +173,4 @@ async def api_status():
         },
         "timestamp": datetime.now().isoformat()
     }
+

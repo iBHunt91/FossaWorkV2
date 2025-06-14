@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings } from 'lucide-react'
 import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { AnimatedCard, GlowCard } from '@/components/ui/animated-card'
 import { AnimatedButton, RippleButton, MagneticButton } from '@/components/ui/animated-button'
 import { ProgressLoader, DotsLoader, SkeletonLoader } from '@/components/ui/animated-loader'
 import { ParticleBackground } from '@/components/ui/animated-background'
+import { DispenserInfoModal } from '@/components/DispenserInfoModal'
 
 // Enhanced work order interface with V1 compatibility
 interface EnhancedWorkOrder {
@@ -75,6 +76,11 @@ const WorkOrders: React.FC = () => {
   const [dispenserScrapeMessage, setDispenserScrapeMessage] = useState('')
   const [dispenserScrapingProgress, setDispenserScrapingProgress] = useState<any>(null)
   const [isPollingDispenserProgress, setIsPollingDispenserProgress] = useState(false)
+  
+  // Dispenser modal state
+  const [showDispenserModal, setShowDispenserModal] = useState(false)
+  const [selectedWorkOrderForModal, setSelectedWorkOrderForModal] = useState<EnhancedWorkOrder | null>(null)
+  
   const queryClient = useQueryClient()
   const { user } = useAuth()
 
@@ -93,6 +99,60 @@ const WorkOrders: React.FC = () => {
 
   const currentUserId = user.id
 
+  // Check for existing scraping progress on component mount
+  useEffect(() => {
+    const checkExistingProgress = async () => {
+      if (!currentUserId) return
+      
+      try {
+        // Check localStorage first for recent scraping activity
+        const woStoredState = localStorage.getItem(`wo_scraping_${currentUserId}`)
+        const dispStoredState = localStorage.getItem(`disp_scraping_${currentUserId}`)
+        
+        // If we have stored state, check if it's recent (within last 10 minutes)
+        if (woStoredState) {
+          const stored = JSON.parse(woStoredState)
+          const startTime = new Date(stored.startedAt).getTime()
+          const now = new Date().getTime()
+          const tenMinutes = 10 * 60 * 1000
+          
+          if (now - startTime > tenMinutes) {
+            // Too old, clear it
+            localStorage.removeItem(`wo_scraping_${currentUserId}`)
+          }
+        }
+        
+        // Check work order scraping progress
+        const woProgress = await getScrapingProgress(currentUserId)
+        if (woProgress.status === 'in_progress') {
+          setScrapeStatus('scraping')
+          setScrapeMessage(woProgress.message)
+          setScrapingProgress(woProgress)
+          setIsPollingProgress(true)
+        } else if (woStoredState) {
+          // Clear stale localStorage if backend says no scraping
+          localStorage.removeItem(`wo_scraping_${currentUserId}`)
+        }
+        
+        // Check dispenser scraping progress
+        const dispProgress = await getDispenserScrapingProgress(currentUserId)
+        if (dispProgress.status === 'in_progress') {
+          setDispenserScrapeStatus('scraping')
+          setDispenserScrapeMessage(dispProgress.message)
+          setDispenserScrapingProgress(dispProgress)
+          setIsPollingDispenserProgress(true)
+        } else if (dispStoredState) {
+          // Clear stale localStorage if backend says no scraping
+          localStorage.removeItem(`disp_scraping_${currentUserId}`)
+        }
+      } catch (error) {
+        console.error('Failed to check existing progress:', error)
+      }
+    }
+    
+    checkExistingProgress()
+  }, [currentUserId])
+
   // Poll for scraping progress
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null
@@ -108,6 +168,9 @@ const WorkOrders: React.FC = () => {
             setIsPollingProgress(false)
             setScrapeStatus(progress.status === 'completed' ? 'success' : 'error')
             setScrapeMessage(progress.message)
+            
+            // Clear localStorage
+            localStorage.removeItem(`wo_scraping_${currentUserId}`)
             
             // Refresh work orders if successful
             if (progress.status === 'completed') {
@@ -150,6 +213,9 @@ const WorkOrders: React.FC = () => {
             setDispenserScrapeStatus(progress.status === 'completed' ? 'success' : 'error')
             setDispenserScrapeMessage(progress.message)
             
+            // Clear localStorage
+            localStorage.removeItem(`disp_scraping_${currentUserId}`)
+            
             // Refresh work orders if successful
             if (progress.status === 'completed') {
               queryClient.invalidateQueries({ queryKey: ['work-orders'] })
@@ -188,6 +254,12 @@ const WorkOrders: React.FC = () => {
       setScrapeMessage('Initializing scraping process...')
       setScrapingProgress(null)
       setIsPollingProgress(true) // Start polling for progress
+      
+      // Store scraping state in localStorage
+      localStorage.setItem(`wo_scraping_${currentUserId}`, JSON.stringify({
+        status: 'scraping',
+        startedAt: new Date().toISOString()
+      }))
     },
     onSuccess: (data) => {
       console.log('Scrape initiated:', data)
@@ -198,6 +270,9 @@ const WorkOrders: React.FC = () => {
       setScrapeStatus('error')
       setScrapeMessage(error.response?.data?.detail || 'Failed to initiate scraping. Please try again.')
       setIsPollingProgress(false) // Stop polling on error
+      
+      // Clear localStorage
+      localStorage.removeItem(`wo_scraping_${currentUserId}`)
       
       // Reset status after showing error
       setTimeout(() => {
@@ -244,6 +319,12 @@ const WorkOrders: React.FC = () => {
       setDispenserScrapeMessage('Initializing batch dispenser scraping...')
       setDispenserScrapingProgress(null)
       setIsPollingDispenserProgress(true) // Start polling for progress
+      
+      // Store scraping state in localStorage
+      localStorage.setItem(`disp_scraping_${currentUserId}`, JSON.stringify({
+        status: 'scraping',
+        startedAt: new Date().toISOString()
+      }))
     },
     onSuccess: (data) => {
       console.log('Dispenser scrape initiated:', data)
@@ -251,6 +332,10 @@ const WorkOrders: React.FC = () => {
         setDispenserScrapeStatus('error')
         setDispenserScrapeMessage(data.message)
         setIsPollingDispenserProgress(false)
+        
+        // Clear localStorage
+        localStorage.removeItem(`disp_scraping_${currentUserId}`)
+        
         setTimeout(() => {
           setDispenserScrapeStatus('idle')
           setDispenserScrapeMessage('')
@@ -263,6 +348,9 @@ const WorkOrders: React.FC = () => {
       setDispenserScrapeStatus('error')
       setDispenserScrapeMessage(error.response?.data?.detail || 'Failed to initiate dispenser scraping. Please try again.')
       setIsPollingDispenserProgress(false) // Stop polling on error
+      
+      // Clear localStorage
+      localStorage.removeItem(`disp_scraping_${currentUserId}`)
       
       // Reset status after showing error
       setTimeout(() => {
@@ -286,13 +374,80 @@ const WorkOrders: React.FC = () => {
     return []
   }, [rawWorkOrders])
 
+  // Extract clean store name from full site name
+  const getCleanStoreName = (siteName: string) => {
+    if (!siteName) return ''
+    
+    const lower = siteName.toLowerCase()
+    
+    // Handle 7-Eleven variations (including "Eleven Stores, Inc")
+    if (lower.includes('7-eleven') || lower.includes('7 eleven') || lower.includes('seven eleven') || 
+        lower.includes('eleven stores') || lower.includes('speedway')) {
+      // Extract store number if present
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `7-Eleven #${storeMatch[1]}` : '7-Eleven'
+    }
+    
+    // Handle Wawa variations (including "Wawa 2025 AccuMeasure")
+    if (lower.includes('wawa')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `Wawa #${storeMatch[1]}` : 'Wawa'
+    }
+    
+    // Handle Circle-K variations
+    if (lower.includes('circle k') || lower.includes('circlek') || lower.includes('circle-k')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `Circle-K #${storeMatch[1]}` : 'Circle-K'
+    }
+    
+    // Handle other brands
+    if (lower.includes('costco')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `Costco #${storeMatch[1]}` : 'Costco'
+    }
+    
+    if (lower.includes('shell')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `Shell #${storeMatch[1]}` : 'Shell'
+    }
+    
+    if (lower.includes('marathon')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `Marathon #${storeMatch[1]}` : 'Marathon'
+    }
+    
+    if (lower.includes('bp') && !lower.includes('bpx')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `BP #${storeMatch[1]}` : 'BP'
+    }
+    
+    if (lower.includes('exxon') || lower.includes('mobil')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `ExxonMobil #${storeMatch[1]}` : 'ExxonMobil'
+    }
+    
+    if (lower.includes('chevron')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `Chevron #${storeMatch[1]}` : 'Chevron'
+    }
+    
+    if (lower.includes('texaco')) {
+      const storeMatch = siteName.match(/#(\d+)/)
+      return storeMatch ? `Texaco #${storeMatch[1]}` : 'Texaco'
+    }
+    
+    // Fallback: return original if no brand detected
+    return siteName
+  }
+
   // Brand detection from site name - improved parsing
   const getBrand = (siteName: string) => {
     const lower = siteName.toLowerCase()
     // Handle variations and common misspellings
-    if (lower.includes('7-eleven') || lower.includes('7 eleven') || lower.includes('seven eleven') || lower.includes('speedway')) return '7-Eleven'
+    if (lower.includes('7-eleven') || lower.includes('7 eleven') || lower.includes('seven eleven') || 
+        lower.includes('eleven stores') || lower.includes('speedway')) return '7-Eleven'
     if (lower.includes('wawa')) return 'Wawa'
-    if (lower.includes('circle k') || lower.includes('circlek')) return 'Circle K'
+    if (lower.includes('circle k') || lower.includes('circlek') || lower.includes('circle-k')) return 'Circle K'
     if (lower.includes('costco')) return 'Costco'
     if (lower.includes('shell')) return 'Shell'
     if (lower.includes('marathon')) return 'Marathon'
@@ -878,25 +1033,20 @@ const WorkOrders: React.FC = () => {
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <CardTitle className="text-lg leading-none break-words min-w-0">
                           <AnimatedText 
-                            text={workOrder.site_name} 
+                            text={getCleanStoreName(workOrder.site_name)} 
                             animationType="fade"
                           />
                         </CardTitle>
-                        {workOrder.store_number && (
-                          <Badge variant="outline" className="text-xs font-mono">
-                            {workOrder.store_number}
-                          </Badge>
-                        )}
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {workOrder.id && (
+                        {workOrder.external_id && (
                           <Badge variant="secondary" className="text-xs badge-gradient">
-                            <span className="text-xs opacity-70">WO:</span> {workOrder.id}
+                            <span className="text-xs opacity-70">WO:</span> {workOrder.external_id}
                           </Badge>
                         )}
-                        {workOrder.service_code && (
+                        {workOrder.store_number && (
                           <Badge variant="outline" className="text-xs">
-                            <span className="text-xs opacity-70">Code:</span> {workOrder.service_code}
+                            <span className="text-xs opacity-70">Store:</span> {workOrder.store_number}
                           </Badge>
                         )}
                         {workOrder.visit_id && (
@@ -1125,7 +1275,19 @@ const WorkOrders: React.FC = () => {
                         Open Visit
                       </RippleButton>
                     )}
-                    {/* Additional action buttons can be added here */}
+                    <RippleButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedWorkOrderForModal(workOrder)
+                        setShowDispenserModal(true)
+                      }}
+                      className="btn-modern"
+                      title="View Dispenser Information"
+                    >
+                      <Fuel className="w-4 h-4 mr-1" />
+                      Dispensers
+                    </RippleButton>
                   </div>
 
                   {/* Enhanced Metadata footer */}
@@ -1199,6 +1361,19 @@ const WorkOrders: React.FC = () => {
         )}
       </section>
       </div>
+      
+      {/* Dispenser Info Modal */}
+      <DispenserInfoModal
+        isOpen={showDispenserModal}
+        onClose={() => {
+          setShowDispenserModal(false)
+          setSelectedWorkOrderForModal(null)
+        }}
+        dispenserData={selectedWorkOrderForModal && selectedWorkOrderForModal.dispensers ? {
+          workOrder: selectedWorkOrderForModal,
+          dispensers: selectedWorkOrderForModal.dispensers
+        } : null}
+      />
     </div>
   )
 }

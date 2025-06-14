@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FossaWork V2 Settings Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        h2 { color: #666; }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 4px; 
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .pending { background-color: #fff3cd; color: #856404; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        pre {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        input, select {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>FossaWork V2 Settings API Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Configuration</h2>
+        <div>
+            <label>API Base URL: <input type="text" id="baseUrl" value="http://localhost:8000" style="width: 300px;"></label>
+        </div>
+        <div>
+            <label>User ID: <input type="text" id="userId" value="demo"></label>
+        </div>
+        <div>
+            <label>Auth Token: <input type="text" id="authToken" placeholder="Login first to get token" style="width: 400px;"></label>
+        </div>
+        <button onclick="login()">Login as Demo User</button>
+    </div>
+
+    <div class="test-section">
+        <h2>1. Notification Settings</h2>
+        <button onclick="testNotificationSettings()">Test Notification Preferences</button>
+        <button onclick="testPushoverValidation()">Test Pushover Validation</button>
+        <button onclick="sendTestNotification()">Send Test Notification</button>
+        <div id="notificationResult" class="status pending">Not tested yet</div>
+        <pre id="notificationData"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>2. SMTP Settings</h2>
+        <button onclick="testSMTPSettings()">Get SMTP Settings</button>
+        <button onclick="updateSMTPSettings()">Update SMTP Settings</button>
+        <button onclick="testSMTPConnection()">Test SMTP Connection</button>
+        <div id="smtpResult" class="status pending">Not tested yet</div>
+        <pre id="smtpData"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Work Order Filters</h2>
+        <button onclick="testFilterSettings()">Get Filter Settings</button>
+        <button onclick="updateFilterSettings()">Update Filter Settings</button>
+        <div id="filterResult" class="status pending">Not tested yet</div>
+        <pre id="filterData"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Automation Delays</h2>
+        <button onclick="testDelaySettings()">Get Delay Settings</button>
+        <button onclick="updateDelaySettings()">Update Delay Settings</button>
+        <div id="delayResult" class="status pending">Not tested yet</div>
+        <pre id="delayData"></pre>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Display Preferences</h2>
+        <button onclick="testDisplaySettings()">Get Display Settings</button>
+        <button onclick="updateDisplaySettings()">Update Display Settings</button>
+        <div id="displayResult" class="status pending">Not tested yet</div>
+        <pre id="displayData"></pre>
+    </div>
+
+    <script>
+        // Helper functions
+        function getBaseUrl() {
+            return document.getElementById('baseUrl').value;
+        }
+
+        function getUserId() {
+            return document.getElementById('userId').value;
+        }
+
+        function getHeaders() {
+            const token = document.getElementById('authToken').value;
+            return {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : ''
+            };
+        }
+
+        function updateStatus(elementId, success, message) {
+            const element = document.getElementById(elementId);
+            element.className = 'status ' + (success ? 'success' : 'error');
+            element.textContent = message;
+        }
+
+        function displayData(elementId, data) {
+            document.getElementById(elementId).textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Login function
+        async function login() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: 'demo',
+                        password: 'demo123'
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('authToken').value = data.access_token;
+                    alert('Login successful! Token set.');
+                } else {
+                    alert(`Login failed: ${data.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                alert(`Login error: ${error.message}`);
+            }
+        }
+
+        // Test Notification Settings
+        async function testNotificationSettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/notifications/preferences/${getUserId()}`, {
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                updateStatus('notificationResult', response.ok, 
+                    response.ok ? 'Notification preferences loaded successfully' : `Error: ${data.detail}`);
+                displayData('notificationData', data);
+            } catch (error) {
+                updateStatus('notificationResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function testPushoverValidation() {
+            const key = prompt('Enter Pushover user key to validate:');
+            if (!key) return;
+            
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/notifications/validate-pushover/${getUserId()}?pushover_user_key=${key}`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                updateStatus('notificationResult', response.ok && data.is_valid, 
+                    data.is_valid ? 'Pushover key is valid!' : 'Pushover key is invalid');
+                displayData('notificationData', data);
+            } catch (error) {
+                updateStatus('notificationResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function sendTestNotification() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/notifications/test/${getUserId()}`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        notification_type: 'automation_completed',
+                        channel: 'both'
+                    })
+                });
+                
+                const data = await response.json();
+                updateStatus('notificationResult', response.ok, 
+                    response.ok ? 'Test notification sent!' : `Error: ${data.detail}`);
+                displayData('notificationData', data);
+            } catch (error) {
+                updateStatus('notificationResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test SMTP Settings
+        async function testSMTPSettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/smtp/${getUserId()}`, {
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                updateStatus('smtpResult', response.ok, 
+                    response.ok ? 'SMTP settings loaded successfully' : `Error: ${data.detail}`);
+                displayData('smtpData', data);
+            } catch (error) {
+                updateStatus('smtpResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function updateSMTPSettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/smtp/${getUserId()}`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        smtp_server: "smtp.gmail.com",
+                        smtp_port: 587,
+                        username: "test@example.com",
+                        password: "test-password",
+                        use_tls: true,
+                        use_ssl: false,
+                        from_email: "noreply@example.com",
+                        from_name: "FossaWork Test",
+                        timeout: 30
+                    })
+                });
+                
+                const data = await response.json();
+                updateStatus('smtpResult', response.ok, 
+                    response.ok ? 'SMTP settings updated successfully' : `Error: ${data.detail}`);
+                displayData('smtpData', data);
+            } catch (error) {
+                updateStatus('smtpResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function testSMTPConnection() {
+            const email = prompt('Enter email address to send test to:');
+            if (!email) return;
+            
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/smtp/${getUserId()}/test?test_email=${email}`, {
+                    method: 'POST',
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                updateStatus('smtpResult', response.ok, 
+                    response.ok ? 'Test email sent!' : `Error: ${data.detail}`);
+                displayData('smtpData', data);
+            } catch (error) {
+                updateStatus('smtpResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test Filter Settings
+        async function testFilterSettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/filters/${getUserId()}`, {
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                updateStatus('filterResult', response.ok, 
+                    response.ok ? 'Filter settings loaded successfully' : `Error: ${data.detail}`);
+                displayData('filterData', data);
+            } catch (error) {
+                updateStatus('filterResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function updateFilterSettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/filters/${getUserId()}`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        enabled: true,
+                        filter_by_stores: ["001", "002", "003"],
+                        filter_by_locations: ["Dallas", "Houston"],
+                        filter_by_customers: ["7-Eleven"],
+                        filter_by_service_codes: ["2861", "3002"],
+                        exclude_stores: ["999"],
+                        exclude_completed: true,
+                        saved_filters: {}
+                    })
+                });
+                
+                const data = await response.json();
+                updateStatus('filterResult', response.ok, 
+                    response.ok ? 'Filter settings updated successfully' : `Error: ${data.detail}`);
+                displayData('filterData', data);
+            } catch (error) {
+                updateStatus('filterResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test Delay Settings
+        async function testDelaySettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/automation-delays/${getUserId()}`, {
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                updateStatus('delayResult', response.ok, 
+                    response.ok ? 'Delay settings loaded successfully' : `Error: ${data.detail}`);
+                displayData('delayData', data);
+            } catch (error) {
+                updateStatus('delayResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function updateDelaySettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/automation-delays/${getUserId()}`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        form_field_delay: 500,
+                        page_navigation_delay: 2000,
+                        click_action_delay: 300,
+                        dropdown_select_delay: 500,
+                        overall_speed_multiplier: 1.0,
+                        browser_timeout: 30000,
+                        retry_delay: 3000,
+                        max_retries: 3
+                    })
+                });
+                
+                const data = await response.json();
+                updateStatus('delayResult', response.ok, 
+                    response.ok ? 'Delay settings updated successfully' : `Error: ${data.detail}`);
+                displayData('delayData', data);
+            } catch (error) {
+                updateStatus('delayResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test Display Settings
+        async function testDisplaySettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/notification-display/${getUserId()}`, {
+                    headers: getHeaders()
+                });
+                
+                const data = await response.json();
+                updateStatus('displayResult', response.ok, 
+                    response.ok ? 'Display settings loaded successfully' : `Error: ${data.detail}`);
+                displayData('displayData', data);
+            } catch (error) {
+                updateStatus('displayResult', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function updateDisplaySettings() {
+            try {
+                const response = await fetch(`${getBaseUrl()}/api/settings/notification-display/${getUserId()}`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        show_job_id: true,
+                        show_store_number: true,
+                        show_store_name: true,
+                        show_location: true,
+                        show_date: true,
+                        show_time: true,
+                        show_dispenser_count: true,
+                        show_service_code: true,
+                        show_duration: true,
+                        date_format: "MM/DD/YYYY",
+                        time_format: "12h",
+                        timezone: "America/New_York"
+                    })
+                });
+                
+                const data = await response.json();
+                updateStatus('displayResult', response.ok, 
+                    response.ok ? 'Display settings updated successfully' : `Error: ${data.detail}`);
+                displayData('displayData', data);
+            } catch (error) {
+                updateStatus('displayResult', false, `Error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

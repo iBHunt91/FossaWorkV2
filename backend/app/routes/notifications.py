@@ -126,7 +126,7 @@ async def get_user_notification_preferences(
         )
 
 
-@router.put("/preferences/{user_id}", response_model=None)
+@router.put("/preferences/{user_id}")
 async def update_user_notification_preferences(
     user_id: str,
     preferences: NotificationPreferencesRequest,

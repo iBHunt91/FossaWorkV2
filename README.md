@@ -69,7 +69,6 @@ FossaWork/
 │   ├── debugging/            # Debug utilities
 │   └── unix/                 # Unix shell scripts
 ├── vibe_docs/                # AI documentation system
-├── V1-Archive-2025-01-07/    # Legacy V1 (archived)
 ├── CLAUDE.md                 # AI development guidelines
 └── README.md                 # This file
 ```
@@ -137,8 +136,6 @@ npm run dev
 - `PATCH /api/v1/work-orders/{id}/status` - Update status
 - Plus many more... see `/docs` for full API documentation
 
-### 🗂️ V1 Archive:
-The legacy V1 application has been archived in `V1-Archive-2025-01-07/` for reference.
 
 ---
 **Version:** 2.0.0  

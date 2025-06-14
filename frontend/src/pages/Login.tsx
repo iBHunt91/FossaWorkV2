@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Shield, UserPlus, LogIn, Eye, EyeOff } from 'lucide-react'
+import { Loader2, Shield, UserPlus, LogIn, Eye, EyeOff, Info, Activity } from 'lucide-react'
+import { AnimatedText, GradientText } from '@/components/ui/animated-text'
+import { AnimatedCard } from '@/components/ui/animated-card'
+import { RippleButton } from '@/components/ui/animated-button'
+import { Spinner } from '@/components/ui/animated-loader'
 
 interface SetupStatus {
   setup_required: boolean
@@ -15,6 +20,7 @@ interface SetupStatus {
 
 const Login: React.FC = () => {
   const navigate = useNavigate()
+  const { login } = useAuth()
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -22,6 +28,11 @@ const Login: React.FC = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [verificationStatus, setVerificationStatus] = useState<{
+    status: string
+    message: string
+    progress: number
+  } | null>(null)
 
   useEffect(() => {
     checkSetupStatus()
@@ -29,7 +40,9 @@ const Login: React.FC = () => {
 
   const checkSetupStatus = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/setup/status')
+      const response = await fetch('http://localhost:8000/api/setup/status', {
+        credentials: 'include'
+      })
       if (response.ok) {
         const data = await response.json()
         setSetupStatus(data)
@@ -48,6 +61,7 @@ const Login: React.FC = () => {
     setSubmitting(true)
     setError('')
     setSuccess('')
+    setVerificationStatus(null)
 
     console.log('[LOGIN] Form submitted with credentials:', { username: credentials.username, password: '***' })
     console.log('[LOGIN] Setup status:', setupStatus)
@@ -59,20 +73,69 @@ const Login: React.FC = () => {
     }
 
     try {
-      const endpoint = setupStatus?.setup_required 
-        ? 'http://localhost:8000/api/setup/initialize'
-        : 'http://localhost:8000/api/auth/login'
+      // Always use the auth/login endpoint - it handles both new and existing users
+      const endpoint = 'http://localhost:8000/api/auth/login'
 
       console.log('[LOGIN] Using endpoint:', endpoint)
       console.log('[LOGIN] Sending request body:', JSON.stringify(credentials))
 
-      const response = await fetch(endpoint, {
+      // Show initial verification status
+      setVerificationStatus({
+        status: 'pending',
+        message: 'Starting WorkFossa verification...',
+        progress: 0
+      })
+
+      // Start the login request
+      const loginPromise = fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(credentials),
       })
+
+      // Start polling for status updates
+      const pollInterval = setInterval(async () => {
+        try {
+          // Since we don't have the verification ID yet, we'll simulate progress
+          setVerificationStatus(prev => {
+            if (!prev) return null
+            const progress = Math.min(prev.progress + 10, 90)
+            let status = 'pending'
+            let message = 'Starting WorkFossa verification...'
+            
+            if (progress >= 20) {
+              status = 'checking'
+              message = 'Connecting to WorkFossa...'
+            }
+            if (progress >= 40) {
+              status = 'launching'
+              message = 'Launching secure browser...'
+            }
+            if (progress >= 60) {
+              status = 'navigating'
+              message = 'Navigating to WorkFossa...'
+            }
+            if (progress >= 70) {
+              status = 'logging_in'
+              message = 'Verifying your credentials...'
+            }
+            if (progress >= 80) {
+              status = 'verifying'
+              message = 'Confirming authentication...'
+            }
+            
+            return { status, message, progress }
+          })
+        } catch (err) {
+          console.error('[LOGIN] Status polling error:', err)
+        }
+      }, 500)
+
+      const response = await loginPromise
+      clearInterval(pollInterval)
 
       console.log('[LOGIN] Response status:', response.status)
       console.log('[LOGIN] Response headers:', Object.fromEntries(response.headers.entries()))
@@ -80,16 +143,28 @@ const Login: React.FC = () => {
       if (response.ok) {
         const data = await response.json()
         const token = data.access_token
+        const userData = data.user
 
-        if (token) {
-          // Store the JWT token
-          localStorage.setItem('authToken', token)
+        if (token && userData) {
+          // Use the auth context to properly login
+          login(token, {
+            id: userData.id,
+            email: userData.email,
+            username: userData.display_name || userData.username || userData.email
+          })
           
           if (setupStatus?.setup_required) {
             setSuccess('Account created successfully! Redirecting to dashboard...')
           } else {
             setSuccess('Login successful! Redirecting to dashboard...')
           }
+
+          // Complete verification
+          setVerificationStatus({
+            status: 'success',
+            message: 'Verification successful!',
+            progress: 100
+          })
 
           // Redirect to dashboard after a brief delay
           setTimeout(() => {
@@ -100,6 +175,7 @@ const Login: React.FC = () => {
         }
       } else {
         const errorData = await response.json()
+        setVerificationStatus(null) // Clear verification status on error
         if (response.status === 401) {
           setError('Invalid WorkFossa credentials. Please check your username and password.')
         } else if (response.status === 400) {
@@ -109,6 +185,7 @@ const Login: React.FC = () => {
         }
       }
     } catch (err) {
+      setVerificationStatus(null) // Clear verification status on error
       setError('Network error. Please check your connection and try again.')
     } finally {
       setSubmitting(false)
@@ -117,10 +194,10 @@ const Login: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex items-center space-x-2">
-          <Loader2 className="h-6 w-6 animate-spin" />
-          <span>Checking system status...</span>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center space-y-4">
+          <Spinner size="lg" />
+          <AnimatedText text="Checking system status..." animationType="fade" className="text-muted-foreground" />
         </div>
       </div>
     )
@@ -129,19 +206,22 @@ const Login: React.FC = () => {
   const isFirstTimeSetup = setupStatus?.setup_required
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6">
         <div className="text-center">
-          <Shield className="mx-auto h-12 w-12 text-blue-600" />
-          <h2 className="mt-4 text-3xl font-bold text-gray-900">
-            FossaWork V2
+          <div className="relative inline-block">
+            <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+            <Shield className="relative mx-auto h-12 w-12 text-primary animate-bounce-in" />
+          </div>
+          <h2 className="mt-4 text-3xl font-bold">
+            <GradientText text="FossaWork V2" gradient="from-blue-600 to-purple-600" />
           </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Fuel Dispenser Automation System
+          <p className="mt-2 text-sm text-muted-foreground">
+            <AnimatedText text="Fuel Dispenser Automation System" animationType="split" delay={0.3} />
           </p>
         </div>
 
-        <Card>
+        <AnimatedCard hover="glow" animate="slide" delay={0.5}>
           <CardHeader className="text-center">
             <CardTitle className="flex items-center justify-center space-x-2">
               {isFirstTimeSetup ? (
@@ -159,8 +239,8 @@ const Login: React.FC = () => {
             <CardDescription>
               {isFirstTimeSetup ? (
                 <>
-                  Welcome! Enter your WorkFossa credentials to create your account.
-                  Your credentials will be verified with WorkFossa before creating your profile.
+                  Welcome! Enter your WorkFossa credentials to get started.
+                  Your account will be created automatically after verification.
                 </>
               ) : (
                 <>
@@ -179,9 +259,17 @@ const Login: React.FC = () => {
                   type="text"
                   placeholder="your@email.com"
                   value={credentials.username}
-                  onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
+                  onChange={(e) => {
+                    // Remove any mailto: prefix if it exists
+                    const cleanValue = e.target.value.replace(/^mailto:/i, '');
+                    setCredentials(prev => ({ ...prev, username: cleanValue }))
+                  }}
                   required
                   disabled={submitting}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
                 />
               </div>
 
@@ -227,7 +315,46 @@ const Login: React.FC = () => {
                 </Alert>
               )}
 
-              <Button
+              {verificationStatus && (
+                <div className="space-y-3 p-4 rounded-lg border border-primary/20 bg-primary/5 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{verificationStatus.message}</span>
+                    <span className="text-xs text-muted-foreground">{verificationStatus.progress}%</span>
+                  </div>
+                  <div className="w-full bg-primary/10 rounded-full h-2 overflow-hidden">
+                    <div 
+                      className="h-full bg-primary transition-all duration-500 ease-out rounded-full animate-pulse"
+                      style={{ width: `${verificationStatus.progress}%` }}
+                    />
+                  </div>
+                  {verificationStatus.status === 'launching' && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Initializing secure browser session...</span>
+                    </div>
+                  )}
+                  {verificationStatus.status === 'navigating' && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Connecting to WorkFossa servers...</span>
+                    </div>
+                  )}
+                  {verificationStatus.status === 'logging_in' && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Shield className="w-3 h-3 animate-pulse" />
+                      <span>Verifying your credentials securely...</span>
+                    </div>
+                  )}
+                  {verificationStatus.status === 'verifying' && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Activity className="w-3 h-3 animate-pulse" />
+                      <span>Confirming authentication status...</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <RippleButton
                 type="submit"
                 className="w-full"
                 disabled={submitting}
@@ -252,25 +379,17 @@ const Login: React.FC = () => {
                     )}
                   </>
                 )}
-              </Button>
+              </RippleButton>
             </form>
 
-            {isFirstTimeSetup && (
-              <div className="mt-4 p-3 bg-blue-50 rounded-md">
-                <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> Your WorkFossa credentials will be verified in real-time. 
-                  If successful, your account will be created automatically.
-                </p>
-              </div>
-            )}
 
             <div className="mt-4 text-center">
-              <p className="text-xs text-gray-500">
-                System Status: {setupStatus?.user_count || 0} users registered
+              <p className="text-xs text-muted-foreground">
+                System Status: <span className="font-medium">{setupStatus?.user_count || 0}</span> users registered
               </p>
             </div>
           </CardContent>
-        </Card>
+        </AnimatedCard>
       </div>
     </div>
   )

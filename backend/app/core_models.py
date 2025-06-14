@@ -23,6 +23,25 @@ class WorkOrder(Base):
     work_type = Column(String(100), nullable=True)
     notes = Column(Text, nullable=True)
     scraped_data = Column(JSON, nullable=True)  # Original scraped data for reference
+    
+    # Additional fields to match V1
+    store_number = Column(String(50), nullable=True)
+    service_code = Column(String(20), nullable=True)
+    service_description = Column(Text, nullable=True)
+    visit_id = Column(String(100), nullable=True)
+    visit_url = Column(Text, nullable=True)
+    instructions = Column(Text, nullable=True)
+    
+    # New fields from updated extraction
+    service_name = Column(String(200), nullable=True)  # Service description (e.g., "AccuMeasure")
+    service_items = Column(JSON, nullable=True)  # List of services (e.g., ["6 x All Dispensers"])
+    street = Column(String(500), nullable=True)  # Street address component
+    city_state = Column(String(200), nullable=True)  # City, State ZIP component
+    county = Column(String(100), nullable=True)  # County component
+    created_date = Column(DateTime, nullable=True)  # When work order was created
+    created_by = Column(String(200), nullable=True)  # User who created the work order
+    customer_url = Column(Text, nullable=True)  # URL to customer location page
+    
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     

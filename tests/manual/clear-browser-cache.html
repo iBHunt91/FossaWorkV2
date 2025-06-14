@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Browser Cache - FossaWork V2</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #b91c1c;
+        }
+        .success {
+            background: #10b981;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            display: none;
+        }
+        .info {
+            background: #3b82f6;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .code {
+            background: #f3f4f6;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear Browser Cache - FossaWork V2</h1>
+        
+        <div class="info">
+            <strong>Why clear cache?</strong><br>
+            To test the complete new user experience, we need to remove all stored authentication data.
+        </div>
+
+        <h3>Step 1: Clear localStorage</h3>
+        <button onclick="clearLocalStorage()">Clear localStorage</button>
+        <div id="localStorageResult" class="success"></div>
+
+        <h3>Step 2: Clear sessionStorage</h3>
+        <button onclick="clearSessionStorage()">Clear sessionStorage</button>
+        <div id="sessionStorageResult" class="success"></div>
+
+        <h3>Step 3: Clear all cookies</h3>
+        <button onclick="clearCookies()">Clear Cookies</button>
+        <div id="cookiesResult" class="success"></div>
+
+        <h3>Step 4: Clear all browser data (Recommended)</h3>
+        <div class="code">
+            <strong>Manual Browser Clear:</strong><br>
+            • Chrome: Ctrl+Shift+Delete (Cmd+Shift+Delete on Mac)<br>
+            • Firefox: Ctrl+Shift+Delete (Cmd+Shift+Delete on Mac)<br>
+            • Safari: Cmd+Alt+E<br>
+            <br>
+            <strong>Select:</strong> "All time" + check all boxes
+        </div>
+
+        <h3>Step 5: Test Fresh State</h3>
+        <button onclick="testFreshState()">Test Backend Status</button>
+        <div id="statusResult" class="success"></div>
+
+        <h3>Step 6: Go to FossaWork</h3>
+        <button onclick="goToFossaWork()">Open FossaWork V2</button>
+
+        <div class="info" style="margin-top: 30px;">
+            <strong>Expected Result:</strong><br>
+            You should see the Login page with "First Time Setup" since no users exist in the system.
+        </div>
+    </div>
+
+    <script>
+        function clearLocalStorage() {
+            try {
+                localStorage.clear();
+                showSuccess('localStorageResult', '✅ localStorage cleared successfully!');
+            } catch (e) {
+                showSuccess('localStorageResult', '❌ Error clearing localStorage: ' + e.message);
+            }
+        }
+
+        function clearSessionStorage() {
+            try {
+                sessionStorage.clear();
+                showSuccess('sessionStorageResult', '✅ sessionStorage cleared successfully!');
+            } catch (e) {
+                showSuccess('sessionStorageResult', '❌ Error clearing sessionStorage: ' + e.message);
+            }
+        }
+
+        function clearCookies() {
+            try {
+                // Clear cookies for current domain
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                showSuccess('cookiesResult', '✅ Cookies cleared successfully!');
+            } catch (e) {
+                showSuccess('cookiesResult', '❌ Error clearing cookies: ' + e.message);
+            }
+        }
+
+        async function testFreshState() {
+            try {
+                const response = await fetch('http://localhost:8000/api/setup/status');
+                const data = await response.json();
+                
+                if (data.setup_required && data.user_count === 0) {
+                    showSuccess('statusResult', '✅ Backend shows fresh state! Setup required: true, Users: 0');
+                } else {
+                    showSuccess('statusResult', '⚠️ Backend state: Setup required: ' + data.setup_required + ', Users: ' + data.user_count);
+                }
+            } catch (e) {
+                showSuccess('statusResult', '❌ Error testing backend: ' + e.message);
+            }
+        }
+
+        function goToFossaWork() {
+            window.open('http://localhost:5173', '_blank');
+        }
+
+        function showSuccess(elementId, message) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+
+        // Auto-test backend status on page load
+        window.onload = function() {
+            testFreshState();
+        }
+    </script>
+</body>
+</html>

@@ -15,7 +15,11 @@ from sqlalchemy.sql import func
 import hashlib
 from datetime import datetime
 from typing import Optional, Dict, Any
+from passlib.context import CryptContext
 from ..database import Base
+
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def generate_user_id(email: str) -> str:
     """Generate MD5 hash user ID from email (V1 compatibility)"""
@@ -39,6 +43,12 @@ class User(Base):
     friendly_name = Column(String(100))  # Short name like "Bruce"
     configured_email = Column(String(255))  # Notification email
     
+    # Add username property for compatibility
+    @property
+    def username(self):
+        """Return email as username for compatibility"""
+        return self.email
+    
     # Timestamps
     last_used = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -46,6 +56,9 @@ class User(Base):
     
     # V1 notification settings structure preserved
     notification_settings = Column(JSON)  # Full V1 notification structure
+    
+    # Direct preferences storage for compatibility with existing routes
+    preferences_json = Column(JSON)  # Store preferences as JSON for compatibility
     
     # Relationships
     preferences = relationship("UserPreference", back_populates="user", cascade="all, delete-orphan")
@@ -63,6 +76,15 @@ class User(Base):
         self.id = generate_user_id(email)
         self.email = email
         super().__init__(**kwargs)
+    
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """Hash a password using bcrypt"""
+        return pwd_context.hash(password)
+    
+    def verify_password(self, password: str) -> bool:
+        """Verify a password against the hash"""
+        return pwd_context.verify(password, self.password_hash)
 
 class UserSession(Base):
     """
@@ -370,6 +392,20 @@ class UserCredential(Base):
         UniqueConstraint('user_id', 'service_name', name='unique_user_service'),
         Index('idx_user_credentials_service', 'user_id', 'service_name'),
     )
+    
+    @property
+    def username(self) -> str:
+        """Get decrypted username"""
+        # For now, we're storing in plain text
+        # TODO: Implement proper encryption
+        return self.encrypted_username
+    
+    @property
+    def password(self) -> str:
+        """Get decrypted password"""
+        # For now, we're storing in plain text
+        # TODO: Implement proper encryption
+        return self.encrypted_password
 
 def test_user_id_generation():
     """Test function to verify MD5 generation matches V1 exactly"""

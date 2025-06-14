@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 30000, // Increase timeout to 30 seconds
   headers: {
     'Content-Type': 'application/json',
   },
@@ -18,6 +18,12 @@ apiClient.interceptors.request.use(
     const startTime = Date.now()
     config.metadata = { startTime }
     
+    // Add auth token from localStorage
+    const token = localStorage.getItem('authToken')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    
     // Log the API request
     logger.info('api.request', `📤 ${config.method?.toUpperCase()} ${config.url}`, {
       url: config.url,
@@ -27,7 +33,6 @@ apiClient.interceptors.request.use(
       data: config.data
     })
     
-    // TODO: Add auth token when implemented
     return config
   },
   (error) => {
@@ -146,7 +151,7 @@ export const fetchHealthCheck = async (): Promise<HealthCheck> => {
 
 // Work Orders
 export const fetchWorkOrders = async (userId: string): Promise<WorkOrder[]> => {
-  const response = await apiClient.get(`/api/v1/work-orders?user_id=${userId}`)
+  const response = await apiClient.get(`/api/v1/work-orders/?user_id=${userId}`)
   return response.data
 }
 
@@ -173,7 +178,26 @@ export const updateWorkOrderStatus = async (
 }
 
 export const triggerScrape = async (userId: string): Promise<any> => {
-  const response = await apiClient.post(`/api/v1/work-orders/scrape?user_id=${userId}`)
+  // Use a longer timeout for scraping operations (5 minutes)
+  const response = await apiClient.post(`/api/v1/work-orders/scrape?user_id=${userId}`, {}, {
+    timeout: 300000 // 5 minutes
+  })
+  return response.data
+}
+
+// Get scraping progress
+export const getScrapingProgress = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/v1/work-orders/scrape/progress/${userId}`)
+  return response.data
+}
+
+export const triggerBatchDispenserScrape = async (userId: string): Promise<any> => {
+  const response = await apiClient.post(`/api/v1/work-orders/scrape-dispensers-batch?user_id=${userId}`)
+  return response.data
+}
+
+export const getDispenserScrapingProgress = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/v1/work-orders/scrape-dispensers/progress/${userId}`)
   return response.data
 }
 
@@ -423,6 +447,253 @@ export const createQueueWebSocket = (userId: string, onMessage: (data: any) => v
 
 // Alias for backward compatibility
 export const getWorkOrders = fetchWorkOrders
+
+// ==================================
+// NOTIFICATION API FUNCTIONS
+// ==================================
+
+export interface NotificationPreferences {
+  email_enabled: boolean
+  pushover_enabled: boolean
+  automation_started: string
+  automation_completed: string
+  automation_failed: string
+  automation_progress: string
+  schedule_change: string
+  daily_digest: string
+  weekly_summary: string
+  error_alert: string
+  digest_time: string
+  quiet_hours_start: string
+  quiet_hours_end: string
+  pushover_user_key?: string
+  pushover_device?: string
+  pushover_sound: string
+}
+
+export interface TestNotificationRequest {
+  notification_type: string
+  channel?: string
+  test_data?: Record<string, any>
+}
+
+export const getNotificationPreferences = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/notifications/preferences/${userId}`)
+  return response.data
+}
+
+export const updateNotificationPreferences = async (
+  userId: string, 
+  preferences: Partial<NotificationPreferences>
+): Promise<any> => {
+  const response = await apiClient.put(`/api/notifications/preferences/${userId}`, preferences)
+  return response.data
+}
+
+export const sendTestNotification = async (
+  userId: string, 
+  testRequest: TestNotificationRequest
+): Promise<any> => {
+  const response = await apiClient.post(`/api/notifications/test/${userId}`, testRequest)
+  return response.data
+}
+
+export const validatePushoverKey = async (
+  userId: string, 
+  pushoverUserKey: string
+): Promise<any> => {
+  const response = await apiClient.post(`/api/notifications/validate-pushover/${userId}`, null, {
+    params: { pushover_user_key: pushoverUserKey }
+  })
+  return response.data
+}
+
+export const getNotificationStatus = async (): Promise<any> => {
+  const response = await apiClient.get('/api/notifications/status')
+  return response.data
+}
+
+export const sendManualDigest = async (
+  userId: string, 
+  digestType: 'daily' | 'weekly' = 'daily'
+): Promise<any> => {
+  const response = await apiClient.post(`/api/notifications/digest/${userId}?digest_type=${digestType}`)
+  return response.data
+}
+
+// ==================================
+// SETTINGS API FUNCTIONS
+// ==================================
+
+// SMTP Settings
+export interface SMTPSettings {
+  smtp_server: string
+  smtp_port: number
+  username: string
+  password: string
+  use_tls: boolean
+  use_ssl: boolean
+  from_email?: string
+  from_name: string
+  timeout: number
+}
+
+export const getSMTPSettings = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/settings/smtp/${userId}`)
+  return response.data
+}
+
+export const updateSMTPSettings = async (userId: string, settings: SMTPSettings): Promise<any> => {
+  const response = await apiClient.post(`/api/settings/smtp/${userId}`, settings)
+  return response.data
+}
+
+export const testSMTPSettings = async (userId: string, testEmail: string): Promise<any> => {
+  const response = await apiClient.post(`/api/settings/smtp/${userId}/test`, null, {
+    params: { test_email: testEmail }
+  })
+  return response.data
+}
+
+// Work Order Filter Settings
+export interface WorkOrderFilterSettings {
+  enabled: boolean
+  filter_by_stores: string[]
+  filter_by_locations: string[]
+  filter_by_customers: string[]
+  filter_by_service_codes: string[]
+  exclude_stores: string[]
+  exclude_completed: boolean
+  saved_filters: Record<string, any>
+}
+
+export const getFilterSettings = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/settings/filters/${userId}`)
+  return response.data
+}
+
+export const updateFilterSettings = async (userId: string, settings: WorkOrderFilterSettings): Promise<any> => {
+  const response = await apiClient.post(`/api/settings/filters/${userId}`, settings)
+  return response.data
+}
+
+// Automation Delay Settings
+export interface AutomationDelaySettings {
+  form_field_delay: number
+  page_navigation_delay: number
+  click_action_delay: number
+  dropdown_select_delay: number
+  overall_speed_multiplier: number
+  browser_timeout: number
+  retry_delay: number
+  max_retries: number
+}
+
+export const getAutomationDelays = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/settings/automation-delays/${userId}`)
+  return response.data
+}
+
+export const updateAutomationDelays = async (userId: string, settings: AutomationDelaySettings): Promise<any> => {
+  const response = await apiClient.post(`/api/settings/automation-delays/${userId}`, settings)
+  return response.data
+}
+
+// Prover Settings
+export interface ProverPreference {
+  serial_number: string
+  name: string
+  fuel_type_mappings: Record<string, string>
+  priority: number
+  is_default: boolean
+  notes?: string
+}
+
+export interface ProverSettings {
+  provers: ProverPreference[]
+  auto_select_default: boolean
+  remember_last_selection: boolean
+}
+
+export const getProverSettings = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/settings/provers/${userId}`)
+  return response.data
+}
+
+export const updateProverSettings = async (userId: string, settings: ProverSettings): Promise<any> => {
+  const response = await apiClient.post(`/api/settings/provers/${userId}`, settings)
+  return response.data
+}
+
+// Browser Settings
+export interface BrowserSettings {
+  headless: boolean
+  browser_type: string
+  enable_screenshots: boolean
+  enable_debug_mode: boolean
+  viewport_width: number
+  viewport_height: number
+  disable_images: boolean
+  clear_cache_on_start: boolean
+}
+
+export const getBrowserSettings = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/settings/browser/${userId}`)
+  return response.data
+}
+
+export const updateBrowserSettings = async (userId: string, settings: BrowserSettings): Promise<any> => {
+  const response = await apiClient.post(`/api/settings/browser/${userId}`, settings)
+  return response.data
+}
+
+// Schedule Settings
+export interface ScheduleSettings {
+  auto_scrape_enabled: boolean
+  scrape_interval_minutes: number
+  scrape_times: string[]
+  schedule_change_check_minutes: number
+  working_hours_start: string
+  working_hours_end: string
+  work_on_weekends: boolean
+  holiday_dates: string[]
+}
+
+export const getScheduleSettings = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/settings/schedule/${userId}`)
+  return response.data
+}
+
+export const updateScheduleSettings = async (userId: string, settings: ScheduleSettings): Promise<any> => {
+  const response = await apiClient.post(`/api/settings/schedule/${userId}`, settings)
+  return response.data
+}
+
+// Notification Display Settings
+export interface NotificationDisplaySettings {
+  show_job_id: boolean
+  show_store_number: boolean
+  show_store_name: boolean
+  show_location: boolean
+  show_date: boolean
+  show_time: boolean
+  show_dispenser_count: boolean
+  show_service_code: boolean
+  show_duration: boolean
+  date_format: string
+  time_format: string
+  timezone: string
+}
+
+export const getNotificationDisplaySettings = async (userId: string): Promise<any> => {
+  const response = await apiClient.get(`/api/settings/notification-display/${userId}`)
+  return response.data
+}
+
+export const updateNotificationDisplaySettings = async (userId: string, settings: NotificationDisplaySettings): Promise<any> => {
+  const response = await apiClient.post(`/api/settings/notification-display/${userId}`, settings)
+  return response.data
+}
 
 // Export axios instance for custom requests
 export { apiClient }

@@ -399,33 +399,56 @@ class BrowserAutomationService:
             logger.error(f"Failed to initialize browser automation: {e}")
             return False
     
-    @with_error_recovery(operation_type="session_creation")
     async def create_session(self, session_id: str, user_agent: Optional[str] = None) -> bool:
         """Create new automation session"""
         try:
+            logger.info(f"create_session called for {session_id}")
+            logger.info(f"browser exists: {self.browser is not None}")
+            logger.info(f"browser type: {type(self.browser)}")
+            
             if not self.browser:
+                logger.info("Browser not initialized, initializing...")
                 success = await self.initialize()
                 if not success:
                     return False
             
+            logger.info("Creating browser context...")
             # Create browser context with stealth settings
-            context = await self.browser.new_context(
-                user_agent=user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                viewport={"width": 1366, "height": 768},
-                ignore_https_errors=True,
-                java_script_enabled=True
-            )
+            try:
+                context = await self.browser.new_context(
+                    user_agent=user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    viewport={"width": 1366, "height": 768},
+                    ignore_https_errors=True
+                )
+            except Exception as ctx_error:
+                logger.error(f"Error creating context: {ctx_error}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise
             
             # Add stealth scripts
-            await context.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined,
-                });
-            """)
+            logger.info("Adding stealth scripts...")
+            try:
+                await context.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined,
+                    });
+                """)
+            except Exception as script_error:
+                logger.error(f"Error adding init script: {script_error}")
+                # Continue anyway
             
             # Create page
-            page = await context.new_page()
-            await page.set_default_timeout(self.timeout)
+            logger.info("Creating page...")
+            try:
+                page = await context.new_page()
+                logger.info(f"Page created, setting timeout to {self.timeout}ms...")
+                page.set_default_timeout(self.timeout)
+            except Exception as page_error:
+                logger.error(f"Error creating page: {page_error}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
+                raise
             
             # Store session
             self.contexts[session_id] = context
@@ -466,7 +489,7 @@ class BrowserAutomationService:
             await self._emit_progress(session_id, AutomationPhase.NAVIGATING, 10, "Navigating to WorkFossa...")
             
             # Navigate to WorkFossa login
-            await page.goto("https://app.workfossa.com/login", wait_until="networkidle")
+            await page.goto("https://app.workfossa.com", wait_until="networkidle")
             await self._take_screenshot(session_id, "workfossa_login_page")
             
             await self._emit_progress(session_id, AutomationPhase.LOGGING_IN, 20, "Logging into WorkFossa...")
@@ -476,7 +499,7 @@ class BrowserAutomationService:
             await page.fill("input[name='password'], input[type='password']", credentials["password"])
             
             # Click login button
-            login_button = page.locator("button[type='submit'], button:has-text('Login'), button:has-text('Sign In')")
+            login_button = page.locator("input[type='submit'][value='Log In']")
             await login_button.click()
             
             # Wait for login to complete

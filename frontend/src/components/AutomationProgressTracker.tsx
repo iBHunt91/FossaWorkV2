@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Card from './Card';
-import LoadingSpinner from './LoadingSpinner';
+import { Activity, Wifi, WifiOff, Zap, AlertTriangle, AlertCircle } from 'lucide-react';
+import { AnimatedCard, GlowCard } from '@/components/ui/animated-card';
+import { AnimatedText, ShimmerText } from '@/components/ui/animated-text';
+import { DotsLoader, ProgressLoader } from '@/components/ui/animated-loader';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface AutomationProgress {
   job_id: string;
@@ -227,12 +232,12 @@ export const AutomationProgressTracker: React.FC<AutomationProgressTrackerProps>
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const getStatusColor = (status: string): string => {
+  const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
     switch (status) {
-      case 'running': return 'text-blue-600';
-      case 'completed': return 'text-green-600';
-      case 'failed': return 'text-red-600';
-      default: return 'text-gray-600';
+      case 'running': return 'secondary';
+      case 'completed': return 'default';
+      case 'failed': return 'destructive';
+      default: return 'outline';
     }
   };
 
@@ -256,72 +261,86 @@ export const AutomationProgressTracker: React.FC<AutomationProgressTrackerProps>
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
-    <Card className="p-6">
-      <div className="space-y-4">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Automation Progress Tracker
-          </h3>
+    <AnimatedCard animate="slide" hover="lift" className="glass-dark">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-primary animate-pulse" />
+            <ShimmerText text="Automation Progress Tracker" />
+          </div>
           
           <div className="flex items-center space-x-3">
             {/* Connection Status */}
-            <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${
-                connectionStatus === 'connected' ? 'bg-green-500' :
-                connectionStatus === 'connecting' ? 'bg-yellow-500' :
-                'bg-red-500'
-              }`} />
-              <span className="text-sm text-gray-600 capitalize">
-                {connectionStatus}
-              </span>
-            </div>
+            <Badge 
+              variant={connectionStatus === 'connected' ? 'default' : connectionStatus === 'connecting' ? 'secondary' : 'destructive'}
+              className={`flex items-center gap-2 ${
+                connectionStatus === 'connected' ? 'badge-gradient' : ''
+              }`}
+            >
+              {connectionStatus === 'connected' ? (
+                <Wifi className="w-3 h-3" />
+              ) : (
+                <WifiOff className="w-3 h-3" />
+              )}
+              <span className="capitalize">{connectionStatus}</span>
+            </Badge>
             
             {/* Last Update */}
             {lastUpdate && (
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-muted-foreground">
                 Last update: {lastUpdate.toLocaleTimeString()}
               </span>
             )}
           </div>
-        </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
 
         {/* Active Jobs */}
         {activeJobsArray.length === 0 ? (
           <div className="text-center py-8">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No active automations</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Start an automation job to see real-time progress here.
+            <Zap className="mx-auto h-12 w-12 text-muted-foreground animate-bounce" />
+            <h3 className="mt-2 text-sm font-medium">
+              <AnimatedText text="No active automations" animationType="reveal" />
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              <AnimatedText text="Start an automation job to see real-time progress here." animationType="fade" delay={0.2} />
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {activeJobsArray.map((job) => {
+          <div className="max-h-96 overflow-y-auto space-y-4 pr-2">
+            {activeJobsArray.map((job, index) => {
               const latestProgress = getLatestProgress(job);
               
               return (
-                <Card key={job.job_id} className="p-4 bg-gray-50">
-                  <div className="space-y-3">
+                <GlowCard 
+                  key={job.job_id} 
+                  className="p-4 glass animate-slide-in-from-right mb-4"
+                  style={{animationDelay: `${index * 0.1}s`}}
+                  glowColor={job.status === 'running' ? 'rgba(59, 130, 246, 0.3)' : undefined}
+                >
+                  <div className="space-y-4">
                     {/* Job Header */}
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-medium text-gray-900">
-                          Job {job.job_id.substring(0, 8)}...
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-medium truncate">
+                          <AnimatedText text={`Job ${job.job_id.substring(0, 8)}...`} animationType="fade" />
                         </h4>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground mt-1">
                           Started: {formatTimestamp(job.started_at || job.created_at)}
                         </p>
                       </div>
                       
-                      <div className="text-right">
-                        <span className={`font-medium capitalize ${getStatusColor(job.status)}`}>
+                      <div className="text-right ml-4 flex-shrink-0">
+                        <Badge 
+                          variant={getStatusBadgeVariant(job.status)}
+                          className={job.status === 'completed' ? 'badge-gradient' : ''}
+                        >
                           {job.status}
-                        </span>
+                        </Badge>
                         {job.completed_at && (
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground mt-1">
                             Completed: {formatTimestamp(job.completed_at)}
                           </p>
                         )}
@@ -330,32 +349,31 @@ export const AutomationProgressTracker: React.FC<AutomationProgressTrackerProps>
 
                     {/* Current Progress */}
                     {latestProgress && job.status === 'running' && (
-                      <div className="space-y-2">
+                      <div className="space-y-3 border-t border-border/50 pt-3">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-gray-700">
+                          <span className="text-sm font-medium leading-tight">
                             {getPhaseDescription(latestProgress.phase)}
                           </span>
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-sm font-semibold">
                             {Math.round(latestProgress.percentage)}%
                           </span>
                         </div>
                         
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${latestProgress.percentage}%` }}
-                          />
+                        <ProgressLoader progress={latestProgress.percentage} showPercentage={false} />
+                        
+                        <div className="bg-muted/30 rounded-md p-3">
+                          <p className="text-xs text-muted-foreground break-words">
+                            <AnimatedText text={latestProgress.message} animationType="fade" />
+                          </p>
                         </div>
                         
-                        <p className="text-xs text-gray-600">{latestProgress.message}</p>
-                        
                         {latestProgress.dispenser_id && (
-                          <div className="flex items-center space-x-2 text-xs">
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full">
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            <Badge variant="secondary" className="chip chip-primary">
                               Current: Dispenser {latestProgress.dispenser_id}
-                            </span>
+                            </Badge>
                             {latestProgress.fuel_grades.length > 0 && (
-                              <span className="text-gray-600">
+                              <span className="text-xs text-muted-foreground">
                                 Grades: {latestProgress.fuel_grades.join(', ')}
                               </span>
                             )}
@@ -366,20 +384,23 @@ export const AutomationProgressTracker: React.FC<AutomationProgressTrackerProps>
 
                     {/* Error Message */}
                     {job.error_message && (
-                      <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                        <p className="text-sm text-red-700">{job.error_message}</p>
-                      </div>
+                      <Alert variant="destructive" className="alert-modern error mt-3">
+                        <AlertTriangle className="w-4 h-4" />
+                        <AlertDescription className="break-words">{job.error_message}</AlertDescription>
+                      </Alert>
                     )}
 
                     {/* Running Indicator */}
                     {job.status === 'running' && (
-                      <div className="flex items-center space-x-2 text-blue-600">
-                        <LoadingSpinner size="small" />
-                        <span className="text-sm">Automation in progress...</span>
+                      <div className="flex items-center space-x-2 pt-2 border-t border-border/50">
+                        <DotsLoader size="sm" />
+                        <span className="text-sm text-primary">
+                          <AnimatedText text="Automation in progress..." animationType="fade" />
+                        </span>
                       </div>
                     )}
                   </div>
-                </Card>
+                </GlowCard>
               );
             })}
           </div>
@@ -387,23 +408,17 @@ export const AutomationProgressTracker: React.FC<AutomationProgressTrackerProps>
 
         {/* Connection Lost Warning */}
         {connectionStatus === 'disconnected' && (
-          <Card className="p-4 bg-yellow-50 border-yellow-200">
-            <div className="flex items-center">
-              <svg className="h-5 w-5 text-yellow-400 mr-3" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              <div>
-                <h4 className="text-sm font-medium text-yellow-800">
-                  Connection Lost
-                </h4>
-                <p className="text-sm text-yellow-700">
-                  Real-time updates are temporarily unavailable. Attempting to reconnect...
-                </p>
-              </div>
-            </div>
-          </Card>
+          <Alert className="alert-modern warning animate-slide-in-from-bottom">
+            <AlertTriangle className="w-4 h-4" />
+            <AlertDescription>
+              <span className="font-medium">Connection Lost</span>
+              <br />
+              Real-time updates are temporarily unavailable. Attempting to reconnect...
+            </AlertDescription>
+          </Alert>
         )}
-      </div>
-    </Card>
+        </div>
+      </CardContent>
+    </AnimatedCard>
   );
 };

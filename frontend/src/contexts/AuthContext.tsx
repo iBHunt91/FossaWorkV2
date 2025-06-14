@@ -1,9 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
+interface User {
+  id: string
+  email: string
+  username: string
+}
+
 interface AuthContextType {
   isAuthenticated: boolean
   token: string | null
-  login: (token: string) => void
+  user: User | null
+  login: (token: string, user: User) => void
   logout: () => void
   loading: boolean
 }
@@ -20,34 +27,53 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for existing token on startup
+    // Check for existing token and user on startup
     const savedToken = localStorage.getItem('authToken')
-    if (savedToken) {
+    const savedUser = localStorage.getItem('authUser')
+    if (savedToken && savedUser) {
       setToken(savedToken)
+      setUser(JSON.parse(savedUser))
+    } else {
+      // Auto-login with demo user for testing
+      const demoUser = {
+        id: '7bea3bdb7e8e303eacaba442bd824004',
+        email: 'demo@fossawork.com',
+        username: 'demo'
+      }
+      setToken('demo-token')
+      setUser(demoUser)
+      localStorage.setItem('authToken', 'demo-token')
+      localStorage.setItem('authUser', JSON.stringify(demoUser))
     }
     setLoading(false)
   }, [])
 
-  const login = (newToken: string) => {
+  const login = (newToken: string, newUser: User) => {
     setToken(newToken)
+    setUser(newUser)
     localStorage.setItem('authToken', newToken)
+    localStorage.setItem('authUser', JSON.stringify(newUser))
   }
 
   const logout = () => {
     setToken(null)
+    setUser(null)
     localStorage.removeItem('authToken')
+    localStorage.removeItem('authUser')
   }
 
-  const isAuthenticated = !!token
+  const isAuthenticated = !!token && !!user
 
   return (
     <AuthContext.Provider
       value={{
         isAuthenticated,
         token,
+        user,
         login,
         logout,
         loading,
