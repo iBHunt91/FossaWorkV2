@@ -1283,19 +1283,20 @@ const WorkOrders: React.FC = () => {
               {filteredWorkOrders.length > 0 && (
                 <div className="flex items-center gap-4 pb-2 border-b border-border/50">
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault()
                       if (selectedWorkOrders.size === filteredWorkOrders.length) {
                         deselectAllWorkOrders()
                       } else {
                         selectAllWorkOrders()
                       }
                     }}
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="flex items-center gap-2 px-3 py-1 -mx-3 -my-1 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer rounded hover:bg-accent/50"
                   >
                     {selectedWorkOrders.size === filteredWorkOrders.length ? (
                       <CheckSquare className="w-4 h-4 text-primary" />
                     ) : (
-                      <Square className="w-4 h-4" />
+                      <Square className="w-4 h-4 hover:text-primary/70" />
                     )}
                     Select All ({filteredWorkOrders.length})
                   </button>
@@ -1395,19 +1396,29 @@ const WorkOrders: React.FC = () => {
                   <div className="flex justify-between items-start">
                     <div className="flex items-start gap-3">
                       {/* Selection Checkbox */}
-                      <button
+                      <div
                         onClick={(e) => {
                           e.stopPropagation()
+                          e.preventDefault()
                           toggleWorkOrderSelection(workOrder.id)
                         }}
-                        className="mt-1 text-muted-foreground hover:text-foreground transition-colors"
+                        className="p-2 -m-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
+                        role="checkbox"
+                        aria-checked={selectedWorkOrders.has(workOrder.id)}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === ' ' || e.key === 'Enter') {
+                            e.preventDefault()
+                            toggleWorkOrderSelection(workOrder.id)
+                          }
+                        }}
                       >
                         {selectedWorkOrders.has(workOrder.id) ? (
                           <CheckSquare className="w-5 h-5 text-primary" />
                         ) : (
-                          <Square className="w-5 h-5" />
+                          <Square className="w-5 h-5 hover:text-primary/70" />
                         )}
-                      </button>
+                      </div>
                       
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
