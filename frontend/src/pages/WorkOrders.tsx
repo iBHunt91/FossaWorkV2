@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download } from 'lucide-react'
+import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square } from 'lucide-react'
 import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
+import { useDebouncedCallback } from 'use-debounce'
+import { useWorkOrderScrapingProgress, useDispenserScrapingProgress, useSingleDispenserProgress } from '../hooks/useProgressPolling'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -72,9 +74,11 @@ interface EnhancedWorkOrder {
 
 const WorkOrders: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [brandFilter, setBrandFilter] = useState('all')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [selectedWorkOrders, setSelectedWorkOrders] = useState<Set<string>>(new Set())
   const [scrapeStatus, setScrapeStatus] = useState<'idle' | 'scraping' | 'success' | 'error'>('idle')
   const [scrapeMessage, setScrapeMessage] = useState('')
   const [scrapingProgress, setScrapingProgress] = useState<any>(null)
@@ -90,7 +94,6 @@ const WorkOrders: React.FC = () => {
   // Single dispenser scraping state
   const [singleDispenserProgress, setSingleDispenserProgress] = useState<any>(null)
   const [activeScrapeWorkOrderId, setActiveScrapeWorkOrderId] = useState<string | null>(null)
-  const singleDispenserPollInterval = React.useRef<NodeJS.Timeout | null>(null)
   
   // Dispenser modal state
   const [showDispenserModal, setShowDispenserModal] = useState(false)
@@ -103,14 +106,19 @@ const WorkOrders: React.FC = () => {
   const queryClient = useQueryClient()
   const { user } = useAuth()
 
-  // Cleanup on unmount
+  // Debounced search implementation
+  const debouncedSearch = useDebouncedCallback(
+    (value: string) => {
+      setDebouncedSearchTerm(value)
+    },
+    300 // 300ms delay
+  )
+
+  // Update debounced search term when search term changes
   React.useEffect(() => {
-    return () => {
-      if (singleDispenserPollInterval.current) {
-        clearInterval(singleDispenserPollInterval.current)
-      }
-    }
-  }, [])
+    debouncedSearch(searchTerm)
+  }, [searchTerm, debouncedSearch])
+
 
   // Require authentication
   if (!user) {
@@ -126,6 +134,108 @@ const WorkOrders: React.FC = () => {
   }
 
   const currentUserId = user.id
+
+  // Use custom hooks for progress polling
+  const {
+    data: workOrderProgress,
+    isPolling: isPollingWorkOrders
+  } = useWorkOrderScrapingProgress(currentUserId, isPollingProgress)
+
+  const {
+    data: dispenserProgress,
+    isPolling: isPollingDispensers
+  } = useDispenserScrapingProgress(currentUserId, isPollingDispenserProgress)
+
+  const {
+    data: singleDispenserProgressData,
+    isPolling: isPollingSingleDispenser
+  } = useSingleDispenserProgress(currentUserId, activeScrapeWorkOrderId, !!activeScrapeWorkOrderId)
+
+  // Update state when progress data changes
+  useEffect(() => {
+    if (workOrderProgress) {
+      setScrapingProgress(workOrderProgress)
+      
+      if (workOrderProgress.status === 'completed' || workOrderProgress.status === 'failed') {
+        setIsPollingProgress(false)
+        setScrapeStatus(workOrderProgress.status === 'completed' ? 'success' : 'error')
+        setScrapeMessage(workOrderProgress.message)
+        localStorage.removeItem(`wo_scraping_${currentUserId}`)
+        
+        if (workOrderProgress.status === 'completed') {
+          queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+        }
+        
+        setTimeout(() => {
+          setScrapingProgress(null)
+          setScrapeStatus('idle')
+          setScrapeMessage('')
+        }, 5000)
+      }
+    }
+  }, [workOrderProgress, currentUserId, queryClient])
+
+  useEffect(() => {
+    if (dispenserProgress) {
+      setDispenserScrapingProgress(dispenserProgress)
+      
+      if (dispenserProgress.status === 'completed' || dispenserProgress.status === 'failed') {
+        setIsPollingDispenserProgress(false)
+        setDispenserScrapeStatus(dispenserProgress.status === 'completed' ? 'success' : 'error')
+        setDispenserScrapeMessage(dispenserProgress.message)
+        localStorage.removeItem(`disp_scraping_${currentUserId}`)
+        
+        if (dispenserProgress.status === 'completed') {
+          queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+        }
+        
+        setTimeout(() => {
+          setDispenserScrapingProgress(null)
+          setDispenserScrapeStatus('idle')
+          setDispenserScrapeMessage('')
+        }, 5000)
+      }
+    }
+  }, [dispenserProgress, currentUserId, queryClient])
+
+  useEffect(() => {
+    if (singleDispenserProgressData) {
+      setSingleDispenserProgress(singleDispenserProgressData)
+      
+      if (singleDispenserProgressData.status === 'completed' || singleDispenserProgressData.percentage >= 100) {
+        setSingleDispenserProgress({
+          ...singleDispenserProgressData,
+          percentage: 100,
+          status: 'in_progress',
+          message: singleDispenserProgressData.message || 'Completing...'
+        })
+        
+        setTimeout(async () => {
+          setDispenserScrapeStatus('success')
+          setDispenserScrapeMessage(singleDispenserProgressData.message || `Successfully scraped dispensers`)
+          setSingleDispenserProgress(null)
+          setActiveScrapeWorkOrderId(null)
+          
+          await queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+          
+          setTimeout(() => {
+            setDispenserScrapeStatus('idle')
+            setDispenserScrapeMessage('')
+          }, 5000)
+        }, 500)
+      } else if (singleDispenserProgressData.status === 'failed') {
+        setDispenserScrapeStatus('error')
+        setDispenserScrapeMessage(singleDispenserProgressData.error || 'Dispenser scraping failed')
+        setSingleDispenserProgress(null)
+        setActiveScrapeWorkOrderId(null)
+        
+        setTimeout(() => {
+          setDispenserScrapeStatus('idle')
+          setDispenserScrapeMessage('')
+        }, 5000)
+      }
+    }
+  }, [singleDispenserProgressData, queryClient])
 
   // Check for existing scraping progress on component mount
   useEffect(() => {
@@ -181,93 +291,6 @@ const WorkOrders: React.FC = () => {
     checkExistingProgress()
   }, [currentUserId])
 
-  // Poll for scraping progress
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null
-    
-    if (isPollingProgress && currentUserId) {
-      intervalId = setInterval(async () => {
-        try {
-          const progress = await getScrapingProgress(currentUserId)
-          setScrapingProgress(progress)
-          
-          // Stop polling if scraping is complete or failed
-          if (progress.status === 'completed' || progress.status === 'failed') {
-            setIsPollingProgress(false)
-            setScrapeStatus(progress.status === 'completed' ? 'success' : 'error')
-            setScrapeMessage(progress.message)
-            
-            // Clear localStorage
-            localStorage.removeItem(`wo_scraping_${currentUserId}`)
-            
-            // Refresh work orders if successful
-            if (progress.status === 'completed') {
-              queryClient.invalidateQueries({ queryKey: ['work-orders'] })
-            }
-            
-            // Clear progress after 5 seconds
-            setTimeout(() => {
-              setScrapingProgress(null)
-              setScrapeStatus('idle')
-              setScrapeMessage('')
-            }, 5000)
-          }
-        } catch (error) {
-          console.error('Failed to fetch scraping progress:', error)
-        }
-      }, 1000) // Poll every second
-    }
-    
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId)
-      }
-    }
-  }, [isPollingProgress, currentUserId, queryClient])
-
-  // Poll for dispenser scraping progress
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null
-    
-    if (isPollingDispenserProgress && currentUserId) {
-      intervalId = setInterval(async () => {
-        try {
-          const progress = await getDispenserScrapingProgress(currentUserId)
-          setDispenserScrapingProgress(progress)
-          
-          // Stop polling if scraping is complete or failed
-          if (progress.status === 'completed' || progress.status === 'failed') {
-            setIsPollingDispenserProgress(false)
-            setDispenserScrapeStatus(progress.status === 'completed' ? 'success' : 'error')
-            setDispenserScrapeMessage(progress.message)
-            
-            // Clear localStorage
-            localStorage.removeItem(`disp_scraping_${currentUserId}`)
-            
-            // Refresh work orders if successful
-            if (progress.status === 'completed') {
-              queryClient.invalidateQueries({ queryKey: ['work-orders'] })
-            }
-            
-            // Clear progress after 5 seconds
-            setTimeout(() => {
-              setDispenserScrapingProgress(null)
-              setDispenserScrapeStatus('idle')
-              setDispenserScrapeMessage('')
-            }, 5000)
-          }
-        } catch (error) {
-          console.error('Failed to fetch dispenser scraping progress:', error)
-        }
-      }, 1000) // Poll every second
-    }
-    
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId)
-      }
-    }
-  }, [isPollingDispenserProgress, currentUserId, queryClient])
 
   const { data: rawWorkOrders, isLoading, error } = useQuery({
     queryKey: ['work-orders', currentUserId],
@@ -607,11 +630,12 @@ const WorkOrders: React.FC = () => {
     }
   }
 
-  // Filter work orders
+  // Filter work orders using debounced search term
   const filteredWorkOrders = useMemo(() => {
     return workOrders.filter((wo) => {
-      const searchText = searchTerm.toLowerCase()
+      const searchText = debouncedSearchTerm.toLowerCase()
       const matchesSearch = 
+        !searchText || // Show all if no search term
         wo.site_name.toLowerCase().includes(searchText) ||
         wo.external_id.toLowerCase().includes(searchText) ||
         wo.address.toLowerCase().includes(searchText) ||
@@ -624,7 +648,7 @@ const WorkOrders: React.FC = () => {
 
       return matchesSearch && matchesStatus && matchesBrand
     })
-  }, [workOrders, searchTerm, statusFilter, brandFilter])
+  }, [workOrders, debouncedSearchTerm, statusFilter, brandFilter])
 
   const handleScrape = () => {
     console.log('Starting work order scrape for user:', currentUserId)
@@ -640,18 +664,46 @@ const WorkOrders: React.FC = () => {
     statusUpdateMutation.mutate({ workOrderId, status })
   }
 
+  // Handle work order selection
+  const toggleWorkOrderSelection = (workOrderId: string) => {
+    const newSelection = new Set(selectedWorkOrders)
+    if (newSelection.has(workOrderId)) {
+      newSelection.delete(workOrderId)
+    } else {
+      newSelection.add(workOrderId)
+    }
+    setSelectedWorkOrders(newSelection)
+  }
+
+  const selectAllWorkOrders = () => {
+    const allIds = new Set(filteredWorkOrders.map(wo => wo.id))
+    setSelectedWorkOrders(allIds)
+  }
+
+  const deselectAllWorkOrders = () => {
+    setSelectedWorkOrders(new Set())
+  }
+
+  // Handle batch operations
+  const handleBatchDispenserScrape = async () => {
+    if (selectedWorkOrders.size === 0) return
+
+    console.log(`Starting batch dispenser scrape for ${selectedWorkOrders.size} selected work orders`)
+    
+    // Clear selections after starting
+    deselectAllWorkOrders()
+    
+    // For now, trigger batch scraping for the entire user
+    // In the future, we could implement selective batch scraping
+    handleDispenserScrape()
+  }
+
   // Handler for scraping dispensers for a specific work order
   const handleScrapeDispensers = async (workOrder: EnhancedWorkOrder, event?: React.MouseEvent) => {
     // Prevent any default behavior
     if (event) {
       event.preventDefault()
       event.stopPropagation()
-    }
-    
-    // Clear any existing polling interval
-    if (singleDispenserPollInterval.current) {
-      clearInterval(singleDispenserPollInterval.current)
-      singleDispenserPollInterval.current = null
     }
     
     try {
@@ -673,101 +725,8 @@ const WorkOrders: React.FC = () => {
       const result = await scrapeDispensersForWorkOrder(workOrder.id, currentUserId)
       
       if (result.status === 'scraping_started') {
-        // Wait a bit before starting to poll to ensure backend has initialized progress
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        // Start polling for progress
-        singleDispenserPollInterval.current = setInterval(async () => {
-          try {
-            const progressResponse = await fetch(
-              `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/work-orders/${workOrder.id}/scrape-dispensers/progress?user_id=${currentUserId}`,
-              { 
-                credentials: 'include',
-                headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-                  'Content-Type': 'application/json'
-                }
-              }
-            )
-            
-            if (!progressResponse.ok) {
-              console.error('Progress endpoint error:', progressResponse.status, progressResponse.statusText)
-              return
-            }
-            
-            const progress = await progressResponse.json()
-            console.log('Single dispenser progress:', progress)
-            
-            if (progress.status === 'in_progress') {
-              setDispenserScrapeMessage(progress.message || 'Scraping in progress...')
-              setSingleDispenserProgress(progress)
-            } else if (progress.status === 'completed' || (progress.percentage && progress.percentage >= 100)) {
-              // Update progress to show 100% before transitioning to success
-              setSingleDispenserProgress({
-                ...progress,
-                percentage: 100,
-                status: 'in_progress',
-                message: progress.message || 'Completing...'
-              })
-              
-              // Wait a bit to show 100% before transitioning to success
-              setTimeout(async () => {
-                if (singleDispenserPollInterval.current) {
-                  clearInterval(singleDispenserPollInterval.current)
-                  singleDispenserPollInterval.current = null
-                }
-                setDispenserScrapeStatus('success')
-                setDispenserScrapeMessage(progress.message || `Successfully scraped dispensers for ${workOrder.external_id}`)
-                setSingleDispenserProgress(null)
-                
-                // Refresh work orders to show updated dispenser data
-                await queryClient.invalidateQueries({ queryKey: ['work-orders'] })
-                
-                // Clear message after delay
-                setTimeout(() => {
-                  setDispenserScrapeStatus('idle')
-                  setDispenserScrapeMessage('')
-                  setActiveScrapeWorkOrderId(null)
-                }, 5000)
-              }, 500) // Show 100% for half a second before success message
-            } else if (progress.status === 'failed') {
-              if (singleDispenserPollInterval.current) {
-                clearInterval(singleDispenserPollInterval.current)
-                singleDispenserPollInterval.current = null
-              }
-              setDispenserScrapeStatus('error')
-              setDispenserScrapeMessage(progress.error || 'Dispenser scraping failed')
-              
-              // Clear message after delay
-              setTimeout(() => {
-                setDispenserScrapeStatus('idle')
-                setDispenserScrapeMessage('')
-                setSingleDispenserProgress(null)
-                setActiveScrapeWorkOrderId(null)
-              }, 5000)
-            }
-          } catch (error) {
-            console.error('Error polling dispenser scrape progress:', error)
-          }
-        }, 1000) // Poll every second
-        
-        // Set a timeout to stop polling after 2 minutes
-        setTimeout(() => {
-          if (singleDispenserPollInterval.current) {
-            clearInterval(singleDispenserPollInterval.current)
-            singleDispenserPollInterval.current = null
-          }
-          if (dispenserScrapeStatus === 'scraping') {
-            setDispenserScrapeStatus('error')
-            setDispenserScrapeMessage('Scraping timeout - please try again')
-            setSingleDispenserProgress(null)
-            setActiveScrapeWorkOrderId(null)
-            setTimeout(() => {
-              setDispenserScrapeStatus('idle')
-              setDispenserScrapeMessage('')
-            }, 5000)
-          }
-        }, 120000)
+        // The polling hook will automatically handle progress updates
+        console.log('Dispenser scraping started, polling will handle progress')
       } else {
         setDispenserScrapeMessage(result.message || 'Failed to start dispenser scraping')
         setDispenserScrapeStatus('error')
@@ -911,6 +870,33 @@ const WorkOrders: React.FC = () => {
               <Fuel className={`w-4 h-4 mr-2 ${dispenserScrapeStatus === 'scraping' ? 'animate-spin' : ''}`} />
               {dispenserScrapeStatus === 'scraping' ? 'Scraping Dispensers...' : 'Scrape Dispensers'}
             </AnimatedButton>
+            
+            {/* Batch Actions */}
+            {selectedWorkOrders.size > 0 && (
+              <>
+                <div className="h-10 w-px bg-border/50" />
+                <AnimatedButton
+                  onClick={handleBatchDispenserScrape}
+                  disabled={selectedWorkOrders.size === 0}
+                  size="lg"
+                  variant="outline"
+                  animation="scale"
+                  className="min-w-[200px] border-orange-500/50 hover:border-orange-500"
+                >
+                  <Fuel className="w-4 h-4 mr-2 text-orange-500" />
+                  Scrape Selected ({selectedWorkOrders.size})
+                </AnimatedButton>
+                <AnimatedButton
+                  onClick={deselectAllWorkOrders}
+                  size="lg"
+                  variant="ghost"
+                  animation="fade"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Clear Selection
+                </AnimatedButton>
+              </>
+            )}
           </div>
         </div>
 
@@ -1292,63 +1278,97 @@ const WorkOrders: React.FC = () => {
             <CardDescription>Filter and search work orders by various criteria</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  type="text"
-                  placeholder="Search work orders..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 input-modern"
-                />
-              </div>
+            <div className="space-y-4">
+              {/* Selection controls */}
+              {filteredWorkOrders.length > 0 && (
+                <div className="flex items-center gap-4 pb-2 border-b border-border/50">
+                  <button
+                    onClick={() => {
+                      if (selectedWorkOrders.size === filteredWorkOrders.length) {
+                        deselectAllWorkOrders()
+                      } else {
+                        selectAllWorkOrders()
+                      }
+                    }}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {selectedWorkOrders.size === filteredWorkOrders.length ? (
+                      <CheckSquare className="w-4 h-4 text-primary" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                    Select All ({filteredWorkOrders.length})
+                  </button>
+                  
+                  {selectedWorkOrders.size > 0 && selectedWorkOrders.size < filteredWorkOrders.length && (
+                    <span className="text-sm text-muted-foreground">
+                      {selectedWorkOrders.size} selected
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    type="text"
+                    placeholder="Search work orders..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value)
+                      debouncedSearch(e.target.value)
+                    }}
+                    className="pl-10 input-modern"
+                  />
+                </div>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 input-modern"
-              >
-                <option value="all">All Status</option>
-                <option value="pending">Pending</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-
-              <select
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 input-modern"
-              >
-                <option value="all">All Brands</option>
-                {availableBrands.map(brand => (
-                  <option key={brand} value={brand}>{brand}</option>
-                ))}
-              </select>
-
-              <div className="flex border border-border rounded-lg overflow-hidden glass">
-                <MagneticButton
-                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('grid')}
-                  className="rounded-none flex-1"
-                  strength={0.1}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 input-modern"
                 >
-                  <LayoutGrid className="w-4 h-4 mr-1" />
-                  Grid
-                </MagneticButton>
-                <MagneticButton
-                  variant={viewMode === 'list' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('list')}
-                  className="rounded-none flex-1"
-                  strength={0.1}
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+
+                <select
+                  value={brandFilter}
+                  onChange={(e) => setBrandFilter(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 input-modern"
                 >
-                  <List className="w-4 h-4 mr-1" />
-                  List
-                </MagneticButton>
+                  <option value="all">All Brands</option>
+                  {availableBrands.map(brand => (
+                    <option key={brand} value={brand}>{brand}</option>
+                  ))}
+                </select>
+
+                <div className="flex border border-border rounded-lg overflow-hidden glass">
+                  <MagneticButton
+                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('grid')}
+                    className="rounded-none flex-1"
+                    strength={0.1}
+                  >
+                    <LayoutGrid className="w-4 h-4 mr-1" />
+                    Grid
+                  </MagneticButton>
+                  <MagneticButton
+                    variant={viewMode === 'list' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                    className="rounded-none flex-1"
+                    strength={0.1}
+                  >
+                    <List className="w-4 h-4 mr-1" />
+                    List
+                  </MagneticButton>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -1373,26 +1393,43 @@ const WorkOrders: React.FC = () => {
               >
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <CardTitle className="text-lg leading-none break-words min-w-0">
-                          <AnimatedText 
-                            text={getCleanStoreName(workOrder.site_name)} 
-                            animationType="fade"
-                          />
-                        </CardTitle>
-                      </div>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {(workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id) && (
-                          <Badge variant="default" className="text-xs bg-blue-600 text-white dark:bg-blue-500 shadow-sm">
-                            <span className="text-xs opacity-90">Visit:</span> {workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id}
-                          </Badge>
+                    <div className="flex items-start gap-3">
+                      {/* Selection Checkbox */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleWorkOrderSelection(workOrder.id)
+                        }}
+                        className="mt-1 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {selectedWorkOrders.has(workOrder.id) ? (
+                          <CheckSquare className="w-5 h-5 text-primary" />
+                        ) : (
+                          <Square className="w-5 h-5" />
                         )}
-                        {workOrder.store_number && (
-                          <Badge variant="secondary" className="text-xs bg-green-600 text-white dark:bg-green-500 shadow-sm">
-                            <span className="text-xs opacity-90">Store:</span> {workOrder.store_number}
-                          </Badge>
-                        )}
+                      </button>
+                      
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                          <CardTitle className="text-lg leading-none break-words min-w-0">
+                            <AnimatedText 
+                              text={getCleanStoreName(workOrder.site_name)} 
+                              animationType="fade"
+                            />
+                          </CardTitle>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {(workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id) && (
+                            <Badge variant="default" className="text-xs bg-blue-600 text-white dark:bg-blue-500 shadow-sm">
+                              <span className="text-xs opacity-90">Visit:</span> {workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id}
+                            </Badge>
+                          )}
+                          {workOrder.store_number && (
+                            <Badge variant="secondary" className="text-xs bg-green-600 text-white dark:bg-green-500 shadow-sm">
+                              <span className="text-xs opacity-90">Store:</span> {workOrder.store_number}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1747,7 +1784,6 @@ const WorkOrders: React.FC = () => {
           </AnimatedCard>
         )}
       </section>
-      </div>
       
       {/* Dispenser Info Modal */}
       <DispenserInfoModal
@@ -1771,6 +1807,7 @@ const WorkOrders: React.FC = () => {
         }}
         workOrder={selectedWorkOrderForDebug}
       />
+      </div>
     </div>
   )
 }
