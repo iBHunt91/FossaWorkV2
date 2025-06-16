@@ -1181,10 +1181,11 @@ async def get_single_dispenser_scraping_progress(
 @router.post("/scrape-dispensers-batch")
 async def scrape_dispensers_batch(
     user_id: str = Query(..., description="User ID to scrape dispensers for"),
+    work_order_ids: List[str] = Query(None, description="Optional list of specific work order IDs to scrape"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db)
 ):
-    """Trigger batch dispenser scraping for all work orders with dispenser-related service codes"""
+    """Trigger batch dispenser scraping for all or selected work orders with dispenser-related service codes"""
     try:
         # Verify user exists
         user = db.query(User).filter(User.id == user_id).first()
@@ -1220,12 +1221,22 @@ async def scrape_dispensers_batch(
                 "password": user_credential.password
             }
         
-        # Find all work orders with dispenser service codes
+        # Find work orders to process
         dispenser_service_codes = ["2861", "2862", "3146", "3002"]
-        work_orders = db.query(WorkOrder).filter(
-            WorkOrder.user_id == user_id,
-            WorkOrder.service_code.in_(dispenser_service_codes)
-        ).all()
+        
+        if work_order_ids:
+            # If specific work order IDs provided, use those
+            work_orders = db.query(WorkOrder).filter(
+                WorkOrder.user_id == user_id,
+                WorkOrder.id.in_(work_order_ids),
+                WorkOrder.service_code.in_(dispenser_service_codes)
+            ).all()
+        else:
+            # Otherwise get all work orders with dispenser service codes
+            work_orders = db.query(WorkOrder).filter(
+                WorkOrder.user_id == user_id,
+                WorkOrder.service_code.in_(dispenser_service_codes)
+            ).all()
         
         if not work_orders:
             return {

@@ -221,8 +221,14 @@ export const getScrapingProgress = async (userId: string): Promise<any> => {
   return response.data
 }
 
-export const triggerBatchDispenserScrape = async (userId: string): Promise<any> => {
-  const response = await apiClient.post(`/api/v1/work-orders/scrape-dispensers-batch?user_id=${userId}`)
+export const triggerBatchDispenserScrape = async (userId: string, workOrderIds?: string[]): Promise<any> => {
+  let url = `/api/v1/work-orders/scrape-dispensers-batch?user_id=${userId}`
+  if (workOrderIds && workOrderIds.length > 0) {
+    // Add work order IDs as query parameters
+    const idsParams = workOrderIds.map(id => `work_order_ids=${encodeURIComponent(id)}`).join('&')
+    url += `&${idsParams}`
+  }
+  const response = await apiClient.post(url)
   return response.data
 }
 

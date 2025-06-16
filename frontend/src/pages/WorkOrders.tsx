@@ -85,13 +85,6 @@ const WorkOrders: React.FC = () => {
   const [isPollingProgress, setIsPollingProgress] = useState(false)
   const [expandedInstructions, setExpandedInstructions] = useState<Set<string>>(new Set())
   
-  // Batch scraping progress
-  const [batchScrapingProgress, setBatchScrapingProgress] = useState<{
-    current: number
-    total: number
-    currentWorkOrder: string
-  } | null>(null)
-  
   // Dispenser scraping state
   const [dispenserScrapeStatus, setDispenserScrapeStatus] = useState<'idle' | 'scraping' | 'success' | 'error'>('idle')
   const [dispenserScrapeMessage, setDispenserScrapeMessage] = useState('')
@@ -720,59 +713,44 @@ const WorkOrders: React.FC = () => {
     // Clear selections after starting
     deselectAllWorkOrders()
     
-    // Set scraping status
-    setDispenserScrapeStatus('scraping')
-    setDispenserScrapeMessage(`Preparing to scrape ${selectedIds.length} work orders...`)
-    setBatchScrapingProgress({ current: 0, total: selectedIds.length, currentWorkOrder: '' })
-    
     try {
-      // Scrape each selected work order sequentially
-      for (let i = 0; i < selectedIds.length; i++) {
-        const workOrderId = selectedIds[i]
-        const workOrder = workOrders.find(wo => wo.id === workOrderId)
+      // Use mutation with selected work order IDs
+      const result = await triggerBatchDispenserScrape(currentUserId, selectedIds)
+      
+      if (result.status === 'no_work_orders') {
+        setDispenserScrapeStatus('error')
+        setDispenserScrapeMessage(result.message)
+        setIsPollingDispenserProgress(false)
         
-        if (workOrder) {
-          setBatchScrapingProgress({ 
-            current: i + 1, 
-            total: selectedIds.length, 
-            currentWorkOrder: workOrder.site_name 
-          })
-          setDispenserScrapeMessage(`Scraping ${i + 1} of ${selectedIds.length}: ${workOrder.site_name}...`)
-          
-          try {
-            await scrapeDispensersForWorkOrder(workOrderId, currentUserId)
-            console.log(`Successfully scraped dispensers for ${workOrderId}`)
-          } catch (error) {
-            console.error(`Failed to scrape dispensers for ${workOrderId}:`, error)
-          }
-          
-          // Small delay between scrapes to avoid overwhelming the server
-          if (i < selectedIds.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000))
-          }
-        }
+        setTimeout(() => {
+          setDispenserScrapeStatus('idle')
+          setDispenserScrapeMessage('')
+        }, 5000)
+      } else {
+        // Set up polling for progress
+        setDispenserScrapeStatus('scraping')
+        setDispenserScrapeMessage(`Initializing batch dispenser scraping for ${selectedIds.length} work orders...`)
+        setDispenserScrapingProgress(null)
+        setIsPollingDispenserProgress(true)
+        
+        // Store scraping state in localStorage
+        localStorage.setItem(`disp_scraping_${currentUserId}`, JSON.stringify({
+          status: 'scraping',
+          startedAt: new Date().toISOString(),
+          selectedCount: selectedIds.length
+        }))
       }
       
-      // Success message
-      setDispenserScrapeStatus('success')
-      setDispenserScrapeMessage(`Successfully scraped dispensers for ${selectedIds.length} work orders!`)
-      setBatchScrapingProgress(null)
-      
-      // Refresh work orders to show updated dispenser counts
-      queryClient.invalidateQueries({ queryKey: ['work-orders'] })
-      
-      // Reset status after showing success
-      setTimeout(() => {
-        setDispenserScrapeStatus('idle')
-        setDispenserScrapeMessage('')
-      }, 3000)
-      
-    } catch (error) {
+    } catch (error: any) {
       console.error('Batch dispenser scrape failed:', error)
       setDispenserScrapeStatus('error')
-      setDispenserScrapeMessage('Failed to complete batch dispenser scraping')
-      setBatchScrapingProgress(null)
+      setDispenserScrapeMessage(error.response?.data?.detail || 'Failed to initiate batch dispenser scraping')
+      setIsPollingDispenserProgress(false)
       
+      // Clear localStorage
+      localStorage.removeItem(`disp_scraping_${currentUserId}`)
+      
+      // Reset status after showing error
       setTimeout(() => {
         setDispenserScrapeStatus('idle')
         setDispenserScrapeMessage('')
@@ -1132,29 +1110,6 @@ const WorkOrders: React.FC = () => {
                 </CardHeader>
                 
                 <CardContent className="pt-2">
-                  {/* Batch scraping progress */}
-                  {batchScrapingProgress && (
-                    <div className="space-y-3 mb-4">
-                      <div className="bg-gradient-to-r from-orange-100/50 to-amber-100/50 dark:from-orange-900/20 dark:to-amber-900/20 p-4 rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="text-sm font-medium">
-                            Progress: {batchScrapingProgress.current} of {batchScrapingProgress.total}
-                          </div>
-                          <div className="text-sm font-medium text-orange-600">
-                            {Math.round((batchScrapingProgress.current / batchScrapingProgress.total) * 100)}%
-                          </div>
-                        </div>
-                        <Progress 
-                          value={(batchScrapingProgress.current / batchScrapingProgress.total) * 100} 
-                          className="h-3 bg-orange-200/50"
-                        />
-                        <div className="mt-2 text-xs text-muted-foreground truncate">
-                          Current: {batchScrapingProgress.currentWorkOrder}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
                   {dispenserScrapingProgress && (
                     <div className="space-y-4">
                       {/* Sleek Progress Section */}
