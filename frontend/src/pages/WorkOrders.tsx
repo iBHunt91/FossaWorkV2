@@ -1385,42 +1385,37 @@ const WorkOrders: React.FC = () => {
         ) : filteredWorkOrders.length > 0 ? (
           <div className={viewMode === 'grid' ? 'work-orders-grid grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6' : 'work-orders-list space-y-4'}>
             {filteredWorkOrders.map((workOrder, index) => (
-              <AnimatedCard 
-                key={workOrder.id} 
-                className={`${getBrandStyling(workOrder.site_name)} card-hover glass-dark`}
-                hover="lift"
-                animate="slide"
-                delay={index * 0.1}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-start gap-3">
-                      {/* Selection Checkbox */}
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          e.preventDefault()
-                          toggleWorkOrderSelection(workOrder.id)
-                        }}
-                        className="p-2 -m-2 cursor-pointer text-muted-foreground hover:text-foreground transition-colors"
-                        role="checkbox"
-                        aria-checked={selectedWorkOrders.has(workOrder.id)}
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === ' ' || e.key === 'Enter') {
-                            e.preventDefault()
-                            toggleWorkOrderSelection(workOrder.id)
-                          }
-                        }}
-                      >
-                        {selectedWorkOrders.has(workOrder.id) ? (
-                          <CheckSquare className="w-5 h-5 text-primary" />
-                        ) : (
-                          <Square className="w-5 h-5 hover:text-primary/70" />
-                        )}
-                      </div>
-                      
-                      <div className="flex-1">
+              <div key={workOrder.id} className="relative">
+                {/* Selection Checkbox - Outside the card */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    console.log('Checkbox clicked for:', workOrder.id)
+                    toggleWorkOrderSelection(workOrder.id)
+                  }}
+                  className="absolute top-4 left-4 z-30 flex items-center justify-center w-8 h-8 bg-background border-2 border-border rounded hover:border-primary hover:bg-accent transition-colors cursor-pointer shadow-sm"
+                  aria-label={`Select ${workOrder.site_name}`}
+                  aria-checked={selectedWorkOrders.has(workOrder.id)}
+                >
+                  {selectedWorkOrders.has(workOrder.id) ? (
+                    <CheckSquare className="w-5 h-5 text-primary" />
+                  ) : (
+                    <Square className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </button>
+                
+                <AnimatedCard 
+                  className={`${getBrandStyling(workOrder.site_name)} card-hover glass-dark`}
+                  hover="lift"
+                  animate="slide"
+                  delay={index * 0.1}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-start gap-3 pl-10">
+                        <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <CardTitle className="text-lg leading-none break-words min-w-0">
                             <AnimatedText 
@@ -1734,6 +1729,7 @@ const WorkOrders: React.FC = () => {
                   </div>
                 </CardContent>
               </AnimatedCard>
+              </div>
             ))}
           </div>
         ) : (
