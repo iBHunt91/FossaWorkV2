@@ -58,7 +58,7 @@ class WorkFossaAutomationService:
     # Correct WorkFossa URLs (from V1 analysis)
     LOGIN_URL = "https://app.workfossa.com"  # NOT portal.workfossa.com
     DASHBOARD_URL = "https://app.workfossa.com/app/dashboard"
-    WORK_ORDERS_URL = "https://app.workfossa.com/app/work/list?visit_scheduled=scheduled%7C%7C%7C%7CWith%20Scheduled%20Visits&work_visit_completion=none%7C%7CNo%20visits%20completed%7C%7CWork%20Visits%20Completed&order_direction=asc"
+    WORK_ORDERS_URL = "https://app.workfossa.com/app/work/list?work_visit_completion=none%7C%7CNo%20visits%20completed%7C%7CWork%20Visits%20Completed&order_direction=asc"
     
     # Selectors based on V1 analysis
     LOGIN_SELECTORS = {
