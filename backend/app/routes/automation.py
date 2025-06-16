@@ -16,6 +16,7 @@ from ..models import User, WorkOrder, Dispenser
 from ..services.form_automation import form_automation_service, AutomationJob, AutomationPhase
 from ..services.browser_automation import browser_automation, AutomationProgress as BrowserAutomationProgress
 from ..services.job_queue import job_queue_manager, create_single_visit_job, create_batch_processing_job, JobPriority, JobStatus
+from ..auth.dependencies import require_auth
 
 router = APIRouter(prefix="/api/v1/automation", tags=["automation"])
 
@@ -26,21 +27,18 @@ websocket_connections: Dict[str, WebSocket] = {}  # user_id -> websocket
 @router.post("/sessions")
 async def create_automation_session(
     user_data: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Create new browser automation session"""
     try:
-        user_id = user_data.get('user_id')
+        # Use current_user.id instead of getting from request
+        user_id = current_user.id
         email = user_data.get('email')
         password = user_data.get('password')
         
-        if not all([user_id, email, password]):
-            raise HTTPException(status_code=400, detail="Missing required fields: user_id, email, password")
-        
-        # Check if user exists
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        if not all([email, password]):
+            raise HTTPException(status_code=400, detail="Missing required fields: email, password")
         
         # Initialize browser automation if needed
         if not browser_automation.browser:
@@ -78,16 +76,14 @@ async def create_automation_session(
 @router.post("/login")
 async def login_to_workfossa(
     login_data: Dict[str, Any],
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_auth)
 ):
     """Login to WorkFossa platform"""
     try:
-        user_id = login_data.get('user_id')
+        user_id = current_user.id
         email = login_data.get('email')
         password = login_data.get('password')
-        
-        if not user_id:
-            raise HTTPException(status_code=400, detail="user_id is required")
         
         if user_id not in active_sessions:
             raise HTTPException(status_code=400, detail="No active session. Create session first.")
@@ -128,23 +124,18 @@ async def login_to_workfossa(
 async def trigger_work_order_scraping(
     scrape_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Trigger comprehensive work order scraping from WorkFossa"""
     try:
-        user_id = scrape_data.get('user_id')
+        user_id = current_user.id
         date_range = scrape_data.get('date_range')  # Optional date filtering
-        
-        if not user_id:
-            raise HTTPException(status_code=400, detail="user_id is required")
         
         if user_id not in active_sessions:
             raise HTTPException(status_code=400, detail="No active session. Create session and login first.")
         
-        # Verify user exists
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        # User is already verified through authentication
         
         session_id = active_sessions[user_id]
         job_id = str(uuid.uuid4())
@@ -168,14 +159,12 @@ async def scrape_dispenser_details(
     work_order_id: str,
     user_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Scrape detailed dispenser information for a specific work order"""
     try:
-        user_id = user_data.get('user_id')
-        
-        if not user_id:
-            raise HTTPException(status_code=400, detail="user_id is required")
+        user_id = current_user.id
         
         if user_id not in active_sessions:
             raise HTTPException(status_code=400, detail="No active session. Create session and login first.")
@@ -204,9 +193,10 @@ async def scrape_dispenser_details(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Dispenser scraping failed: {str(e)}")
 
-@router.get("/sessions/{user_id}/status")
-async def get_session_status(user_id: str):
+@router.get("/sessions/status")
+async def get_session_status(current_user: User = Depends(require_auth)):
     """Get automation session status"""
+    user_id = current_user.id
     try:
         if user_id not in active_sessions:
             return {
@@ -241,9 +231,10 @@ async def get_session_status(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
 
-@router.delete("/sessions/{user_id}")
-async def close_automation_session(user_id: str):
+@router.delete("/sessions")
+async def close_automation_session(current_user: User = Depends(require_auth)):
     """Close automation session"""
+    user_id = current_user.id
     try:
         if user_id in active_sessions:
             session_id = active_sessions[user_id]
@@ -263,9 +254,20 @@ async def close_automation_session(user_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to close session: {str(e)}")
 
-@router.websocket("/ws/{user_id}")
-async def websocket_progress_updates(websocket: WebSocket, user_id: str):
+@router.websocket("/ws/{token}")
+async def websocket_progress_updates(websocket: WebSocket, token: str):
     """WebSocket connection for real-time automation progress"""
+    # Validate token and get user_id
+    from ..auth.jwt import decode_token
+    try:
+        payload = decode_token(token)
+        user_id = payload.get('sub')
+        if not user_id:
+            await websocket.close(code=1008)
+            return
+    except Exception:
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     websocket_connections[user_id] = websocket
     
@@ -671,23 +673,21 @@ async def perform_dispenser_scraping(session_id: str, job_id: str, user_id: str,
 async def process_visit_automation(
     automation_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Start form automation for a single visit"""
     try:
-        user_id = automation_data.get('user_id')
+        user_id = current_user.id
         visit_url = automation_data.get('visit_url')
         work_order_id = automation_data.get('work_order_id')
         dispensers = automation_data.get('dispensers', [])
         credentials = automation_data.get('credentials', {})
         
-        if not all([user_id, visit_url, work_order_id]):
-            raise HTTPException(status_code=400, detail="Missing required fields: user_id, visit_url, work_order_id")
+        if not all([visit_url, work_order_id]):
+            raise HTTPException(status_code=400, detail="Missing required fields: visit_url, work_order_id")
         
-        # Verify user exists
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        # User is already verified through authentication
         
         # Verify work order exists
         work_order = db.query(WorkOrder).filter(
@@ -744,22 +744,20 @@ async def process_visit_automation(
 async def process_batch_automation(
     batch_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Start enhanced form automation for multiple visits (batch processing)"""
     try:
-        user_id = batch_data.get('user_id')
+        user_id = current_user.id
         visits = batch_data.get('visits', [])
         credentials = batch_data.get('credentials', {})
         batch_config = batch_data.get('batch_config', {})
         
-        if not user_id or not visits:
-            raise HTTPException(status_code=400, detail="Missing required fields: user_id, visits")
+        if not visits:
+            raise HTTPException(status_code=400, detail="Missing required field: visits")
         
-        # Verify user exists
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        # User is already verified through authentication
         
         # Set up form automation service
         if not form_automation_service.browser_automation:
@@ -838,7 +836,7 @@ async def process_batch_automation(
         raise HTTPException(status_code=500, detail=f"Failed to start batch automation: {str(e)}")
 
 @router.get("/form/jobs/{job_id}/status")
-async def get_form_automation_status(job_id: str):
+async def get_form_automation_status(job_id: str, current_user: User = Depends(require_auth)):
     """Get status of form automation job"""
     try:
         status = await form_automation_service.get_job_status(job_id)
@@ -854,7 +852,7 @@ async def get_form_automation_status(job_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to get job status: {str(e)}")
 
 @router.post("/form/jobs/{job_id}/cancel")
-async def cancel_form_automation(job_id: str):
+async def cancel_form_automation(job_id: str, current_user: User = Depends(require_auth)):
     """Cancel running form automation job"""
     try:
         success = await form_automation_service.cancel_job(job_id)
@@ -870,7 +868,7 @@ async def cancel_form_automation(job_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}")
 
 @router.get("/form/fuel-templates")
-async def get_fuel_grade_templates():
+async def get_fuel_grade_templates(current_user: User = Depends(require_auth)):
     """Get available fuel grade templates"""
     try:
         from ..services.form_automation import FuelGradeTemplates
@@ -1136,7 +1134,7 @@ async def run_enhanced_batch_automation(user_id: str, visits: List[Dict[str, Any
 
 # Enhanced batch management endpoints
 @router.get("/batch/{batch_id}/status")
-async def get_batch_status(batch_id: str):
+async def get_batch_status(batch_id: str, current_user: User = Depends(require_auth)):
     """Get detailed status of a batch automation job"""
     try:
         # In a production system, this would query a database
@@ -1164,7 +1162,7 @@ async def get_batch_status(batch_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to get batch status: {str(e)}")
 
 @router.post("/batch/{batch_id}/pause")
-async def pause_batch(batch_id: str):
+async def pause_batch(batch_id: str, current_user: User = Depends(require_auth)):
     """Pause a running batch automation job"""
     try:
         # Implementation would pause the actual batch process
@@ -1178,7 +1176,7 @@ async def pause_batch(batch_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to pause batch: {str(e)}")
 
 @router.post("/batch/{batch_id}/resume")
-async def resume_batch(batch_id: str):
+async def resume_batch(batch_id: str, current_user: User = Depends(require_auth)):
     """Resume a paused batch automation job"""
     try:
         # Implementation would resume the actual batch process
@@ -1192,7 +1190,7 @@ async def resume_batch(batch_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to resume batch: {str(e)}")
 
 @router.post("/batch/{batch_id}/cancel")
-async def cancel_batch(batch_id: str):
+async def cancel_batch(batch_id: str, current_user: User = Depends(require_auth)):
     """Cancel a running batch automation job"""
     try:
         # Implementation would cancel the actual batch process
@@ -1205,8 +1203,9 @@ async def cancel_batch(batch_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to cancel batch: {str(e)}")
 
-@router.get("/batches/{user_id}")
-async def list_user_batches(user_id: str, status: Optional[str] = None, limit: int = 20):
+@router.get("/batches")
+async def list_user_batches(status: Optional[str] = None, limit: int = 20, current_user: User = Depends(require_auth)):
+    user_id = current_user.id
     """List batch automation jobs for a user"""
     try:
         # In production, this would query the database
@@ -1250,21 +1249,19 @@ async def list_user_batches(user_id: str, status: Optional[str] = None, limit: i
 @router.post("/queue/jobs")
 async def submit_automation_job(
     job_data: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Submit a new automation job to the queue"""
     try:
-        user_id = job_data.get('user_id')
+        user_id = current_user.id
         job_type = job_data.get('job_type')  # 'single_visit' or 'batch_processing'
         priority = job_data.get('priority', 'normal')
         
-        if not user_id or not job_type:
-            raise HTTPException(status_code=400, detail="Missing required fields: user_id, job_type")
+        if not job_type:
+            raise HTTPException(status_code=400, detail="Missing required field: job_type")
         
-        # Verify user exists
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        # User is already verified through authentication
         
         # Convert priority string to enum
         priority_map = {
@@ -1324,7 +1321,7 @@ async def submit_automation_job(
         raise HTTPException(status_code=500, detail=f"Failed to submit job: {str(e)}")
 
 @router.get("/queue/jobs/{job_id}")
-async def get_job_status(job_id: str):
+async def get_job_status(job_id: str, current_user: User = Depends(require_auth)):
     """Get detailed status of a queued automation job"""
     try:
         status = job_queue_manager.get_job_status(job_id)
@@ -1342,7 +1339,7 @@ async def get_job_status(job_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to get job status: {str(e)}")
 
 @router.post("/queue/jobs/{job_id}/cancel")
-async def cancel_queued_job(job_id: str):
+async def cancel_queued_job(job_id: str, current_user: User = Depends(require_auth)):
     """Cancel a queued or running automation job"""
     try:
         success = await job_queue_manager.cancel_job(job_id)
@@ -1360,7 +1357,7 @@ async def cancel_queued_job(job_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to cancel job: {str(e)}")
 
 @router.get("/queue/status")
-async def get_queue_status():
+async def get_queue_status(current_user: User = Depends(require_auth)):
     """Get overall job queue status and metrics"""
     try:
         status = job_queue_manager.get_queue_status()
@@ -1373,7 +1370,7 @@ async def get_queue_status():
         raise HTTPException(status_code=500, detail=f"Failed to get queue status: {str(e)}")
 
 @router.post("/queue/start")
-async def start_queue_processing():
+async def start_queue_processing(current_user: User = Depends(require_auth)):
     """Start queue processing (admin function)"""
     try:
         await job_queue_manager.start_processing()
@@ -1386,7 +1383,7 @@ async def start_queue_processing():
         raise HTTPException(status_code=500, detail=f"Failed to start queue processing: {str(e)}")
 
 @router.post("/queue/stop")
-async def stop_queue_processing():
+async def stop_queue_processing(current_user: User = Depends(require_auth)):
     """Stop queue processing (admin function)"""
     try:
         await job_queue_manager.stop_processing()
@@ -1399,7 +1396,8 @@ async def stop_queue_processing():
         raise HTTPException(status_code=500, detail=f"Failed to stop queue processing: {str(e)}")
 
 @router.get("/queue/jobs")
-async def list_jobs(user_id: Optional[str] = None, status: Optional[str] = None, limit: int = 50):
+async def list_jobs(status: Optional[str] = None, limit: int = 50, current_user: User = Depends(require_auth)):
+    user_id = current_user.id
     """List jobs in the queue with optional filtering"""
     try:
         # Get all jobs from queue manager
@@ -1407,8 +1405,8 @@ async def list_jobs(user_id: Optional[str] = None, status: Optional[str] = None,
         for job_id, job in job_queue_manager.jobs.items():
             job_status = job_queue_manager.get_job_status(job_id)
             if job_status:
-                # Apply filters
-                if user_id and job_status.get('user_id') != user_id:
+                # Apply filters - always filter by current user
+                if job_status.get('user_id') != user_id:
                     continue
                 if status and job_status.get('status') != status:
                     continue
@@ -1432,9 +1430,20 @@ async def list_jobs(user_id: Optional[str] = None, status: Optional[str] = None,
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list jobs: {str(e)}")
 
-@router.websocket("/queue/ws/{user_id}")
-async def queue_websocket_updates(websocket: WebSocket, user_id: str):
+@router.websocket("/queue/ws/{token}")
+async def queue_websocket_updates(websocket: WebSocket, token: str):
     """WebSocket connection for real-time queue updates"""
+    # Validate token and get user_id
+    from ..auth.jwt import decode_token
+    try:
+        payload = decode_token(token)
+        user_id = payload.get('sub')
+        if not user_id:
+            await websocket.close(code=1008)
+            return
+    except Exception:
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     
     try:

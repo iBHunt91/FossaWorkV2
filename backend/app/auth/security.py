@@ -4,7 +4,7 @@ Handles JWT tokens and user authentication using WorkFossa credentials
 """
 
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Tuple, Union
+from typing import Optional, Dict, Any, Tuple, Union, Callable
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
@@ -21,7 +21,14 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Security settings
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError(
+        "SECRET_KEY environment variable is not set. "
+        "Please set a secure secret key in your .env file. "
+        "You can generate one using: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+    )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
@@ -34,12 +41,12 @@ security = HTTPBearer(auto_error=False)
 class AuthenticationService:
     """Handles authentication using WorkFossa credentials"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session) -> None:
         self.db = db
         self.credential_manager = CredentialManager()
         self.workfossa = WorkFossaAutomationService()
     
-    async def authenticate_with_workfossa(self, username: str, password: str, verification_id: str = None, status_callback = None) -> Union[Tuple[User, bool], Tuple[None, bool]]:
+    async def authenticate_with_workfossa(self, username: str, password: str, verification_id: Optional[str] = None, status_callback: Optional[Callable[[str, str, int], None]] = None) -> Optional[Tuple[User, bool]]:
         """
         Authenticate user with WorkFossa credentials
         If successful and user doesn't exist, create new user profile
@@ -220,7 +227,7 @@ class AuthenticationService:
             self.db.rollback()
             return None, False
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
     """Create JWT access token"""
     to_encode = data.copy()
     if expires_delta:

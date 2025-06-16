@@ -67,7 +67,7 @@
 **Development:**
 - `npm run electron:dev:start` - Primary dev command (starts frontend + electron)
 - `npm run dev` - Frontend development server (Vite)
-- **Backend:** `cd backend && uvicorn app.main:app --reload --port 8000`
+- **Backend:** `cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend && uvicorn app.main:app --reload --port 8000`
 - **Full Stack:** Run frontend and backend in separate terminals
 - `npm run fix-vite-cache` / `npm run fix-vite-full` - Fix Vite issues
 
@@ -80,8 +80,9 @@
 
 **Testing:** 
 - Frontend: `npm test` (when tests exist)
-- Backend: `cd backend && pytest` (requires test organization first)
+- Backend: `cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend && pytest` (requires test organization first)
 - **Note:** Most test files currently in backend root need organization
+- **IMPORTANT:** Always provide full absolute paths when giving test commands
 
 **Maintenance:** `npm run lint`, `npm run cleanup-ports`, `npm run backup`, `npm run fix-*`
 
@@ -239,18 +240,20 @@ DELETE /api/v1/resources/{id}     # Delete
 **Full Stack Development Setup:**
 1. **Terminal 1 - Backend:**
    ```bash
-   cd backend
+   cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend
    source venv/bin/activate  # or venv\Scripts\activate on Windows
    uvicorn app.main:app --reload --port 8000
    ```
 
 2. **Terminal 2 - Frontend:**
    ```bash
+   cd /Users/ibhunt/Documents/GitHub/FossaWorkV2
    npm run dev  # Runs on port 5173
    ```
 
 3. **Terminal 3 - Electron (Optional):**
    ```bash
+   cd /Users/ibhunt/Documents/GitHub/FossaWorkV2
    npm run electron:dev  # For desktop app testing
    ```
 
@@ -396,6 +399,12 @@ print(f'Backup created: {backup_dir}')
 **Problem Solving:** Find root causes, don't throw random solutions, break down large/vague tasks
 
 **UI/UX:** Focus on aesthetics, usability, best practices, smooth interactions
+
+**IMPORTANT: Command Guidelines:**
+- **ALWAYS provide full absolute paths** when giving file paths or test commands
+- **NEVER use relative paths** in commands (avoid `cd backend && python scripts/...`)
+- **Example:** Use `python3 /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend/scripts/test_dispenser_batch_quick.py`
+- **Not:** `cd backend && python3 scripts/test_dispenser_batch_quick.py`
 
 ## Testing Approach
 
@@ -667,6 +676,33 @@ const isLinux = process.platform === 'linux';
 - Use `platform.system()` to detect and adjust output formatting
 
 ## Claude Code Tools
+
+### Claude Code SDK for Python
+
+**The Claude Code SDK** enables programmatic interaction with Claude Code from Python applications. This allows integration of Claude's capabilities directly into scripts and automation workflows.
+
+**Quick Start:**
+```python
+import anyio
+from claude_code_sdk import query
+
+async def main():
+    async for message in query(prompt="What is 2 + 2?"):
+        print(message)
+
+anyio.run(main)
+```
+
+**Key Features:**
+- Async API for querying Claude
+- Tool usage support (Read, Write, Edit, Bash, etc.)
+- Configurable options for behavior control
+- Error handling with specific exception types
+- Session management for continued conversations
+
+**Documentation:** See `/docs/guides/claude-code-sdk-usage.md` for comprehensive usage guide, examples, and best practices.
+
+**Installation:** `pip install claude-code-sdk` (requires Python 3.10+)
 
 ### MCP Servers Integration
 

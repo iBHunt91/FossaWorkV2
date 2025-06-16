@@ -30,6 +30,7 @@ class WorkOrder(Base):
     service_description = Column(Text, nullable=True)
     visit_id = Column(String(100), nullable=True)
     visit_url = Column(Text, nullable=True)
+    visit_number = Column(String(50), nullable=True)  # Visit number from URL (e.g., "131650" from /visits/131650/)
     instructions = Column(Text, nullable=True)
     
     # New fields from updated extraction
@@ -54,7 +55,7 @@ class Dispenser(Base):
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     work_order_id = Column(String, ForeignKey("work_orders.id"), nullable=False)
-    dispenser_number = Column(String(20), nullable=False)
+    dispenser_number = Column(String(20), nullable=False)  # e.g., "1/2" or "1"
     dispenser_type = Column(String(100), nullable=True)  # Wayne 300, Wayne 700, etc.
     fuel_grades = Column(JSON, nullable=True)  # Store fuel configuration
     status = Column(String(50), default="pending")
@@ -62,6 +63,14 @@ class Dispenser(Base):
     form_data = Column(JSON, nullable=True)  # Store form field values
     automation_completed = Column(Boolean, default=False)
     testing_requirements = Column(JSON, nullable=True)  # Filter and testing requirements
+    
+    # New fields for enhanced dispenser information
+    make = Column(String(100), nullable=True)  # Gilbarco, Wayne, etc.
+    model = Column(String(100), nullable=True)  # NL3, NL2, etc.
+    serial_number = Column(String(100), nullable=True)  # Serial number
+    meter_type = Column(String(100), nullable=True)  # Meter type information
+    number_of_nozzles = Column(String(20), nullable=True)  # Number of nozzles per side
+    
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     

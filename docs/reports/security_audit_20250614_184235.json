@@ -1,0 +1,280 @@
+{
+  "timestamp": "2025-06-14T18:42:35.132077",
+  "vulnerabilities": [],
+  "security_issues": [
+    {
+      "type": "unprotected_endpoints",
+      "endpoints": [
+        {
+          "file": "file_logging.py",
+          "method": "post",
+          "endpoint": "/write"
+        },
+        {
+          "file": "file_logging.py",
+          "method": "get",
+          "endpoint": "/api/v1/logs"
+        },
+        {
+          "file": "file_logging.py",
+          "method": "get",
+          "endpoint": "/api/v1/logs"
+        },
+        {
+          "file": "file_logging.py",
+          "method": "get",
+          "endpoint": "/api/v1/logs"
+        },
+        {
+          "file": "file_logging.py",
+          "method": "post",
+          "endpoint": "/write"
+        },
+        {
+          "file": "auth.py",
+          "method": "post",
+          "endpoint": "/login"
+        },
+        {
+          "file": "auth.py",
+          "method": "post",
+          "endpoint": "/login"
+        },
+        {
+          "file": "auth.py",
+          "method": "post",
+          "endpoint": "/login"
+        },
+        {
+          "file": "logging.py",
+          "method": "get",
+          "endpoint": "/api/v1/logs"
+        },
+        {
+          "file": "logging.py",
+          "method": "get",
+          "endpoint": "/api/v1/logs"
+        },
+        {
+          "file": "logging.py",
+          "method": "post",
+          "endpoint": "/clear"
+        },
+        {
+          "file": "logging.py",
+          "method": "get",
+          "endpoint": "/api/v1/logs"
+        },
+        {
+          "file": "logging.py",
+          "method": "get",
+          "endpoint": "/api/v1/logs"
+        },
+        {
+          "file": "logging.py",
+          "method": "post",
+          "endpoint": "/clear"
+        },
+        {
+          "file": "logging.py",
+          "method": "post",
+          "endpoint": "/clear"
+        },
+        {
+          "file": "user_preferences.py",
+          "method": "get",
+          "endpoint": "/api/v1/users"
+        },
+        {
+          "file": "user_preferences.py",
+          "method": "put",
+          "endpoint": "/{user_id}/preferences/{preference_type}"
+        },
+        {
+          "file": "user_preferences.py",
+          "method": "put",
+          "endpoint": "/{user_id}/preferences/{preference_type}"
+        },
+        {
+          "file": "user_preferences.py",
+          "method": "delete",
+          "endpoint": "/{user_id}/preferences"
+        },
+        {
+          "file": "users.py",
+          "method": "put",
+          "endpoint": "/{user_id}"
+        },
+        {
+          "file": "users.py",
+          "method": "delete",
+          "endpoint": "/{user_id}"
+        },
+        {
+          "file": "users.py",
+          "method": "put",
+          "endpoint": "/{user_id}"
+        },
+        {
+          "file": "users.py",
+          "method": "put",
+          "endpoint": "/{user_id}"
+        },
+        {
+          "file": "users.py",
+          "method": "put",
+          "endpoint": "/{user_id}"
+        },
+        {
+          "file": "advanced_scheduling.py",
+          "method": "post",
+          "endpoint": "/schedule/work-order"
+        },
+        {
+          "file": "advanced_scheduling.py",
+          "method": "put",
+          "endpoint": "/reschedule"
+        },
+        {
+          "file": "advanced_scheduling.py",
+          "method": "post",
+          "endpoint": "/schedule/work-order"
+        },
+        {
+          "file": "advanced_scheduling.py",
+          "method": "post",
+          "endpoint": "/schedule/work-order"
+        },
+        {
+          "file": "advanced_scheduling.py",
+          "method": "post",
+          "endpoint": "/schedule/work-order"
+        },
+        {
+          "file": "filter_calculation.py",
+          "method": "post",
+          "endpoint": "/calculate-single"
+        },
+        {
+          "file": "filter_calculation.py",
+          "method": "post",
+          "endpoint": "/calculate-single"
+        },
+        {
+          "file": "filter_calculation.py",
+          "method": "post",
+          "endpoint": "/calculate-single"
+        },
+        {
+          "file": "setup.py",
+          "method": "get",
+          "endpoint": "/api/setup"
+        },
+        {
+          "file": "work_orders.py",
+          "method": "patch",
+          "endpoint": "/{work_order_id}/status"
+        },
+        {
+          "file": "filter_scheduling.py",
+          "method": "post",
+          "endpoint": "/generate"
+        },
+        {
+          "file": "filter_scheduling.py",
+          "method": "post",
+          "endpoint": "/generate"
+        },
+        {
+          "file": "filter_scheduling.py",
+          "method": "post",
+          "endpoint": "/generate"
+        },
+        {
+          "file": "filter_scheduling.py",
+          "method": "put",
+          "endpoint": "/update-schedule"
+        },
+        {
+          "file": "filter_cost.py",
+          "method": "post",
+          "endpoint": "/calculate/{work_order_id}"
+        },
+        {
+          "file": "filter_cost.py",
+          "method": "put",
+          "endpoint": "/filter/{part_number}"
+        },
+        {
+          "file": "filter_cost.py",
+          "method": "post",
+          "endpoint": "/calculate/{work_order_id}"
+        },
+        {
+          "file": "filter_cost.py",
+          "method": "post",
+          "endpoint": "/calculate/{work_order_id}"
+        },
+        {
+          "file": "filter_inventory.py",
+          "method": "post",
+          "endpoint": "/initialize"
+        },
+        {
+          "file": "filter_inventory.py",
+          "method": "post",
+          "endpoint": "/initialize"
+        },
+        {
+          "file": "filter_inventory.py",
+          "method": "post",
+          "endpoint": "/initialize"
+        },
+        {
+          "file": "filter_inventory.py",
+          "method": "post",
+          "endpoint": "/initialize"
+        }
+      ]
+    },
+    {
+      "type": "cors_configuration",
+      "issues": [
+        "CORS allows credentials with wildcard origin"
+      ]
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "HIGH",
+      "category": "API Security",
+      "recommendation": "Add authentication to all API endpoints",
+      "action": "Add Depends(get_current_user) to all endpoint function parameters"
+    },
+    {
+      "priority": "MEDIUM",
+      "category": "CORS Security",
+      "recommendation": "Restrict CORS to specific allowed origins",
+      "action": "Replace allow_origins=['*'] with specific domain list"
+    },
+    {
+      "priority": "MEDIUM",
+      "category": "Monitoring",
+      "recommendation": "Implement security event monitoring",
+      "action": "Use the metrics service to track authentication failures and suspicious activities"
+    },
+    {
+      "priority": "LOW",
+      "category": "Documentation",
+      "recommendation": "Document security practices",
+      "action": "Create SECURITY.md with security policies and incident response procedures"
+    }
+  ],
+  "summary": {
+    "total_issues": 2,
+    "critical_issues": 0,
+    "high_priority_issues": 1,
+    "scan_duration": "N/A",
+    "status": "WARN"
+  }
+}

@@ -10,6 +10,7 @@ import os
 import platform
 import signal
 from pathlib import Path
+from dotenv import load_dotenv
 
 def run_command(cmd, description=""):
     """Run a command and handle errors gracefully"""
@@ -157,6 +158,20 @@ def main():
     print("=" * 60)
     print("🎯 FossaWork V2 Backend Startup")
     print("=" * 60)
+    
+    # Load environment variables from .env file
+    env_path = Path(".env")
+    if env_path.exists():
+        load_dotenv(env_path)
+        print("✅ Loaded environment variables from .env")
+    else:
+        print("⚠️  Warning: .env file not found. Using system environment variables.")
+        # Check if required variables are set
+        if not os.getenv("SECRET_KEY"):
+            print("\n❌ ERROR: SECRET_KEY environment variable is not set!")
+            print("Please create a .env file with required variables.")
+            print("Run: python scripts/setup-env.py")
+            sys.exit(1)
     
     # Kill any process using port 8000 first
     kill_port_process(8000)

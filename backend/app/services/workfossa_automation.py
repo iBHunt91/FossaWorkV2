@@ -76,7 +76,14 @@ class WorkFossaAutomationService:
     ]
     
     def __init__(self, headless: bool = True, timeout: int = 30000):
-        self.headless = headless
+        # Check environment variable to override headless mode
+        import os
+        if os.environ.get('BROWSER_VISIBLE', '').lower() in ['true', '1', 'yes']:
+            self.headless = False
+            logger.info("🖥️ Browser visibility enabled via BROWSER_VISIBLE environment variable")
+        else:
+            self.headless = headless
+        
         self.timeout = timeout
         self.sessions: Dict[str, Any] = {}
         self.progress_callbacks: List[Callable] = []
@@ -1256,7 +1263,10 @@ class WorkFossaAutomationService:
             logger.error(f"[ERROR] Error during cleanup: {e}")
 
 # Global automation service instance
-workfossa_automation = WorkFossaAutomationService()
+# Default to visible browser for testing - set BROWSER_VISIBLE=false to run headless
+import os
+default_headless = os.environ.get('BROWSER_VISIBLE', 'true').lower() not in ['true', '1', 'yes']
+workfossa_automation = WorkFossaAutomationService(headless=default_headless)
 
 # Test function
 async def test_workfossa_automation():

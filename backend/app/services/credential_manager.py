@@ -16,15 +16,16 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Try to import cryptography for encryption
+# Cryptography is required - no fallback allowed
 try:
     from cryptography.fernet import Fernet
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-    CRYPTO_AVAILABLE = True
-except ImportError:
-    CRYPTO_AVAILABLE = False
-    logger.warning("Cryptography not available - using base64 encoding (NOT SECURE)")
+except ImportError as e:
+    raise ImportError(
+        "The 'cryptography' library is required for secure credential storage. "
+        "Please install it with: pip install cryptography>=41.0.0"
+    ) from e
 
 @dataclass
 class WorkFossaCredentials:
@@ -69,9 +70,6 @@ class CredentialManager:
     
     def _derive_key(self, password: bytes, salt: bytes) -> bytes:
         """Derive encryption key from password using PBKDF2"""
-        if not CRYPTO_AVAILABLE:
-            return base64.urlsafe_b64encode(password + salt)
-        
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
@@ -82,22 +80,22 @@ class CredentialManager:
     
     def _get_encryption_key(self, user_id: str) -> bytes:
         """Get or generate encryption key for user"""
-        if not CRYPTO_AVAILABLE:
-            # Fallback to simple encoding (NOT SECURE)
-            return base64.urlsafe_b64encode(user_id.encode())
+        # Get master key from environment first
+        master_key = os.environ.get('FOSSAWORK_MASTER_KEY')
+        if not master_key:
+            raise ValueError(
+                "FOSSAWORK_MASTER_KEY environment variable is not set. "
+                "Please set a secure master key in your .env file. "
+                "You can generate one using: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+            )
         
         # Use user ID to derive a consistent key
         salt = hashlib.sha256(user_id.encode()).digest()[:16]
-        password = os.environ.get('FOSSAWORK_MASTER_KEY', 'default_key_change_me').encode()
+        password = master_key.encode()
         return self._derive_key(password, salt)
     
     def _encrypt_data(self, data: str, user_id: str) -> str:
-        """Encrypt credential data"""
-        if not CRYPTO_AVAILABLE:
-            # Fallback to base64 encoding (NOT SECURE)
-            logger.warning("Using base64 encoding - NOT SECURE for production")
-            return base64.urlsafe_b64encode(data.encode()).decode()
-        
+        """Encrypt credential data using Fernet encryption"""
         try:
             key = self._get_encryption_key(user_id)
             fernet = Fernet(key)
@@ -105,18 +103,10 @@ class CredentialManager:
             return base64.urlsafe_b64encode(encrypted_data).decode()
         except Exception as e:
             logger.error(f"Encryption failed: {e}")
-            raise ValueError("Failed to encrypt credential data")
+            raise ValueError(f"Failed to encrypt credential data: {str(e)}")
     
     def _decrypt_data(self, encrypted_data: str, user_id: str) -> str:
-        """Decrypt credential data"""
-        if not CRYPTO_AVAILABLE:
-            # Fallback from base64 encoding
-            try:
-                return base64.urlsafe_b64decode(encrypted_data.encode()).decode()
-            except Exception as e:
-                logger.error(f"Base64 decoding failed: {e}")
-                raise ValueError("Failed to decode credential data")
-        
+        """Decrypt credential data using Fernet decryption"""
         try:
             key = self._get_encryption_key(user_id)
             fernet = Fernet(key)
@@ -125,7 +115,7 @@ class CredentialManager:
             return decrypted_data.decode()
         except Exception as e:
             logger.error(f"Decryption failed: {e}")
-            raise ValueError("Failed to decrypt credential data")
+            raise ValueError(f"Failed to decrypt credential data: {str(e)}")
     
     def store_credentials(self, credentials: WorkFossaCredentials) -> bool:
         """
@@ -160,7 +150,7 @@ class CredentialManager:
                     'user_id': credentials.user_id,
                     'encrypted_data': encrypted_data,
                     'created_at': datetime.now().isoformat(),
-                    'crypto_available': CRYPTO_AVAILABLE
+                    'encryption_version': '1.0'  # Track encryption version for future migrations
                 }, f)
             
             # Set restrictive file permissions
@@ -314,9 +304,10 @@ class CredentialManager:
     def get_security_info(self) -> Dict[str, Any]:
         """Get information about security configuration"""
         return {
-            'crypto_available': CRYPTO_AVAILABLE,
+            'encryption_enabled': True,
             'storage_path': self.storage_path,
-            'encryption_method': 'Fernet (AES 128)' if CRYPTO_AVAILABLE else 'Base64 (NOT SECURE)',
+            'encryption_method': 'Fernet (AES 128-bit)',
+            'key_derivation': 'PBKDF2-HMAC-SHA256 (100,000 iterations)',
             'master_key_set': bool(os.environ.get('FOSSAWORK_MASTER_KEY')),
             'stored_users_count': len(self.list_stored_users())
         }

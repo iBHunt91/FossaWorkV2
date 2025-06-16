@@ -23,6 +23,8 @@ from ..services.email_notification import EmailSettings
 from ..services.pushover_notification import PushoverSettings, PushoverPriority
 from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
+from ..auth.dependencies import require_auth
+from ..models import User
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -74,17 +76,16 @@ def get_logging_service(db: Session = Depends(get_db)) -> LoggingService:
     return LoggingService(db)
 
 
-@router.get("/preferences/{user_id}")
+@router.get("/preferences")
 async def get_user_notification_preferences(
-    user_id: str,
-    user_service: UserManagementService = Depends(get_user_service)
+    user_service: UserManagementService = Depends(get_user_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Get user notification preferences"""
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+        # User is already verified through authentication
+        user = current_user
         
         # Get preferences
         preferences = user_service.get_user_preference(user_id, "notification_preferences")
@@ -126,21 +127,20 @@ async def get_user_notification_preferences(
         )
 
 
-@router.put("/preferences/{user_id}")
+@router.put("/preferences")
 async def update_user_notification_preferences(
-    user_id: str,
     preferences: NotificationPreferencesRequest,
     background_tasks: BackgroundTasks,
     notification_manager: NotificationManager = Depends(get_notification_manager),
     user_service: UserManagementService = Depends(get_user_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Update user notification preferences"""
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+        # User is already verified through authentication
+        user = current_user
         
         # Convert request to dict
         preferences_dict = preferences.dict()
@@ -186,20 +186,19 @@ async def update_user_notification_preferences(
         )
 
 
-@router.post("/test/{user_id}")
+@router.post("/test")
 async def send_test_notification(
-    user_id: str,
     test_request: TestNotificationRequest,
     notification_manager: NotificationManager = Depends(get_notification_manager),
     user_service: UserManagementService = Depends(get_user_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Send test notification to user"""
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+        # User is already verified through authentication
+        user = current_user
         
         # Validate notification type
         try:
@@ -260,20 +259,19 @@ async def send_test_notification(
         )
 
 
-@router.post("/digest/{user_id}")
+@router.post("/digest")
 async def send_manual_digest(
-    user_id: str,
     digest_type: str = Query("daily", description="Type of digest (daily/weekly)"),
     notification_manager: NotificationManager = Depends(get_notification_manager),
     user_service: UserManagementService = Depends(get_user_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Manually trigger digest notification for user"""
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+        # User is already verified through authentication
+        user = current_user
         
         if digest_type not in ["daily", "weekly"]:
             raise HTTPException(
@@ -319,7 +317,8 @@ async def send_emergency_alert(
     background_tasks: BackgroundTasks,
     notification_manager: NotificationManager = Depends(get_notification_manager),
     user_service: UserManagementService = Depends(get_user_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
     """Send emergency alert to specified users or all users"""
     try:
@@ -372,19 +371,18 @@ async def send_emergency_alert(
         )
 
 
-@router.post("/validate-pushover/{user_id}")
+@router.post("/validate-pushover")
 async def validate_pushover_key(
-    user_id: str,
     pushover_user_key: str,
     notification_manager: NotificationManager = Depends(get_notification_manager),
-    user_service: UserManagementService = Depends(get_user_service)
+    user_service: UserManagementService = Depends(get_user_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Validate Pushover user key"""
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail=f"User {user_id} not found")
+        # User is already verified through authentication
+        user = current_user
         
         # Initialize notification manager
         await notification_manager.initialize()
@@ -411,7 +409,8 @@ async def validate_pushover_key(
 
 @router.get("/status")
 async def get_notification_status(
-    notification_manager: NotificationManager = Depends(get_notification_manager)
+    notification_manager: NotificationManager = Depends(get_notification_manager),
+    current_user: User = Depends(require_auth)
 ):
     """Get notification system status"""
     try:

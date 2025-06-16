@@ -20,7 +20,7 @@ import logging
 from ..database import get_db
 from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
-from ..middleware.auth_middleware import get_current_user
+from ..auth.security import get_current_user
 from ..models.user_models import User
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])

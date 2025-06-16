@@ -16,6 +16,8 @@ from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
 from ..models.user_schemas import APIResponse
 from ..models.user_models import UserScheduleChanges
+from ..auth.dependencies import require_auth
+from ..models import User
 
 router = APIRouter(prefix="/api/schedule", tags=["schedule_detection"])
 
@@ -26,16 +28,17 @@ def get_logging_service(db: Session = Depends(get_db)) -> LoggingService:
     return LoggingService(db)
 
 
-@router.post("/analyze/{user_id}", response_model=None)
+@router.post("/analyze", response_model=None)
 async def analyze_schedule_changes(
-    user_id: str,
     schedule_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
     include_preferences: bool = Query(True, description="Apply user notification preferences"),
     schedule_service: ScheduleDetectionService = Depends(get_schedule_detection_service),
     user_service: UserManagementService = Depends(get_user_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """
     Analyze schedule changes for a user
     
@@ -43,13 +46,8 @@ async def analyze_schedule_changes(
     including removed/added/modified/swapped jobs with intelligent filtering.
     """
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User {user_id} not found"
-            )
+        # User is already verified through authentication
+        user = current_user
         
         # Get user preferences for filtering
         user_preferences = None
@@ -131,24 +129,20 @@ async def analyze_schedule_changes(
         )
 
 
-@router.get("/history/{user_id}")
+@router.get("/history")
 async def get_schedule_change_history(
-    user_id: str,
     limit: int = Query(50, description="Maximum number of changes to return", le=200),
     days_back: int = Query(30, description="Number of days to look back", le=365),
     change_types: Optional[List[str]] = Query(None, description="Filter by change types"),
     user_service: UserManagementService = Depends(get_user_service),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Get historical schedule changes for a user"""
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User {user_id} not found"
-            )
+        # User is already verified through authentication
+        user = current_user
         
         # Calculate date range
         start_date = datetime.utcnow() - timedelta(days=days_back)
@@ -201,7 +195,8 @@ async def get_schedule_change_history(
 async def get_schedule_change_details(
     change_id: int,
     user_service: UserManagementService = Depends(get_user_service),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Get detailed information about a specific schedule change"""
     try:
@@ -213,13 +208,14 @@ async def get_schedule_change_details(
                 detail="Schedule change not found"
             )
         
-        # Verify user exists (for security)
-        user = user_service.get_user(change.user_id)
-        if not user:
+        # Verify the current user owns this change record
+        if change.user_id != current_user.id:
             raise HTTPException(
-                status_code=404,
-                detail="Associated user not found"
+                status_code=403,
+                detail="Access denied to this schedule change"
             )
+        
+        user = current_user
         
         return {
             "success": True,
@@ -248,7 +244,8 @@ async def get_schedule_change_details(
 @router.post("/test-detection")
 async def test_schedule_detection(
     test_data: Dict[str, Any],
-    schedule_service: ScheduleDetectionService = Depends(get_schedule_detection_service)
+    schedule_service: ScheduleDetectionService = Depends(get_schedule_detection_service),
+    current_user: User = Depends(require_auth)
 ):
     """
     Test schedule detection with sample data
@@ -293,22 +290,18 @@ async def test_schedule_detection(
         )
 
 
-@router.get("/statistics/{user_id}")
+@router.get("/statistics")
 async def get_schedule_statistics(
-    user_id: str,
     days_back: int = Query(30, description="Number of days for statistics", le=365),
     user_service: UserManagementService = Depends(get_user_service),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Get schedule change statistics for a user"""
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User {user_id} not found"
-            )
+        # User is already verified through authentication
+        user = current_user
         
         # Calculate date range
         start_date = datetime.utcnow() - timedelta(days=days_back)
@@ -385,24 +378,20 @@ async def get_schedule_statistics(
         )
 
 
-@router.delete("/history/{user_id}")
+@router.delete("/history")
 async def clear_schedule_history(
-    user_id: str,
     background_tasks: BackgroundTasks,
     days_older_than: int = Query(90, description="Delete changes older than X days"),
     user_service: UserManagementService = Depends(get_user_service),
     logging_service: LoggingService = Depends(get_logging_service),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Clear old schedule change history for a user"""
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User {user_id} not found"
-            )
+        # User is already verified through authentication
+        user = current_user
         
         # Calculate cutoff date
         cutoff_date = datetime.utcnow() - timedelta(days=days_older_than)

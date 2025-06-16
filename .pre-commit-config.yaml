@@ -1,0 +1,113 @@
+repos:
+  # Python formatting and linting
+  - repo: https://github.com/psf/black
+    rev: 23.12.1
+    hooks:
+      - id: black
+        language_version: python3
+        files: \.py$
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]
+        files: \.py$
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: ["--max-line-length=88", "--extend-ignore=E203,W503"]
+        files: \.py$
+
+  # JavaScript/TypeScript formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        files: \.(js|jsx|ts|tsx|css|md|json)$
+        exclude: ^(node_modules|dist|build)/
+
+  # Security checks
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package-lock\.json
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.6
+    hooks:
+      - id: bandit
+        args: ["-r", "backend/", "--skip", "B101"]
+        files: \.py$
+
+  # Vulnerability scanning
+  - repo: https://github.com/pyupio/safety
+    rev: v3.0.1
+    hooks:
+      - id: safety
+        args: ["check", "--json", "--continue-on-error"]
+        files: requirements\.txt$
+
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.45.0
+    hooks:
+      - id: semgrep
+        args: ['--config=auto', '--error']
+        exclude: ^(node_modules|dist|build|tests)/
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-ast
+      - id: debug-statements
+
+  # Custom FossaWork checks
+  - repo: local
+    hooks:
+      - id: no-hardcoded-secrets
+        name: Check for hardcoded secrets
+        entry: scripts/security/check-hardcoded-secrets.py
+        language: python
+        files: \.(py|js|ts|jsx|tsx)$
+        pass_filenames: true
+
+      - id: check-file-organization
+        name: Check file organization
+        entry: scripts/quality/check-file-organization.py
+        language: python
+        pass_filenames: false
+        always_run: true
+
+      - id: no-base64-encryption
+        name: Prevent base64 "encryption"
+        entry: scripts/security/check-base64-encryption.py
+        language: python
+        files: \.py$
+        pass_filenames: true
+
+      - id: auth-endpoint-check
+        name: Check API endpoint authentication
+        entry: scripts/security/check-auth-endpoints.py
+        language: python
+        files: backend/app/routes/.*\.py$
+        pass_filenames: true
+
+# Configuration for detect-secrets
+exclude_files: |
+  (?x)^(
+    .*\.(lock|png|jpg|jpeg|gif|ico|svg)|
+    package-lock\.json|
+    \.secrets\.baseline
+  )$

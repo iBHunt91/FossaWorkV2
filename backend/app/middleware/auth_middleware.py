@@ -31,9 +31,6 @@ PUBLIC_ENDPOINTS = {
 PUBLIC_PREFIXES = {
     "/static",
     "/favicon",
-    "/api/v1/work-orders",  # Temporarily allow all work order endpoints for testing
-    "/api/v1/users",  # Temporarily allow user endpoints for frontend development
-    "/api/v1/credentials",  # Temporarily allow credential endpoints for frontend development
 }
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):
@@ -77,22 +74,3 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
-
-# Dummy auth dependency for development - replace with real auth in production
-security = HTTPBearer(auto_error=False)
-
-async def get_current_user(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)):
-    """
-    Dummy authentication function for development.
-    In production, this should validate the JWT token and return the user.
-    """
-    # For development, just return a dummy user object that matches User model interface
-    class DummyUser:
-        def __init__(self):
-            self.id = "test-user-id"
-            self.username = "testuser"
-            self.email = "test@example.com"
-            self.is_admin = True
-            self.is_active = True
-    
-    return DummyUser()

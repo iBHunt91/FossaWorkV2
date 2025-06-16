@@ -14,6 +14,7 @@ from datetime import datetime
 from ..database import get_db
 from ..models import User, UserCredential as UserCredentials
 from ..services.credential_manager import credential_manager, WorkFossaCredentials
+from ..auth.dependencies import require_auth
 
 router = APIRouter(prefix="/api/v1/credentials", tags=["credentials"])
 
@@ -32,9 +33,14 @@ def simple_decrypt(encrypted_password: str) -> str:
 async def save_workfossa_credentials(
     user_id: str = Query(..., description="User ID to save credentials for"),
     credentials: Dict[str, str] = Body(..., description="Username and password credentials"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Save WorkFossa credentials securely - validates against app.workfossa.com first"""
+    # Verify user can only save their own credentials
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to save credentials for this user")
+    
     try:
         # Verify user exists or create demo user
         user = db.query(User).filter(User.id == user_id).first()
@@ -107,9 +113,14 @@ async def save_workfossa_credentials(
 @router.get("/workfossa")
 async def get_workfossa_credentials(
     user_id: str = Query(..., description="User ID to get credentials for"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Get WorkFossa credentials for a user (username only, no password)"""
+    # Verify user can only get their own credentials
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's credentials")
+    
     try:
         credentials = db.query(UserCredentials).filter(
             UserCredentials.user_id == user_id,
@@ -137,9 +148,14 @@ async def get_workfossa_credentials(
 @router.get("/workfossa/decrypt")
 async def get_workfossa_credentials_decrypted(
     user_id: str = Query(..., description="User ID to get decrypted credentials for"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Get decrypted WorkFossa credentials for automation use (internal only)"""
+    # Verify user can only get their own credentials
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's credentials")
+    
     try:
         # Try secure credential manager first
         secure_creds = credential_manager.retrieve_credentials(user_id)
@@ -178,9 +194,14 @@ async def get_workfossa_credentials_decrypted(
 @router.delete("/workfossa")
 async def delete_workfossa_credentials(
     user_id: str = Query(..., description="User ID to delete credentials for"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Delete WorkFossa credentials for a user"""
+    # Verify user can only delete their own credentials
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this user's credentials")
+    
     try:
         credentials = db.query(UserCredentials).filter(
             UserCredentials.user_id == user_id,
@@ -291,7 +312,9 @@ async def test_workfossa_credentials(
         }
 
 @router.get("/security/info")
-async def get_security_info():
+async def get_security_info(
+    current_user: User = Depends(require_auth)
+):
     """Get security configuration information"""
     try:
         security_info = credential_manager.get_security_info()

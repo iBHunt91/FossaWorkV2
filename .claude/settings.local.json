@@ -145,9 +145,80 @@
       "mcp__filesystem__read_multiple_files",
       "mcp__filesystem__read_file",
       "mcp__server-sequential-thinking__sequentialthinking",
-      "mcp__filesystem__list_directory"
+      "mcp__filesystem__list_directory",
+      "Bash(./tools/unix/check-backend-status.sh:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(./tools/unix/start-fossawork.sh:*)",
+      "Bash(python:*)",
+      "Bash(source:*)",
+      "Bash(open http://localhost:5173)",
+      "Bash(npx vite:*)",
+      "Bash(pip install:*)",
+      "Bash(claude --debug mcp)",
+      "Bash(/usr/local/bin/node /Users/ibhunt/.npm-global/lib/node_modules/@modelcontextprotocol/server-filesystem/dist/index.js)",
+      "Bash(claude --debug mcp list)",
+      "Bash(npx:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(git clone:*)",
+      "Bash(command -v:*)",
+      "Bash(/Users/ibhunt/Library/Python/3.13/bin/pre-commit install)",
+      "Bash(/Users/ibhunt/Library/Python/3.13/bin/safety check --json --continue-on-error --file backend/requirements.txt)"
     ],
     "deny": []
   },
-  "enableAllProjectMcpServers": false
+  "enableAllProjectMcpServers": false,
+  "mcpServers": {
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "memory-bank": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "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"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-playwright"
+      ]
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ]
+    },
+    "duckduckgo": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@oevortex/ddg_search"
+      ]
+    },
+    "knowledge-graph": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-knowledge-graph"
+      ]
+    }
+  }
 }

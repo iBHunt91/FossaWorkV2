@@ -4,14 +4,23 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 import time
 import asyncio
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
+
 from .database import get_db, create_tables
 from .models.user_models import User
 from .core_models import WorkOrder, Dispenser
-from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings
+from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics
 # Temporarily disabled due to FastAPI validation errors: filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
 from .services.logging_service import get_logger, log_api_request
 from .utils.memory_monitor import setup_memory_monitoring, start_memory_monitoring
 from .middleware.auth_middleware import AuthenticationMiddleware
+from .middleware.request_id import RequestIDMiddleware, configure_request_id_logging
+from .middleware.database_monitoring import db_monitoring
+from .services.metrics_service import metrics_service
 
 # Initialize logger
 logger = get_logger("fossawork.main")
@@ -32,13 +41,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request ID middleware (must be first for proper tracking)
+app.add_middleware(RequestIDMiddleware)
+
 # Authentication middleware (must be added AFTER CORS)
 app.add_middleware(AuthenticationMiddleware)
 
-# Logging middleware
+# Logging middleware with metrics integration
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """Log all HTTP requests with timing and details"""
+    """Log all HTTP requests with timing and metrics"""
     start_time = time.time()
     
     # Log incoming request
@@ -47,7 +59,8 @@ async def log_requests(request: Request, call_next):
     # Process request
     try:
         response = await call_next(request)
-        process_time = (time.time() - start_time) * 1000
+        duration = time.time() - start_time
+        process_time = duration * 1000
         
         # Log completed request
         log_api_request(
@@ -57,13 +70,32 @@ async def log_requests(request: Request, call_next):
             duration_ms=process_time
         )
         
+        # Track metrics
+        metrics_service.track_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status=response.status_code,
+            duration=duration
+        )
+        
         # Add timing header
         response.headers["X-Process-Time"] = str(process_time)
         return response
         
     except Exception as e:
-        process_time = (time.time() - start_time) * 1000
+        duration = time.time() - start_time
+        process_time = duration * 1000
         logger.error(f"[ERROR] {request.method} {request.url.path} - Error after {process_time:.2f}ms: {e}")
+        
+        # Track error metrics
+        metrics_service.track_request(
+            method=request.method,
+            endpoint=request.url.path,
+            status=500,
+            duration=duration
+        )
+        metrics_service.track_error("http_request_error", "error")
+        
         raise
 
 # Include route modules
@@ -81,6 +113,7 @@ app.include_router(schedule_detection.router)
 app.include_router(form_automation.router)
 app.include_router(user_preferences.router)
 app.include_router(settings.router)
+app.include_router(metrics.router)
 # Temporarily disabled routes due to FastAPI validation errors:
 # app.include_router(filter_calculation.router, prefix="/api/filters", tags=["filters"])
 # app.include_router(filter_inventory.router, prefix="/api/inventory", tags=["inventory"])
@@ -95,6 +128,19 @@ async def startup_event():
     create_tables()
     logger.info("[DATA] Database tables created/verified")
     
+    # Configure request ID logging
+    configure_request_id_logging()
+    logger.info("[LOGGING] Request ID tracking configured")
+    
+    # Setup database monitoring
+    from .database import engine
+    db_monitoring.setup_monitoring(engine)
+    logger.info("[DATABASE] Query monitoring configured")
+    
+    # Start metrics background tasks
+    await metrics_service.start_background_tasks()
+    logger.info("[METRICS] Prometheus metrics collection started")
+    
     # Setup memory monitoring
     setup_memory_monitoring(max_memory_mb=6144, check_interval=30)
     
@@ -103,6 +149,17 @@ async def startup_event():
     logger.info("[MEMORY] Memory monitoring started (6GB limit)")
     
     logger.info("[OK] FossaWork V2 API startup completed successfully")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on shutdown"""
+    logger.info("[SHUTDOWN] FossaWork V2 API shutting down...")
+    
+    # Stop metrics background tasks
+    await metrics_service.stop_background_tasks()
+    logger.info("[METRICS] Metrics collection stopped")
+    
+    logger.info("[SHUTDOWN] Cleanup completed")
 
 @app.get("/")
 async def root():

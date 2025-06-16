@@ -75,6 +75,19 @@ FossaWork/
 
 ### 🚀 Quick Start
 
+#### ⚠️ Security Setup Required
+
+Before running FossaWork V2, you MUST configure security keys:
+
+```bash
+cd backend
+python scripts/generate_secure_keys.py
+```
+
+See the [Security Setup Guide](docs/guides/SECURITY_SETUP.md) for detailed instructions.
+
+#### Running the Application
+
 **Windows:**
 ```batch
 tools\windows\start-fossawork.bat

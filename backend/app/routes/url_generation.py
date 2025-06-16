@@ -10,8 +10,9 @@ import json
 import logging
 
 from ..database import get_db
-from ..models import WorkOrder
+from ..models import WorkOrder, User
 from ..services.url_generator import WorkFossaURLGenerator, enhance_work_orders_with_urls
+from ..auth.dependencies import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,8 @@ router = APIRouter(prefix="/api/v1/urls", tags=["url_generation"])
 @router.post("/generate-visit-urls")
 async def generate_visit_urls(
     work_order_data: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Generate visit URLs for work orders"""
     try:
@@ -53,7 +55,7 @@ async def generate_visit_urls(
         raise HTTPException(status_code=500, detail=f"URL generation failed: {str(e)}")
 
 @router.post("/generate-single-url")
-async def generate_single_url(work_order: Dict[str, Any]):
+async def generate_single_url(work_order: Dict[str, Any], current_user: User = Depends(require_auth)):
     """Generate visit URL for a single work order"""
     try:
         url_generator = WorkFossaURLGenerator()
@@ -77,7 +79,7 @@ async def generate_single_url(work_order: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=f"Single URL generation failed: {str(e)}")
 
 @router.get("/workfossa-urls")
-async def get_workfossa_urls():
+async def get_workfossa_urls(current_user: User = Depends(require_auth)):
     """Get essential WorkFossa URLs for automation"""
     try:
         url_generator = WorkFossaURLGenerator()
@@ -104,12 +106,16 @@ async def get_workfossa_urls():
 @router.post("/enhance-work-orders")
 async def enhance_work_orders_endpoint(
     work_order_ids: List[str],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Enhance stored work orders with generated visit URLs"""
     try:
-        # Get work orders from database
-        work_orders = db.query(WorkOrder).filter(WorkOrder.id.in_(work_order_ids)).all()
+        # Get work orders from database - ensure user owns them
+        work_orders = db.query(WorkOrder).filter(
+            WorkOrder.id.in_(work_order_ids),
+            WorkOrder.user_id == current_user.id
+        ).all()
         
         if not work_orders:
             raise HTTPException(status_code=404, detail="No work orders found")
@@ -172,7 +178,7 @@ async def enhance_work_orders_endpoint(
         raise HTTPException(status_code=500, detail=f"Work order enhancement failed: {str(e)}")
 
 @router.get("/test-real-data")
-async def test_url_generation_with_real_data():
+async def test_url_generation_with_real_data(current_user: User = Depends(require_auth)):
     """Test URL generation with real exported data"""
     try:
         import os

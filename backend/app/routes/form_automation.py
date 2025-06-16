@@ -17,6 +17,8 @@ from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
 from ..models.user_schemas import APIResponse
 from ..services.browser_automation import browser_automation
+from ..auth.dependencies import require_auth
+from ..models import User
 # V1 import removed - no longer needed after migration
 
 router = APIRouter(prefix="/api/form-automation", tags=["form_automation"])
@@ -38,12 +40,13 @@ def get_logging_service(db: Session = Depends(get_db)):
 @router.post("/analyze-work-order", response_model=None)
 async def analyze_work_order(
     work_order_data: Dict[str, Any],
-    user_id: str = Query(..., description="User ID for preferences"),
     include_user_preferences: bool = Query(True, description="Apply user automation preferences"),
     form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
     user_service: UserManagementService = Depends(get_user_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """
     Analyze work order to determine automation strategy
     
@@ -51,13 +54,8 @@ async def analyze_work_order(
     and automation template selection based on sophisticated business logic.
     """
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User {user_id} not found"
-            )
+        # User is already verified through authentication
+        user = current_user
         
         # Get user preferences if requested
         user_preferences = None
@@ -114,14 +112,15 @@ async def analyze_work_order(
 
 @router.post("/create-job", response_model=None)
 async def create_automation_job(
-    user_id: str,
     work_order_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
     include_user_preferences: bool = Query(True, description="Apply user automation preferences"),
     form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
     user_service: UserManagementService = Depends(get_user_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """
     Create new form automation job
     
@@ -129,13 +128,8 @@ async def create_automation_job(
     progress tracking setup, and error recovery state initialization.
     """
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User {user_id} not found"
-            )
+        # User is already verified through authentication
+        user = current_user
         
         # Get user preferences if requested
         user_preferences = None
@@ -201,7 +195,8 @@ async def create_automation_job(
 @router.get("/job/{job_id}")
 async def get_job_status(
     job_id: str,
-    form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service)
+    form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
+    current_user: User = Depends(require_auth)
 ):
     """Get current status and progress of automation job"""
     try:
@@ -233,7 +228,8 @@ async def update_job_progress(
     progress_data: Dict[str, Any],
     background_tasks: BackgroundTasks,
     form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
     """
     Update job progress
@@ -282,14 +278,15 @@ async def update_job_progress(
         )
 
 
-@router.get("/jobs/user/{user_id}")
+@router.get("/jobs/user")
 async def get_user_jobs(
-    user_id: str,
     status_filter: Optional[str] = Query(None, description="Filter by job status"),
     limit: int = Query(50, description="Maximum number of jobs to return", le=200),
     form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
-    user_service: UserManagementService = Depends(get_user_service)
+    user_service: UserManagementService = Depends(get_user_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """Get automation jobs for a user"""
     try:
         # Verify user exists
@@ -345,7 +342,8 @@ async def get_user_jobs(
 @router.post("/test-service-code-detection", response_model=None)
 async def test_service_code_detection(
     test_data: Dict[str, Any],
-    form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service)
+    form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
+    current_user: User = Depends(require_auth)
 ):
     """
     Test service code detection with sample data
@@ -394,7 +392,8 @@ async def test_service_code_detection(
 @router.post("/test-fuel-classification", response_model=None)
 async def test_fuel_classification(
     test_data: Dict[str, Any],
-    form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service)
+    form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
+    current_user: User = Depends(require_auth)
 ):
     """
     Test fuel grade classification with sample data
@@ -451,7 +450,8 @@ async def test_fuel_classification(
 
 @router.get("/service-codes")
 async def get_service_codes(
-    form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service)
+    form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
+    current_user: User = Depends(require_auth)
 ):
     """Get all available service codes and their patterns"""
     return {
@@ -470,7 +470,8 @@ async def cancel_job(
     job_id: str,
     background_tasks: BackgroundTasks,
     form_service: FormAutomationV1Service = Depends(get_form_automation_v1_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
     """Cancel running automation job"""
     try:
@@ -518,15 +519,16 @@ async def cancel_job(
 
 @router.post("/execute-full-automation", response_model=None)
 async def execute_full_automation(
-    user_id: str,
     work_order_data: Dict[str, Any],
     credentials: Dict[str, str],
     background_tasks: BackgroundTasks,
     include_user_preferences: bool = Query(True, description="Apply user automation preferences"),
     integration_service: FormAutomationBrowserIntegration = Depends(get_form_automation_browser_integration),
     user_service: UserManagementService = Depends(get_user_service),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
+    user_id = current_user.id
     """
     Execute complete automation workflow with browser integration
     
@@ -541,13 +543,8 @@ async def execute_full_automation(
     - Screenshot capture for debugging
     """
     try:
-        # Verify user exists
-        user = user_service.get_user(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User {user_id} not found"
-            )
+        # User is already verified through authentication
+        user = current_user
         
         # Get user preferences if requested
         user_preferences = None
@@ -605,7 +602,8 @@ async def execute_full_automation(
 @router.get("/integrated-job/{job_id}")
 async def get_integrated_job_status(
     job_id: str,
-    integration_service: FormAutomationBrowserIntegration = Depends(get_form_automation_browser_integration)
+    integration_service: FormAutomationBrowserIntegration = Depends(get_form_automation_browser_integration),
+    current_user: User = Depends(require_auth)
 ):
     """Get status of integrated automation job with comprehensive details"""
     try:
@@ -636,7 +634,8 @@ async def cancel_integrated_job(
     job_id: str,
     background_tasks: BackgroundTasks,
     integration_service: FormAutomationBrowserIntegration = Depends(get_form_automation_browser_integration),
-    logging_service: LoggingService = Depends(get_logging_service)
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
 ):
     """Cancel running integrated automation job"""
     try:
@@ -680,7 +679,8 @@ async def cancel_integrated_job(
 
 @router.post("/test-integration", response_model=None)
 async def test_integration_service(
-    integration_service: FormAutomationBrowserIntegration = Depends(get_form_automation_browser_integration)
+    integration_service: FormAutomationBrowserIntegration = Depends(get_form_automation_browser_integration),
+    current_user: User = Depends(require_auth)
 ):
     """Test the form automation browser integration service"""
     try:

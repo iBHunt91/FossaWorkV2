@@ -49,6 +49,20 @@ class User(Base):
         """Return email as username for compatibility"""
         return self.email
     
+    # Add is_active property for compatibility with auth dependencies
+    @property
+    def is_active(self):
+        """All authenticated users are considered active"""
+        return True
+    
+    # Add is_admin property for compatibility
+    @property
+    def is_admin(self):
+        """Check if user is admin based on email domain or specific users"""
+        # You can customize this logic based on your requirements
+        # For now, no users are admins
+        return False
+    
     # Timestamps
     last_used = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
