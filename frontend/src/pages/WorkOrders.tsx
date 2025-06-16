@@ -85,6 +85,13 @@ const WorkOrders: React.FC = () => {
   const [isPollingProgress, setIsPollingProgress] = useState(false)
   const [expandedInstructions, setExpandedInstructions] = useState<Set<string>>(new Set())
   
+  // Batch scraping progress
+  const [batchScrapingProgress, setBatchScrapingProgress] = useState<{
+    current: number
+    total: number
+    currentWorkOrder: string
+  } | null>(null)
+  
   // Dispenser scraping state
   const [dispenserScrapeStatus, setDispenserScrapeStatus] = useState<'idle' | 'scraping' | 'success' | 'error'>('idle')
   const [dispenserScrapeMessage, setDispenserScrapeMessage] = useState('')
@@ -651,11 +658,19 @@ const WorkOrders: React.FC = () => {
   }, [workOrders, debouncedSearchTerm, statusFilter, brandFilter])
 
   const handleScrape = () => {
+    if (isAnyScraping) {
+      alert('Another scraping operation is in progress. Please wait for it to complete.')
+      return
+    }
     console.log('Starting work order scrape for user:', currentUserId)
     scrapeMutation.mutate()
   }
 
   const handleDispenserScrape = () => {
+    if (isAnyScraping) {
+      alert('Another scraping operation is in progress. Please wait for it to complete.')
+      return
+    }
     console.log('Starting batch dispenser scrape for user:', currentUserId)
     dispenserScrapeMutation.mutate()
   }
@@ -684,9 +699,20 @@ const WorkOrders: React.FC = () => {
     setSelectedWorkOrders(new Set())
   }
 
+  // Check if any scraping is in progress
+  const isAnyScraping = scrapeStatus === 'scraping' || 
+                       dispenserScrapeStatus === 'scraping' || 
+                       singleDispenserProgress !== null
+
   // Handle batch operations
   const handleBatchDispenserScrape = async () => {
     if (selectedWorkOrders.size === 0) return
+    
+    // Prevent concurrent scraping
+    if (isAnyScraping) {
+      alert('Another scraping operation is in progress. Please wait for it to complete.')
+      return
+    }
 
     const selectedIds = Array.from(selectedWorkOrders)
     console.log(`Starting selective dispenser scrape for ${selectedIds.length} work orders:`, selectedIds)
@@ -696,7 +722,8 @@ const WorkOrders: React.FC = () => {
     
     // Set scraping status
     setDispenserScrapeStatus('scraping')
-    setDispenserScrapeMessage(`Scraping dispensers for ${selectedIds.length} selected work orders...`)
+    setDispenserScrapeMessage(`Preparing to scrape ${selectedIds.length} work orders...`)
+    setBatchScrapingProgress({ current: 0, total: selectedIds.length, currentWorkOrder: '' })
     
     try {
       // Scrape each selected work order sequentially
@@ -705,6 +732,11 @@ const WorkOrders: React.FC = () => {
         const workOrder = workOrders.find(wo => wo.id === workOrderId)
         
         if (workOrder) {
+          setBatchScrapingProgress({ 
+            current: i + 1, 
+            total: selectedIds.length, 
+            currentWorkOrder: workOrder.site_name 
+          })
           setDispenserScrapeMessage(`Scraping ${i + 1} of ${selectedIds.length}: ${workOrder.site_name}...`)
           
           try {
@@ -724,6 +756,7 @@ const WorkOrders: React.FC = () => {
       // Success message
       setDispenserScrapeStatus('success')
       setDispenserScrapeMessage(`Successfully scraped dispensers for ${selectedIds.length} work orders!`)
+      setBatchScrapingProgress(null)
       
       // Refresh work orders to show updated dispenser counts
       queryClient.invalidateQueries({ queryKey: ['work-orders'] })
@@ -738,6 +771,7 @@ const WorkOrders: React.FC = () => {
       console.error('Batch dispenser scrape failed:', error)
       setDispenserScrapeStatus('error')
       setDispenserScrapeMessage('Failed to complete batch dispenser scraping')
+      setBatchScrapingProgress(null)
       
       setTimeout(() => {
         setDispenserScrapeStatus('idle')
@@ -899,7 +933,7 @@ const WorkOrders: React.FC = () => {
             </AnimatedButton>
             <AnimatedButton
               onClick={handleScrape}
-              disabled={scrapeMutation.isPending || scrapeStatus === 'scraping'}
+              disabled={scrapeMutation.isPending || scrapeStatus === 'scraping' || isAnyScraping}
               size="lg"
               animation="shimmer"
               className="min-w-[180px]"
@@ -909,7 +943,7 @@ const WorkOrders: React.FC = () => {
             </AnimatedButton>
             <AnimatedButton
               onClick={handleDispenserScrape}
-              disabled={dispenserScrapeMutation.isPending || dispenserScrapeStatus === 'scraping'}
+              disabled={dispenserScrapeMutation.isPending || dispenserScrapeStatus === 'scraping' || isAnyScraping}
               size="lg"
               variant="secondary"
               animation="pulse"
@@ -925,7 +959,7 @@ const WorkOrders: React.FC = () => {
                 <div className="h-10 w-px bg-border/50" />
                 <AnimatedButton
                   onClick={handleBatchDispenserScrape}
-                  disabled={selectedWorkOrders.size === 0}
+                  disabled={selectedWorkOrders.size === 0 || isAnyScraping}
                   size="lg"
                   variant="outline"
                   animation="scale"
@@ -1098,6 +1132,29 @@ const WorkOrders: React.FC = () => {
                 </CardHeader>
                 
                 <CardContent className="pt-2">
+                  {/* Batch scraping progress */}
+                  {batchScrapingProgress && (
+                    <div className="space-y-3 mb-4">
+                      <div className="bg-gradient-to-r from-orange-100/50 to-amber-100/50 dark:from-orange-900/20 dark:to-amber-900/20 p-4 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="text-sm font-medium">
+                            Progress: {batchScrapingProgress.current} of {batchScrapingProgress.total}
+                          </div>
+                          <div className="text-sm font-medium text-orange-600">
+                            {Math.round((batchScrapingProgress.current / batchScrapingProgress.total) * 100)}%
+                          </div>
+                        </div>
+                        <Progress 
+                          value={(batchScrapingProgress.current / batchScrapingProgress.total) * 100} 
+                          className="h-3 bg-orange-200/50"
+                        />
+                        <div className="mt-2 text-xs text-muted-foreground truncate">
+                          Current: {batchScrapingProgress.currentWorkOrder}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {dispenserScrapingProgress && (
                     <div className="space-y-4">
                       {/* Sleek Progress Section */}
