@@ -9,12 +9,14 @@ from sqlalchemy.orm.attributes import flag_modified
 from typing import List, Dict, Any
 import uuid
 import logging
+import asyncio
 from datetime import datetime
 
 from ..database import get_db
 from ..models import User, WorkOrder, Dispenser
 from ..services.browser_automation import browser_automation, BrowserAutomationService
 from ..services.workfossa_scraper import WorkOrderData
+from ..auth.dependencies import require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -135,12 +137,73 @@ async def generate_test_work_orders() -> List[WorkOrderData]:
     
     return work_orders
 
+def convert_fuel_grades_to_list(fuel_grades: Dict[str, Any]) -> List[str]:
+    """Convert fuel_grades dict to list of grade names for frontend display"""
+    if not fuel_grades or not isinstance(fuel_grades, dict):
+        return []
+    
+    # Extract grade names from the dict format
+    grade_names = []
+    for key, value in fuel_grades.items():
+        # Skip API error keys and other non-fuel keys
+        key_lower = key.lower()
+        if ('api' in key_lower or 'error' in key_lower or 'type' in key_lower or 
+            'work order' in key_lower or 'description' in key_lower):
+            continue
+        
+        # Get the name from the value if it's a dict, otherwise use the key
+        if isinstance(value, dict) and 'name' in value:
+            grade_names.append(value['name'])
+        elif isinstance(value, str) and not any(x in value.lower() for x in ['api', 'error', 'type']):
+            grade_names.append(value)
+        else:
+            # Capitalize and clean the key as the grade name
+            clean_name = key.replace('_', ' ').title()
+            # Only add if it looks like a fuel grade
+            if clean_name.lower() in ['regular', 'plus', 'premium', 'diesel', 'e85', 'def', 'super', 'mid', 'midgrade']:
+                grade_names.append(clean_name)
+    
+    return grade_names
+
+
+def get_scraped_dispenser_details(work_order: WorkOrder, dispenser_number: str) -> Dict[str, Any]:
+    """Extract scraped dispenser details from work order scraped_data"""
+    if not work_order.scraped_data or 'dispensers' not in work_order.scraped_data:
+        return {}
+    
+    scraped_dispensers = work_order.scraped_data.get('dispensers', [])
+    
+    # Find matching dispenser by number
+    for scraped in scraped_dispensers:
+        if str(scraped.get('dispenser_number', '')) == str(dispenser_number):
+            # Return the extra fields that aren't in the base Dispenser model
+            return {
+                'title': scraped.get('title'),  # Added title field
+                'serial_number': scraped.get('serial_number'),
+                'make': scraped.get('make'),
+                'model': scraped.get('model'),
+                'stand_alone_code': scraped.get('stand_alone_code'),
+                'number_of_nozzles': scraped.get('number_of_nozzles'),
+                'meter_type': scraped.get('meter_type'),
+                'grades_list': scraped.get('grades_list', []),
+                'dispenser_numbers': scraped.get('dispenser_numbers', []),  # Added dispenser_numbers array
+                'custom_fields': scraped.get('custom_fields', {})
+            }
+    
+    return {}
+
+
 @router.get("/", response_model=List[Dict[str, Any]])
 async def get_work_orders(
     user_id: str = Query(..., description="User ID to fetch work orders for"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Get all work orders for a user"""
+    # Verify user can only access their own data
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's work orders")
+    
     try:
         # Query work orders from database
         work_orders = db.query(WorkOrder).filter(WorkOrder.user_id == user_id).all()
@@ -190,6 +253,7 @@ async def get_work_orders(
                 "service_code": wo.service_code,
                 "service_description": wo.service_description,
                 "visit_id": wo.visit_id,
+                "visit_number": wo.visit_number,
                 "instructions": wo.instructions,
                 "scraped_data": wo.scraped_data,
                 # New fields
@@ -209,7 +273,24 @@ async def get_work_orders(
                         "fuel_grades": d.fuel_grades,
                         "status": d.status,
                         "progress_percentage": d.progress_percentage,
-                        "automation_completed": d.automation_completed
+                        "automation_completed": d.automation_completed,
+                        # Add fields from the dispenser model directly
+                        "make": d.make,
+                        "model": d.model,
+                        "serial_number": d.serial_number,
+                        "meter_type": d.meter_type,
+                        "number_of_nozzles": d.number_of_nozzles,
+                        # Get additional fields from form_data
+                        "stand_alone_code": d.form_data.get('stand_alone_code') if d.form_data else None,
+                        "title": d.form_data.get('title') if d.form_data else None,
+                        "dispenser_numbers": d.form_data.get('dispenser_numbers', []) if d.form_data else [],
+                        "custom_fields": d.form_data.get('custom_fields', {}) if d.form_data else {},
+                        # Get grades_list from form_data
+                        "grades_list": d.form_data.get('grades_list', []) if d.form_data else [],
+                        # Provide fuel_grades_list for frontend compatibility
+                        "fuel_grades_list": (
+                            d.form_data.get('grades_list', []) if d.form_data else []
+                        ) or convert_fuel_grades_to_list(d.fuel_grades)
                     }
                     for d in dispensers
                 ]
@@ -225,9 +306,14 @@ async def get_work_orders(
 async def get_work_order(
     work_order_id: str,
     user_id: str = Query(..., description="User ID to verify ownership"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Get specific work order with dispensers"""
+    # Verify user can only access their own data
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's work orders")
+    
     try:
         # Find work order
         work_order = db.query(WorkOrder).filter(
@@ -282,6 +368,7 @@ async def get_work_order(
             "service_code": work_order.service_code,
             "service_description": work_order.service_description,
             "visit_id": work_order.visit_id,
+            "visit_number": work_order.visit_number,
             "instructions": work_order.instructions,
             "scraped_data": work_order.scraped_data,
             # New fields
@@ -303,7 +390,24 @@ async def get_work_order(
                     "progress_percentage": d.progress_percentage,
                     "automation_completed": d.automation_completed,
                     "created_at": d.created_at.isoformat(),
-                    "updated_at": d.updated_at.isoformat()
+                    "updated_at": d.updated_at.isoformat(),
+                    # Add fields from the dispenser model directly
+                    "make": d.make,
+                    "model": d.model,
+                    "serial_number": d.serial_number,
+                    "meter_type": d.meter_type,
+                    "number_of_nozzles": d.number_of_nozzles,
+                    # Get additional fields from form_data
+                    "stand_alone_code": d.form_data.get('stand_alone_code') if d.form_data else None,
+                    "title": d.form_data.get('title') if d.form_data else None,
+                    "dispenser_numbers": d.form_data.get('dispenser_numbers', []) if d.form_data else [],
+                    "custom_fields": d.form_data.get('custom_fields', {}) if d.form_data else {},
+                    # Get grades_list from form_data
+                    "grades_list": d.form_data.get('grades_list', []) if d.form_data else [],
+                    # Provide fuel_grades_list for frontend compatibility
+                    "fuel_grades_list": (
+                        d.form_data.get('grades_list', []) if d.form_data else []
+                    ) or convert_fuel_grades_to_list(d.fuel_grades)
                 }
                 for d in dispensers
             ]
@@ -315,8 +419,15 @@ async def get_work_order(
         raise HTTPException(status_code=500, detail=f"Failed to fetch work order: {str(e)}")
 
 @router.get("/scrape/progress/{user_id}")
-async def get_scraping_progress(user_id: str):
+async def get_scraping_progress(
+    user_id: str,
+    current_user: User = Depends(require_auth)
+):
     """Get current scraping progress for a user"""
+    # Verify user can only access their own data
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's progress")
+    
     progress = scraping_progress.get(user_id, {
         "status": "idle",
         "phase": "not_started",
@@ -333,9 +444,14 @@ async def get_scraping_progress(user_id: str):
 async def trigger_scrape(
     user_id: str = Query(..., description="User ID to scrape work orders for"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Trigger work order scraping for a user"""
+    # Verify user can only scrape their own data
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to scrape for this user")
+    
     try:
         # Verify user exists
         user = db.query(User).filter(User.id == user_id).first()
@@ -495,7 +611,7 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         
         logger.info("[SCRAPE] Creating WorkFossa automation service...")
         update_progress("initializing", 10, "Creating browser automation service...")
-        workfossa_automation = WorkFossaAutomationService()
+        workfossa_automation = WorkFossaAutomationService(headless=False)  # Visible browser for debugging
         
         # Create automation session with credentials
         logger.info("[SCRAPE] Creating automation session...")
@@ -569,6 +685,7 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
                 existing.service_description = wo_data.service_description
                 existing.visit_id = wo_data.visit_id
                 existing.visit_url = wo_data.visit_url
+                existing.visit_number = wo_data.visit_number
                 existing.instructions = wo_data.instructions
                 # Update new fields
                 existing.service_name = wo_data.service_name
@@ -605,6 +722,7 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
                     service_description=wo_data.service_description,
                     visit_id=wo_data.visit_id,
                     visit_url=wo_data.visit_url,
+                    visit_number=wo_data.visit_number,
                     instructions=wo_data.instructions,
                     # New fields
                     service_name=wo_data.service_name,
@@ -621,6 +739,11 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
                         "service_info": {
                             "type": wo_data.service_type,
                             "quantity": wo_data.service_quantity
+                        },
+                        "visit_info": {
+                            "date": wo_data.scheduled_date.isoformat() if wo_data.scheduled_date else None,
+                            "url": wo_data.visit_url,
+                            "visit_id": wo_data.visit_id
                         },
                         "customer_url": wo_data.customer_url
                     }
@@ -642,7 +765,13 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
                     fuel_grades=disp_data.get("fuel_grades", {}),
                     status="pending",
                     progress_percentage=0.0,
-                    automation_completed=False
+                    automation_completed=False,
+                    # Add new fields if they exist in the dispenser data
+                    make=disp_data.get("make"),
+                    model=disp_data.get("model"),
+                    serial_number=disp_data.get("serial_number"),
+                    meter_type=disp_data.get("meter_type"),
+                    number_of_nozzles=disp_data.get("number_of_nozzles")
                 )
                 db.add(dispenser)
         
@@ -723,7 +852,8 @@ async def scrape_dispensers(
     work_order_id: str,
     user_id: str = Query(..., description="User ID to verify ownership"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Trigger dispenser scraping for a specific work order"""
     try:
@@ -808,16 +938,14 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
     # Import the database session
     from ..database import SessionLocal
     db = SessionLocal()
+    session_id = None
     
     try:
-        logger.info(f"Starting dispenser scrape for work order {work_order_id}")
+        logger.info(f"🔧 [SINGLE_DISPENSER] Starting dispenser scrape for work order {work_order_id}")
         
         # Import automation services
         from ..services.workfossa_automation import workfossa_automation, WorkFossaCredentials
         from ..services.workfossa_scraper import workfossa_scraper
-        
-        # Create session
-        session_id = f"dispenser_scrape_{work_order_id}"
         
         # Create credentials object
         workfossa_creds = WorkFossaCredentials(
@@ -826,64 +954,161 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
             user_id=user_id
         )
         
-        # Create browser session
-        await workfossa_automation.create_automation_session(user_id, workfossa_creds)
+        # Create browser session (will use visible browser for testing)
+        session_id = await workfossa_automation.create_automation_session(user_id, workfossa_creds)
         
         # Login
-        login_success = await workfossa_automation.login_to_workfossa(user_id)
+        login_success = await workfossa_automation.login_to_workfossa(session_id)
         if not login_success:
             raise Exception("Failed to login to WorkFossa")
         
-        # Scrape dispensers
-        dispensers = await workfossa_scraper.scrape_dispenser_details(
-            session_id=user_id,  # Using user_id as session_id for the automation service
+        # Get the page from session
+        session_data = workfossa_automation.sessions.get(session_id)
+        if not session_data or 'page' not in session_data:
+            raise Exception("No page found in session")
+        
+        page = session_data['page']
+        
+        # Verify page is still valid
+        try:
+            await page.evaluate("() => document.title")
+        except Exception as e:
+            logger.error(f"Page is no longer valid: {e}")
+            raise Exception("Browser page is no longer valid. Session may have timed out.")
+        
+        # Use dispenser scraper directly with the page
+        from ..services.dispenser_scraper import dispenser_scraper
+        dispenser_infos, raw_html = await dispenser_scraper.scrape_dispensers_for_work_order(
+            page=page,
             work_order_id=work_order_id,
-            customer_url=customer_url
+            visit_url=customer_url
         )
         
-        logger.info(f"Scraped {len(dispensers)} dispensers for work order {work_order_id}")
+        # Convert DispenserInfo objects to dictionaries
+        dispensers = []
+        for info in dispenser_infos:
+            dispenser_dict = {
+                'dispenser_number': info.dispenser_number,
+                'dispenser_type': info.make or 'Unknown',  # Use make as dispenser_type
+                'title': info.title,
+                'serial_number': info.serial_number,
+                'make': info.make,
+                'model': info.model,
+                'stand_alone_code': info.stand_alone_code,
+                'number_of_nozzles': info.number_of_nozzles,
+                'meter_type': info.meter_type,
+                'fuel_grades': info.fuel_grades or {},
+                'grades_list': info.grades_list or [],
+                'dispenser_numbers': info.dispenser_numbers or [],
+                'custom_fields': info.custom_fields or {}
+            }
+            dispensers.append(dispenser_dict)
+        
+        logger.info(f"📋 Scraper returned {len(dispensers)} dispensers for work order {work_order_id}")
         
         # Update database
         work_order = db.query(WorkOrder).filter(WorkOrder.id == work_order_id).first()
         if work_order:
-            # Delete existing dispensers
-            db.query(Dispenser).filter(Dispenser.work_order_id == work_order_id).delete()
-            
-            # Add new dispensers
-            for i, d in enumerate(dispensers):
-                dispenser = Dispenser(
-                    id=str(uuid.uuid4()),
-                    work_order_id=work_order_id,
-                    dispenser_number=d.get("dispenser_number", str(i + 1)),
-                    dispenser_type=d.get("dispenser_type", "Unknown"),
-                    fuel_grades=d.get("fuel_grades", {}),
-                    status="pending",
-                    progress_percentage=0.0,
-                    automation_completed=False
-                )
-                db.add(dispenser)
-            
-            # Update scraped data
-            if work_order.scraped_data is None:
-                work_order.scraped_data = {}
-            
-            work_order.scraped_data["dispensers"] = dispensers
-            work_order.scraped_data["dispenser_count"] = len(dispensers)
-            work_order.scraped_data["dispenser_scrape_date"] = datetime.now().isoformat()
-            work_order.scraped_data["dispensers_scraped_at"] = datetime.now().isoformat()
-            
-            # IMPORTANT: Mark JSON field as modified for SQLite
-            flag_modified(work_order, "scraped_data")
-            
-            db.commit()
-            logger.info(f"Updated work order {work_order_id} with {len(dispensers)} dispensers")
+            if dispensers:
+                logger.info(f"✅ Found {len(dispensers)} dispensers for {work_order.external_id}")
+                
+                # Log each dispenser found
+                for j, disp in enumerate(dispensers):
+                    logger.info(f"  Dispenser {j+1}: Number={disp.get('dispenser_number', 'Unknown')}, Type={disp.get('dispenser_type', 'Unknown')}")
+                
+                # Update database
+                logger.info(f"💾 Updating database for {work_order.external_id}...")
+                
+                # Delete existing dispensers
+                deleted_count = db.query(Dispenser).filter(Dispenser.work_order_id == work_order_id).delete()
+                logger.info(f"🗑️ Deleted {deleted_count} existing dispensers for {work_order.external_id}")
+                
+                # Add new dispensers
+                logger.info(f"➕ Adding {len(dispensers)} new dispensers...")
+                for i, disp in enumerate(dispensers):
+                    # Extract dispenser type from title or use make/model (same as batch)
+                    dispenser_type = "Unknown"
+                    if disp.get("title"):
+                        # Extract from title (e.g., "1/2 - Regular, Plus, Diesel - Gilbarco")
+                        title_parts = disp["title"].split(" - ")
+                        if len(title_parts) > 1:
+                            # Get the last part which usually has the manufacturer
+                            type_part = title_parts[-1].strip()
+                            # Extract just the manufacturer name
+                            dispenser_type = type_part.split("\n")[0].strip()
+                    
+                    # If we have make/model info, use that
+                    if "Make:" in disp.get("title", ""):
+                        import re
+                        make_match = re.search(r"Make:\s*(\w+)", disp["title"])
+                        model_match = re.search(r"Model:\s*(\w+)", disp["title"])
+                        if make_match:
+                            make = make_match.group(1)
+                            model = model_match.group(1) if model_match else ""
+                            dispenser_type = f"{make} {model}".strip()
+                    
+                    dispenser = Dispenser(
+                        id=str(uuid.uuid4()),
+                        work_order_id=work_order_id,
+                        dispenser_number=disp.get("dispenser_number", str(i + 1)),
+                        dispenser_type=dispenser_type,
+                        fuel_grades=disp.get("fuel_grades", {}),
+                        status="pending",
+                        progress_percentage=0.0,
+                        automation_completed=False,
+                        # Store all scraped fields (same as batch scraping)
+                        make=disp.get("make"),
+                        model=disp.get("model"),
+                        serial_number=disp.get("serial_number"),
+                        meter_type=disp.get("meter_type"),
+                        number_of_nozzles=disp.get("number_of_nozzles"),
+                        # Store additional data in form_data field
+                        form_data={
+                            "stand_alone_code": disp.get("stand_alone_code"),
+                            "grades_list": disp.get("grades_list", []),
+                            "title": disp.get("title"),
+                            "dispenser_numbers": disp.get("dispenser_numbers", []),
+                            "custom_fields": disp.get("custom_fields", {})
+                        }
+                    )
+                    db.add(dispenser)
+                    logger.info(f"  ➕ Added dispenser {i+1}: {dispenser.dispenser_number} - {dispenser.dispenser_type}")
+                
+                # Update scraped data (matching batch process exactly)
+                logger.info(f"📝 Updating scraped_data for {work_order.external_id}...")
+                if work_order.scraped_data is None:
+                    work_order.scraped_data = {}
+                    logger.info(f"📝 Created new scraped_data dict")
+                
+                work_order.scraped_data["dispensers"] = dispensers
+                work_order.scraped_data["dispenser_count"] = len(dispensers)
+                work_order.scraped_data["dispenser_scrape_date"] = datetime.now().isoformat()
+                work_order.scraped_data["dispensers_scraped_at"] = datetime.now().isoformat()
+                logger.info(f"📝 Updated scraped_data with {len(dispensers)} dispensers")
+                
+                # IMPORTANT: Mark JSON field as modified for SQLite
+                flag_modified(work_order, "scraped_data")
+                logger.info(f"🔧 Marked scraped_data as modified for SQLite")
+                
+                # Commit changes
+                logger.info(f"💾 Committing database changes...")
+                db.commit()
+                logger.info(f"✅ Successfully updated {work_order.external_id} with {len(dispensers)} dispensers")
+            else:
+                logger.warning(f"⚠️ No dispensers found for {work_order.external_id}")
         
         # Cleanup
-        await workfossa_automation.cleanup_session(user_id)
+        await workfossa_automation.close_session(session_id)
         
     except Exception as e:
         logger.error(f"Dispenser scraping failed for work order {work_order_id}: {e}", exc_info=True)
         db.rollback()
+        # Try to cleanup session if it was created
+        if session_id:
+            try:
+                await workfossa_automation.close_session(session_id)
+            except:
+                pass
     finally:
         db.close()
 
@@ -1048,7 +1273,7 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
         
         # Create session
         session_id = f"batch_dispenser_{user_id}_{datetime.now().timestamp()}"
-        workfossa_automation = WorkFossaAutomationService()
+        workfossa_automation = WorkFossaAutomationService(headless=False)  # Visible browser for debugging
         
         # Create automation session
         update_progress("connecting", 10, "Connecting to WorkFossa...")
@@ -1071,6 +1296,13 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
         
         page = session_data['page']
         
+        # Verify page is still valid
+        try:
+            await page.evaluate("() => document.title")
+        except Exception as e:
+            logger.error(f"Page is no longer valid: {e}")
+            raise Exception("Browser page is no longer valid. Session may have timed out.")
+        
         # Process each work order
         successful = 0
         failed = 0
@@ -1079,6 +1311,27 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
             try:
                 progress_percentage = 20 + ((i / len(work_order_data)) * 70)
                 logger.info(f"🔄 [BATCH_DISPENSER] Processing work order {i+1}/{len(work_order_data)}: {wo_data['external_id']}")
+                
+                # Verify session is still valid before each work order
+                try:
+                    await page.evaluate("() => document.title")
+                except Exception as e:
+                    logger.warning(f"⚠️ [BATCH_DISPENSER] Session expired, recreating...")
+                    # Recreate session
+                    await workfossa_automation.create_session(
+                        session_id=session_id,
+                        user_id=user_id,
+                        credentials=credentials
+                    )
+                    login_success = await workfossa_automation.login_to_workfossa(session_id)
+                    if not login_success:
+                        raise Exception("Failed to re-login to WorkFossa")
+                    
+                    # Get the new page
+                    session_data = workfossa_automation.sessions.get(session_id)
+                    if not session_data or 'page' not in session_data:
+                        raise Exception("No page found in recreated session")
+                    page = session_data['page']
                 
                 # Fetch the work order from database in this session
                 work_order = db.query(WorkOrder).filter(WorkOrder.id == wo_data["id"]).first()
@@ -1128,16 +1381,37 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
                 # Scrape dispensers for this work order using customer location page
                 logger.info(f"🏪 [BATCH_DISPENSER] Scraping dispensers for {work_order.external_id} at customer location: {customer_url}")
                 
-                # Use the updated WorkFossa scraper method that navigates to customer page
-                # Create scraper instance with the correct automation service
-                from ..services.workfossa_scraper import WorkFossaScraper
-                scraper = WorkFossaScraper(workfossa_automation)
-                logger.info(f"🔧 [BATCH_DISPENSER] Calling scraper.scrape_dispenser_details...")
-                dispensers = await scraper.scrape_dispenser_details(
-                    session_id=session_id,
+                # Use the dispenser scraper directly with the existing page
+                # This avoids creating new sessions and keeps the browser connection alive
+                logger.info(f"🔧 [BATCH_DISPENSER] Using dispenser_scraper with existing page...")
+                from ..services.dispenser_scraper import dispenser_scraper
+                
+                # Navigate to customer URL and scrape dispensers
+                dispenser_infos, raw_html = await dispenser_scraper.scrape_dispensers_for_work_order(
+                    page=page,
                     work_order_id=work_order.id,
-                    customer_url=customer_url
+                    visit_url=customer_url  # This will navigate to the customer URL
                 )
+                
+                # Convert DispenserInfo objects to dictionaries
+                dispensers = []
+                for info in dispenser_infos:
+                    dispenser_dict = {
+                        'dispenser_number': info.dispenser_number,
+                        'dispenser_type': info.make or 'Unknown',  # Use make as dispenser_type
+                        'title': info.title,
+                        'serial_number': info.serial_number,
+                        'make': info.make,
+                        'model': info.model,
+                        'stand_alone_code': info.stand_alone_code,
+                        'number_of_nozzles': info.number_of_nozzles,
+                        'meter_type': info.meter_type,
+                        'fuel_grades': info.fuel_grades or {},
+                        'grades_list': info.grades_list or [],
+                        'dispenser_numbers': info.dispenser_numbers or [],
+                        'custom_fields': info.custom_fields or {}
+                    }
+                    dispensers.append(dispenser_dict)
                 
                 logger.info(f"📋 [BATCH_DISPENSER] Scraper returned {len(dispensers)} dispensers for {work_order.external_id}")
                 
@@ -1187,7 +1461,21 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
                             fuel_grades=disp.get("fuel_grades", {}),
                             status="pending",
                             progress_percentage=0.0,
-                            automation_completed=False
+                            automation_completed=False,
+                            # Store all scraped fields (same as single work order scraping)
+                            make=disp.get("make"),
+                            model=disp.get("model"),
+                            serial_number=disp.get("serial_number"),
+                            meter_type=disp.get("meter_type"),
+                            number_of_nozzles=disp.get("number_of_nozzles"),
+                            # Store additional data in form_data field
+                            form_data={
+                                "stand_alone_code": disp.get("stand_alone_code"),
+                                "grades_list": disp.get("grades_list", []),
+                                "title": disp.get("title"),
+                                "dispenser_numbers": disp.get("dispenser_numbers", []),
+                                "custom_fields": disp.get("custom_fields", {})
+                            }
                         )
                         db.add(dispenser)
                         logger.info(f"  ➕ Added dispenser {i+1}: {dispenser.dispenser_number} - {dispenser.dispenser_type}")
@@ -1225,6 +1513,10 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
                 failed += 1
                 db.rollback()
                 continue
+            finally:
+                # Add a small delay between work orders to prevent overwhelming the server
+                if i < len(work_order_data) - 1:  # Don't delay after the last work order
+                    await asyncio.sleep(2)  # 2 second delay between work orders
         
         # Update final progress
         update_progress(
@@ -1333,3 +1625,58 @@ async def delete_work_order(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to delete work order: {str(e)}")
+
+@router.delete("/{work_order_id}/dispensers")
+async def clear_dispensers(
+    work_order_id: str,
+    user_id: str = Query(..., description="User ID to verify ownership"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
+):
+    """Clear all dispensers for a specific work order"""
+    try:
+        # Verify user can only clear their own data
+        if current_user.id != user_id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to clear dispensers for this user")
+        
+        # Verify work order exists and belongs to user
+        work_order = db.query(WorkOrder).filter(
+            WorkOrder.id == work_order_id,
+            WorkOrder.user_id == user_id
+        ).first()
+        
+        if not work_order:
+            raise HTTPException(status_code=404, detail="Work order not found")
+        
+        # Delete all dispensers for this work order
+        cleared_count = db.query(Dispenser).filter(
+            Dispenser.work_order_id == work_order_id
+        ).delete()
+        
+        # Clear dispenser data from scraped_data
+        if work_order.scraped_data:
+            work_order.scraped_data.pop("dispensers", None)
+            work_order.scraped_data.pop("dispenser_count", None)
+            work_order.scraped_data.pop("dispenser_scrape_date", None)
+            work_order.scraped_data.pop("dispensers_scraped_at", None)
+            flag_modified(work_order, "scraped_data")
+        
+        work_order.updated_at = datetime.now()
+        
+        db.commit()
+        
+        logger.info(f"Cleared {cleared_count} dispensers for work order {work_order_id}")
+        
+        return {
+            "status": "success",
+            "message": f"Successfully cleared {cleared_count} dispensers",
+            "work_order_id": work_order_id,
+            "cleared_count": cleared_count
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to clear dispensers: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear dispensers: {str(e)}")

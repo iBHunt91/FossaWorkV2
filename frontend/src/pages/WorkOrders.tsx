@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings } from 'lucide-react'
-import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress } from '../services/api'
+import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download } from 'lucide-react'
+import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,6 +16,8 @@ import { AnimatedButton, RippleButton, MagneticButton } from '@/components/ui/an
 import { ProgressLoader, DotsLoader, SkeletonLoader } from '@/components/ui/animated-loader'
 import { ParticleBackground } from '@/components/ui/animated-background'
 import { DispenserInfoModal } from '@/components/DispenserInfoModal'
+import { DispenserInfoModalDebug } from '@/components/DispenserInfoModalDebug'
+import { DebugModal } from '@/components/DebugModal'
 
 // Enhanced work order interface with V1 compatibility
 interface EnhancedWorkOrder {
@@ -32,7 +34,10 @@ interface EnhancedWorkOrder {
   store_number?: string
   service_code?: string
   service_description?: string
+  service_name?: string
+  service_items?: string | string[]
   visit_id?: string
+  visit_number?: string
   instructions?: string
   scraped_data?: {
     raw_html?: string
@@ -45,6 +50,11 @@ interface EnhancedWorkOrder {
     service_info?: {
       type?: string
       quantity?: number
+    }
+    visit_info?: {
+      visit_id?: string
+      date?: string
+      url?: string
     }
   }
   dispensers: Array<{
@@ -80,6 +90,10 @@ const WorkOrders: React.FC = () => {
   // Dispenser modal state
   const [showDispenserModal, setShowDispenserModal] = useState(false)
   const [selectedWorkOrderForModal, setSelectedWorkOrderForModal] = useState<EnhancedWorkOrder | null>(null)
+  
+  // Debug modal state
+  const [showDebugModal, setShowDebugModal] = useState(false)
+  const [selectedWorkOrderForDebug, setSelectedWorkOrderForDebug] = useState<EnhancedWorkOrder | null>(null)
   
   const queryClient = useQueryClient()
   const { user } = useAuth()
@@ -612,6 +626,76 @@ const WorkOrders: React.FC = () => {
     statusUpdateMutation.mutate({ workOrderId, status })
   }
 
+  // Handler for scraping dispensers for a specific work order
+  const handleScrapeDispensers = async (workOrder: EnhancedWorkOrder, event?: React.MouseEvent) => {
+    // Prevent any default behavior
+    if (event) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    
+    try {
+      console.log(`Scraping dispensers for work order ${workOrder.external_id}`)
+      
+      // Set scraping status
+      setDispenserScrapeStatus('scraping')
+      
+      // Show loading state
+      const result = await scrapeDispensersForWorkOrder(workOrder.id, currentUserId)
+      
+      if (result.status === 'success' || result.status === 'scraping_started') {
+        // Wait a bit for the scraping to complete
+        await new Promise(resolve => setTimeout(resolve, 5000))
+        
+        // Refresh work orders to show updated dispenser data
+        await queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+        await queryClient.refetchQueries({ queryKey: ['work-orders'] })
+        
+        // Show success message
+        alert(`Dispenser scraping completed for ${workOrder.external_id}.`)
+        setDispenserScrapeStatus('success')
+      } else {
+        alert(result.message || 'Failed to scrape dispensers')
+        setDispenserScrapeStatus('error')
+      }
+    } catch (error: any) {
+      console.error('Error scraping dispensers:', error)
+      alert(error.response?.data?.detail || error.message || 'Failed to scrape dispensers')
+      setDispenserScrapeStatus('error')
+    } finally {
+      // Reset status after a delay
+      setTimeout(() => {
+        setDispenserScrapeStatus('idle')
+      }, 3000)
+    }
+  }
+
+  // Handler for clearing dispensers for a specific work order
+  const handleClearDispensers = async (workOrder: EnhancedWorkOrder) => {
+    if (!confirm(`Are you sure you want to clear all dispensers for ${workOrder.external_id}?`)) {
+      return
+    }
+    
+    try {
+      console.log(`Clearing dispensers for work order ${workOrder.external_id}`)
+      
+      const result = await clearDispensersForWorkOrder(workOrder.id, currentUserId)
+      
+      if (result.status === 'success') {
+        // Refresh work orders to show updated data
+        queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+        
+        // Show success message
+        alert(`Successfully cleared ${result.cleared_count || 0} dispensers for ${workOrder.external_id}`)
+      } else {
+        alert(result.message || 'Failed to clear dispensers')
+      }
+    } catch (error: any) {
+      console.error('Error clearing dispensers:', error)
+      alert(error.response?.data?.detail || error.message || 'Failed to clear dispensers')
+    }
+  }
+
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1039,19 +1123,14 @@ const WorkOrders: React.FC = () => {
                         </CardTitle>
                       </div>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {workOrder.external_id && (
-                          <Badge variant="secondary" className="text-xs badge-gradient">
-                            <span className="text-xs opacity-70">WO:</span> {workOrder.external_id}
+                        {(workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id) && (
+                          <Badge variant="default" className="text-xs bg-blue-600 text-white dark:bg-blue-500 shadow-sm">
+                            <span className="text-xs opacity-90">Visit:</span> {workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id}
                           </Badge>
                         )}
                         {workOrder.store_number && (
-                          <Badge variant="outline" className="text-xs">
-                            <span className="text-xs opacity-70">Store:</span> {workOrder.store_number}
-                          </Badge>
-                        )}
-                        {workOrder.visit_id && (
-                          <Badge variant="default" className="text-xs bg-blue-500/20 text-blue-700 dark:text-blue-300">
-                            <span className="text-xs opacity-70">Visit:</span> {workOrder.visit_id}
+                          <Badge variant="secondary" className="text-xs bg-green-600 text-white dark:bg-green-500 shadow-sm">
+                            <span className="text-xs opacity-90">Store:</span> {workOrder.store_number}
                           </Badge>
                         )}
                       </div>
@@ -1060,7 +1139,48 @@ const WorkOrders: React.FC = () => {
                 </CardHeader>
 
                 <CardContent className="pt-0 space-y-4">
-                  {/* Enhanced Location and scheduling */}
+                  {/* Scheduled Date and Dispensers */}
+                  <div className="flex flex-wrap items-center gap-4 animate-slide-in-from-left" style={{animationDelay: '0.4s'}}>
+                    {workOrder.scheduled_date && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-primary" />
+                        <p className="text-sm font-medium">
+                          Scheduled: {new Date(workOrder.scheduled_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
+                    {(() => {
+                      // Extract dispenser count from service items
+                      let dispenserCount = 0;
+                      if (workOrder.service_items) {
+                        const items = Array.isArray(workOrder.service_items) 
+                          ? workOrder.service_items 
+                          : [workOrder.service_items];
+                        
+                        for (const item of items) {
+                          const match = item.toString().match(/(\d+)\s*x\s*(All\s*)?Dispenser/i);
+                          if (match) {
+                            dispenserCount = parseInt(match[1], 10);
+                            break;
+                          }
+                        }
+                      }
+                      
+                      if (dispenserCount > 0) {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <Fuel className="w-4 h-4 text-muted-foreground" />
+                            <p className="text-sm">
+                              <span className="font-medium">Dispensers:</span> {dispenserCount}
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+
+                  {/* Enhanced Location */}
                   <div className="space-y-2 animate-slide-in-from-left" style={{animationDelay: '0.5s'}}>
                     <div className="flex items-start gap-2">
                       <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
@@ -1154,7 +1274,7 @@ const WorkOrders: React.FC = () => {
                                 )}
                                 {workOrder.scraped_data.address_components.intersection && (
                                   <div className="text-xs text-muted-foreground/70 leading-tight">
-                                    📍 {workOrder.scraped_data.address_components.intersection}
+                                    Near {workOrder.scraped_data.address_components.intersection}
                                   </div>
                                 )}
                                 {workOrder.scraped_data.address_components.cityState && (
@@ -1162,7 +1282,7 @@ const WorkOrders: React.FC = () => {
                                 )}
                                 {workOrder.scraped_data.address_components.county && (
                                   <div className="text-xs text-muted-foreground/70 leading-tight">
-                                    🏛️ {workOrder.scraped_data.address_components.county}
+                                    {workOrder.scraped_data.address_components.county}
                                   </div>
                                 )}
                               </div>
@@ -1197,17 +1317,6 @@ const WorkOrders: React.FC = () => {
                         })()}
                       </a>
                     </div>
-                    {workOrder.scheduled_date && (
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
-                          <span className="font-medium">Scheduled:</span> {new Date(workOrder.scheduled_date).toLocaleDateString()}
-                          <span className="ml-2 text-xs">
-                            {new Date(workOrder.scheduled_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                          </span>
-                        </p>
-                      </div>
-                    )}
                   </div>
 
                   {/* Collapsible Instructions */}
@@ -1249,20 +1358,9 @@ const WorkOrders: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Dispenser Count Info */}
-                  {workOrder.scraped_data?.service_info?.quantity && (
-                    <div className="dispenser-info animate-slide-in-from-right" style={{animationDelay: '0.4s'}}>
-                      <div className="flex items-center gap-2">
-                        <Fuel className="w-4 h-4 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
-                          <span className="font-medium">Dispensers:</span> {workOrder.scraped_data.service_info.quantity}
-                        </p>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Action Toolbar */}
-                  <div className="flex gap-2 animate-fade-in" style={{animationDelay: '0.8s'}}>
+                  <div className="flex gap-2 flex-wrap animate-fade-in" style={{animationDelay: '0.8s'}}>
                     {workOrder.visit_url && (
                       <RippleButton 
                         variant="default" 
@@ -1279,6 +1377,8 @@ const WorkOrders: React.FC = () => {
                       variant="outline"
                       size="sm"
                       onClick={() => {
+                        console.log('Opening dispenser modal for work order:', workOrder)
+                        console.log('Dispensers:', workOrder.dispensers)
                         setSelectedWorkOrderForModal(workOrder)
                         setShowDispenserModal(true)
                       }}
@@ -1288,14 +1388,41 @@ const WorkOrders: React.FC = () => {
                       <Fuel className="w-4 h-4 mr-1" />
                       Dispensers
                     </RippleButton>
-                  </div>
-
-                  {/* Enhanced Metadata footer */}
-                  <div className="pt-3 border-t text-xs text-muted-foreground animate-fade-in" style={{animationDelay: '0.9s'}}>
-                    <div className="grid grid-cols-2 gap-2">
-                      <span>📅 Created: {new Date(workOrder.created_at).toLocaleDateString()}</span>
-                      <span>🔄 Updated: {new Date(workOrder.updated_at).toLocaleDateString()}</span>
-                    </div>
+                    <RippleButton
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => handleScrapeDispensers(workOrder, e)}
+                      className="btn-modern border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950"
+                      title="Scrape Dispensers for This Work Order"
+                      disabled={dispenserScrapeStatus === 'scraping'}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Scrape
+                    </RippleButton>
+                    <RippleButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleClearDispensers(workOrder)}
+                      className="btn-modern border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+                      title="Clear Dispensers for This Work Order"
+                      disabled={dispenserScrapeStatus === 'scraping'}
+                    >
+                      <Eraser className="w-4 h-4 mr-1" />
+                      Clear
+                    </RippleButton>
+                    <RippleButton
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedWorkOrderForDebug(workOrder)
+                        setShowDebugModal(true)
+                      }}
+                      className="btn-modern border-orange-200 text-orange-600 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950"
+                      title="Debug: View All Scraped Data"
+                    >
+                      <Bug className="w-4 h-4 mr-1" />
+                      Debug
+                    </RippleButton>
                   </div>
                 </CardContent>
               </AnimatedCard>
@@ -1373,6 +1500,16 @@ const WorkOrders: React.FC = () => {
           workOrder: selectedWorkOrderForModal,
           dispensers: selectedWorkOrderForModal.dispensers
         } : null}
+      />
+      
+      {/* Debug Modal */}
+      <DebugModal
+        isOpen={showDebugModal}
+        onClose={() => {
+          setShowDebugModal(false)
+          setSelectedWorkOrderForDebug(null)
+        }}
+        workOrder={selectedWorkOrderForDebug}
       />
     </div>
   )

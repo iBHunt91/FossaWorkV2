@@ -9,12 +9,13 @@ import json
 import logging
 import re
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any, Callable, Tuple, Union
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
 from .browser_automation import BrowserAutomationService, browser_automation
 from .url_generator import WorkFossaURLGenerator
+from .dispenser_scraper import dispenser_scraper
 
 # Import error recovery
 try:
@@ -52,6 +53,7 @@ class WorkOrderData:
     service_type: Optional[str] = None
     service_quantity: Optional[int] = None
     visit_id: Optional[str] = None
+    visit_number: Optional[str] = None  # Visit number from URL (e.g., "131650" from /visits/131650/)
     instructions: Optional[str] = None
     address_components: Optional[Dict[str, str]] = None  # street, intersection, cityState, county
     raw_html: Optional[str] = None
@@ -66,7 +68,7 @@ class WorkOrderData:
     created_date: Optional[datetime] = None  # When work order was created
     created_by: Optional[str] = None  # User who created the work order
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.created_at is None:
             self.created_at = datetime.now()
         if self.dispensers is None:
@@ -86,7 +88,7 @@ class ScrapingProgress:
     errors: List[str] = None
     timestamp: datetime = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now()
         if self.errors is None:
@@ -128,7 +130,7 @@ class WorkFossaSelectors:
 class WorkFossaScraper:
     """Main WorkFossa scraping service based on V1 patterns"""
     
-    def __init__(self, browser_automation: BrowserAutomationService):
+    def __init__(self, browser_automation: BrowserAutomationService) -> None:
         self.browser_automation = browser_automation
         self.url_generator = WorkFossaURLGenerator()
         self.progress_callbacks: List[Callable] = []
@@ -148,11 +150,11 @@ class WorkFossaScraper:
             'enable_debug_screenshots': False      # Disable in production for performance
         }
     
-    def add_progress_callback(self, callback: Callable):
+    def add_progress_callback(self, callback: Callable[[ScrapingProgress], Any]) -> None:
         """Add progress callback for real-time updates"""
         self.progress_callbacks.append(callback)
     
-    async def _emit_progress(self, progress: ScrapingProgress):
+    async def _emit_progress(self, progress: ScrapingProgress) -> None:
         """Emit progress update to all callbacks"""
         for callback in self.progress_callbacks:
             try:
@@ -161,7 +163,7 @@ class WorkFossaScraper:
                 logger.warning(f"Progress callback error: {e}")
     
     @with_error_recovery(operation_type="work_order_scraping")
-    async def scrape_work_orders(self, session_id: str, date_range: Optional[Dict] = None, page=None) -> List[WorkOrderData]:
+    async def scrape_work_orders(self, session_id: str, date_range: Optional[Dict[str, Any]] = None, page: Optional[Any] = None) -> List[WorkOrderData]:
         """
         Scrape work orders from WorkFossa
         Based on V1's unified_scrape.js logic
@@ -177,7 +179,7 @@ class WorkFossaScraper:
             # Try to get page from parameter first
             if not page:
                 # Check if browser_automation has pages attribute and it's a dict
-                if hasattr(self.browser_automation, 'pages') and isinstance(self.browser_automation.pages, dict):
+                if hasattr(self.browser_automation, 'pages') and hasattr(self.browser_automation.pages, 'get'):
                     page = self.browser_automation.pages.get(session_id)
                     if page:
                         logger.info(f"Found page in browser automation service for session {session_id}")
@@ -308,6 +310,13 @@ class WorkFossaScraper:
                     logger.error(f"❌ [DEBUG] Error scraping work order {i}: {e}")
                     import traceback
                     logger.error(f"📋 [DEBUG] Traceback: {traceback.format_exc()}")
+                    # Log specific error details
+                    if "pages" in str(e):
+                        logger.error(f"❌ [DEBUG] Pages attribute error - browser automation service may not be initialized properly")
+                    elif "timeout" in str(e).lower():
+                        logger.error(f"❌ [DEBUG] Timeout error - page elements may be taking too long to load")
+                    elif "not found" in str(e).lower():
+                        logger.error(f"❌ [DEBUG] Element not found - UI may have changed")
                     continue
             
             await self._emit_progress(ScrapingProgress(
@@ -810,7 +819,15 @@ class WorkFossaScraper:
             
             # Extract visit information
             visit_info = await self._extract_visit_info(element)
-            visit_url = visit_info.get("url", await self._extract_visit_url(element, work_order_id))
+            
+            # Only use fallback if visit URL was not found
+            visit_url = visit_info.get("url")
+            if not visit_url:
+                logger.warning(f"No visit URL found for {work_order_id}, using fallback")
+                visit_url = await self._extract_visit_url(element, work_order_id)
+            else:
+                logger.info(f"✅ Using visit URL from _extract_visit_info: {visit_url}")
+            
             visit_id = visit_info.get("visit_id")
             scheduled_date = visit_info.get("date")
             
@@ -839,6 +856,7 @@ class WorkFossaScraper:
                 service_quantity=service_info.get("quantity"),
                 visit_url=visit_url,
                 visit_id=visit_id,
+                visit_number=visit_info.get("visit_number"),
                 instructions=instructions,
                 address_components=address_components,
                 raw_html=raw_html,
@@ -1051,14 +1069,14 @@ class WorkFossaScraper:
             if not site_name:
                 text_content = await element.text_content()
                 if text_content:
-                    # Look for company names
+                    # Look for company names - Updated pattern to capture hyphenated names
                     company_patterns = [
-                        r'([\w\s]+(?:Inc|LLC|Corp|Corporation|Company|Stores)[^\n]*)',
+                        r'(7-Eleven[^\n]*)',  # Put specific patterns first
                         r'(Wawa[^\n]*)',
-                        r'(7-Eleven[^\n]*)',
                         r'(Shell[^\n]*)',
                         r'(BP[^\n]*)',
-                        r'(Exxon[^\n]*)'
+                        r'(Exxon[^\n]*)',
+                        r'([\w\s\-]+(?:Inc|LLC|Corp|Corporation|Company|Stores)[^\n]*)'  # Generic pattern last with hyphen support
                     ]
                     
                     for pattern in company_patterns:
@@ -1666,6 +1684,7 @@ class WorkFossaScraper:
                     
                     # Look for dispenser count
                     dispenser_patterns = [
+                        r'(\d+)\s*x\s*[Aa]ll\s+[Dd]ispenser',  # "6 x All Dispensers"
                         r'(\d+)\s*[Dd]ispenser',
                         r'[Dd]ispenser[s]?\s*[:(]\s*(\d+)',
                         r'[Qq]uantity[:\s]+(\d+)'
@@ -1678,15 +1697,38 @@ class WorkFossaScraper:
                             logger.info(f"Found dispenser quantity: {service_info['quantity']}")
                             break
                     
+                    # Extract service items from cell
+                    item_patterns = [
+                        r'(\d+)\s*x\s*([^(\n]+?)\s*\([^)]+\)',  # "6 x All Dispensers (2861)"
+                        r'(\d+)\s*x\s*([^\n]+?)(?=\s*$|\s*,|\s*\.|\s*\d)',  # "6 x All Dispensers"
+                    ]
+                    
+                    for pattern in item_patterns:
+                        matches = re.findall(pattern, cell_text)
+                        for match in matches:
+                            quantity, item_name = match
+                            item_text = f"{quantity} x {item_name.strip()}"
+                            if item_text not in service_info["items"]:
+                                service_info["items"].append(item_text)
+                            # Also extract quantity from items
+                            if not service_info["quantity"] and 'dispenser' in item_name.lower():
+                                service_info["quantity"] = int(quantity)
+                    
                     # Extract service type from text
                     if "Meter Calibration" in cell_text:
                         service_info["type"] = "Meter Calibration"
                     elif "AccuMeasure" in cell_text:
                         service_info["type"] = "AccuMeasure Test"
+                        service_info["name"] = "AccuMeasure"  # Set service name
                     elif "Prover" in cell_text:
                         service_info["type"] = "Prover Test"
                     elif "Test" in cell_text:
                         service_info["type"] = "Testing"
+                    
+                    # Extract service name from "Reason:" field if present
+                    reason_match = re.search(r'Reason:\s*([^\n]+)', cell_text)
+                    if reason_match and not service_info["name"]:
+                        service_info["name"] = reason_match.group(1).strip()
             
             # Fallback: Look for service info in full row text
             if not service_info["code"]:
@@ -1718,10 +1760,23 @@ class WorkFossaScraper:
                         service_info["name"] = reason_match.group(1).strip()
                     
                     # Extract service items (e.g., "6 x All Dispensers")
-                    item_matches = re.findall(r'(\d+)\s*x\s*([^(]+)\s*\(\w+\)', text_content)
-                    for match in item_matches:
-                        quantity, item_name = match
-                        service_info["items"].append(f"{quantity} x {item_name.strip()}")
+                    # Enhanced pattern to handle variations like "6 x All Dispensers (2861)"
+                    item_patterns = [
+                        r'(\d+)\s*x\s*([^(\n]+?)\s*\([^)]+\)',  # "6 x All Dispensers (2861)"
+                        r'(\d+)\s*x\s*([^\n]+?)(?=\s*$|\s*,|\s*\.|\s*\d)',  # "6 x All Dispensers"
+                        r'(\d+)\s+([Dd]ispenser[s]?)',  # "6 Dispensers"
+                    ]
+                    
+                    for pattern in item_patterns:
+                        matches = re.findall(pattern, text_content)
+                        for match in matches:
+                            quantity, item_name = match
+                            item_text = f"{quantity} x {item_name.strip()}"
+                            if item_text not in service_info["items"]:
+                                service_info["items"].append(item_text)
+                            # Also extract quantity from items
+                            if not service_info["quantity"] and item_name.lower().strip().startswith('all dispenser'):
+                                service_info["quantity"] = int(quantity)
             
             # Clean up values
             for key in service_info:
@@ -1784,7 +1839,8 @@ class WorkFossaScraper:
                 "date": None,
                 "time": None,
                 "url": None,
-                "visit_id": None
+                "visit_id": None,
+                "visit_number": None
             }
             
             cells = await element.query_selector_all("td")
@@ -1795,12 +1851,12 @@ class WorkFossaScraper:
                 
                 # Log the visits cell content for debugging
                 visits_cell_text = await visits_cell.text_content()
-                logger.debug(f"Visits cell content: {visits_cell_text}")
+                logger.info(f"🔍 [VISIT_EXTRACT] Visits cell content: {visits_cell_text}")
                 
                 # Look for visit links in this cell
                 visit_links = await visits_cell.query_selector_all("a")
                 if visit_links:
-                    logger.info(f"Found {len(visit_links)} visit link(s) in visits cell")
+                    logger.info(f"🔗 [VISIT_EXTRACT] Found {len(visit_links)} link(s) in visits cell")
                     
                     # Look for the NEXT VISIT link specifically
                     for visit_link in visit_links:
@@ -1810,8 +1866,8 @@ class WorkFossaScraper:
                         # Log each link found
                         logger.debug(f"Visit link: text='{link_text}', href='{link_href}'")
                         
-                        # Prioritize links that contain dates or "NEXT VISIT" pattern
-                        if link_href and ('/visits/' in link_href or '/app/work/' in link_href):
+                        # IMPORTANT: Only accept URLs with /visits/ pattern, NOT customer URLs
+                        if link_href and '/visits/' in link_href and '/customers/locations/' not in link_href:
                             # Make it absolute if relative
                             if link_href.startswith('/'):
                                 link_href = f"https://app.workfossa.com{link_href}"
@@ -1821,9 +1877,11 @@ class WorkFossaScraper:
                             visit_id_match = re.search(r'/visits/(\d+)', link_href)
                             if visit_id_match:
                                 visit_info["visit_id"] = visit_id_match.group(1)
+                                visit_info["visit_number"] = visit_id_match.group(1)  # Same as visit_id
                                 visit_info["url"] = link_href
                                 logger.info(f"✅ Found visit URL: {link_href}")
                                 logger.info(f"✅ Extracted visit ID: {visit_info['visit_id']}")
+                                logger.info(f"✅ Extracted visit number: {visit_info['visit_number']}")
                                 
                                 # Parse date from link text if available
                                 if link_text:
@@ -1839,8 +1897,23 @@ class WorkFossaScraper:
                                         if date_match:
                                             visit_info["date"] = self._parse_date_string(date_match.group(1))
                                             if visit_info["date"]:
-                                                logger.info(f"✅ Found visit date: {visit_info['date']}")
+                                                logger.info(f"Found visit date: {visit_info['date']}")
                                             break
+                                
+                                # Also try to extract date from parent element or surrounding text
+                                if not visit_info["date"] and visits_cell_text:
+                                    # Look for dates in the entire cell text
+                                    date_patterns = [
+                                        r'(\d{1,2}/\d{1,2}/\d{4})\s*\(anytime\)',  # "06/12/2025 (anytime)"
+                                        r'(\d{1,2}/\d{1,2}/\d{4})',  # Any date format
+                                    ]
+                                    for pattern in date_patterns:
+                                        date_match = re.search(pattern, visits_cell_text)
+                                        if date_match:
+                                            visit_info["date"] = self._parse_date_string(date_match.group(1))
+                                            if visit_info["date"]:
+                                                logger.info(f"Found visit date from cell text: {visit_info['date']}")
+                                                break
                                 
                                 # If this is the first valid visit URL, use it
                                 # Continue checking other links in case there's a better match
@@ -1851,10 +1924,13 @@ class WorkFossaScraper:
             
             # Fallback: Look for visit info in the entire row
             if not visit_info["url"]:
-                all_links = await element.query_selector_all("a[href*='/visits/'], a[href*='/app/work/']")
+                # IMPORTANT: Only look for actual visit URLs with /visits/ pattern
+                # Do NOT include customer URLs with /customers/locations/ pattern
+                all_links = await element.query_selector_all("a")
                 for link in all_links:
                     href = await link.get_attribute("href")
-                    if href and ('/visits/' in href or '/app/work/' in href):
+                    # Only accept URLs that have /visits/ in them, NOT customer URLs
+                    if href and '/visits/' in href and '/customers/locations/' not in href:
                         if href.startswith('/'):
                             href = f"https://app.workfossa.com{href}"
                         visit_info["url"] = href
@@ -1863,13 +1939,37 @@ class WorkFossaScraper:
                         visit_id_match = re.search(r'/visits/(\d+)', href)
                         if visit_id_match:
                             visit_info["visit_id"] = visit_id_match.group(1)
+                            visit_info["visit_number"] = visit_id_match.group(1)  # Same as visit_id
+                            logger.info(f"✅ Found visit URL in fallback: {href}")
                         break
+            
+            # Final fallback: Look for scheduled date in the entire row if not found
+            if not visit_info["date"]:
+                row_text = await element.text_content()
+                if row_text:
+                    # Look for dates that might be scheduled dates
+                    date_patterns = [
+                        r'NEXT VISIT[:\s]*([^\n]+)',  # Look for "NEXT VISIT: date" pattern
+                        r'Scheduled[:\s]*([^\n]+)',  # Look for "Scheduled: date" pattern
+                        r'(\d{1,2}/\d{1,2}/\d{4})\s*\(anytime\)',  # "06/12/2025 (anytime)"
+                    ]
+                    for pattern in date_patterns:
+                        date_match = re.search(pattern, row_text, re.IGNORECASE)
+                        if date_match:
+                            date_str = date_match.group(1)
+                            # Extract just the date part if there's extra text
+                            date_only_match = re.search(r'(\d{1,2}/\d{1,2}/\d{4})', date_str)
+                            if date_only_match:
+                                visit_info["date"] = self._parse_date_string(date_only_match.group(1))
+                                if visit_info["date"]:
+                                    logger.info(f"Found scheduled date from row text: {visit_info['date']}")
+                                    break
             
             return visit_info
             
         except Exception as e:
             logger.warning(f"Could not extract visit info: {e}")
-            return {"date": None, "time": None, "url": None, "visit_id": None}
+            return {"date": None, "time": None, "url": None, "visit_id": None, "visit_number": None}
     
     async def _extract_instructions(self, element) -> Optional[str]:
         """Extract special instructions for the work order"""
@@ -2028,13 +2128,12 @@ class WorkFossaScraper:
             return None
     
     async def _extract_visit_url(self, element, work_order_id: str) -> Optional[str]:
-        """Extract or generate visit URL"""
+        """Extract or generate visit URL - ONLY returns actual visit URLs, not customer URLs"""
         try:
-            # Look for direct visit links
+            # Look for direct visit links - MUST contain /visits/
             link_selectors = [
                 "a[href*='/visits/']",
-                "a[href*='/work-orders/']",
-                ".visit-link, .work-order-link"
+                ".visit-link"
             ]
             
             for selector in link_selectors:
@@ -2042,20 +2141,20 @@ class WorkFossaScraper:
                     link_element = await element.query_selector(selector)
                     if link_element:
                         href = await link_element.get_attribute("href")
-                        if href:
+                        # IMPORTANT: Verify it's actually a visit URL, not a customer URL
+                        if href and '/visits/' in href and '/customers/locations/' not in href:
                             # Convert relative URLs to absolute
                             if href.startswith('/'):
                                 href = f"{self.url_generator.config.base_url}{href}"
+                            logger.info(f"✅ [VISIT_URL] Found visit URL via selector: {href}")
                             return href
                 except:
                     continue
             
-            # Generate URL using URL generator
-            mock_work_order = {
-                'basic_info': {'id': work_order_id},
-                'scheduling': {'status': 'pending'}
-            }
-            return self.url_generator.generate_visit_url(mock_work_order)
+            # If no visit URL found, return None
+            # We should NOT generate a fake URL that doesn't actually lead to a visit
+            logger.info(f"⚠️ [VISIT_URL] No visit URL found for work order {work_order_id}")
+            return None
             
         except Exception as e:
             logger.warning(f"Could not extract visit URL: {e}")
@@ -2181,15 +2280,45 @@ class WorkFossaScraper:
                     logger.info(f"⏱️ [CUSTOMER_PAGE] Using reduced fallback wait")
                     await page.wait_for_timeout(1000)
             
-            # Step 3: Extract dispenser information
-            logger.info(f"🔍 [CUSTOMER_PAGE] Step 3: Extracting dispenser information...")
-            dispensers = await self._extract_dispensers_from_page(page)
+            # Step 3: Extract dispenser information using the enhanced dispenser scraper
+            logger.info(f"🔍 [CUSTOMER_PAGE] Step 3: Extracting dispenser information using enhanced scraper...")
             
-            logger.info(f"✅ [CUSTOMER_PAGE] Found {len(dispensers)} dispensers")
+            # Use the dispenser_scraper which has all the detailed field extraction
+            dispenser_infos, raw_html = await dispenser_scraper.scrape_dispensers_for_work_order(
+                page=page,
+                work_order_id="temp_id",  # Temporary ID for scraping
+                visit_url=None  # Already on the page
+            )
             
-            # Log each dispenser found
+            # Convert DispenserInfo objects to dictionaries with all fields
+            dispensers = []
+            for info in dispenser_infos:
+                dispenser_dict = {
+                    'dispenser_number': info.dispenser_number,
+                    'dispenser_type': info.dispenser_type or info.make or 'Unknown',
+                    'title': info.title,
+                    'serial_number': info.serial_number,
+                    'make': info.make,
+                    'model': info.model,
+                    'stand_alone_code': info.stand_alone_code,
+                    'number_of_nozzles': info.number_of_nozzles,
+                    'meter_type': info.meter_type,
+                    'fuel_grades': info.fuel_grades or {},
+                    'grades_list': info.grades_list or [],
+                    'custom_fields': info.custom_fields or {},
+                    'dispenser_numbers': info.dispenser_numbers or []
+                }
+                dispensers.append(dispenser_dict)
+            
+            logger.info(f"✅ [CUSTOMER_PAGE] Found {len(dispensers)} dispensers with detailed information")
+            
+            # Log each dispenser found with more details
             for i, dispenser in enumerate(dispensers):
-                logger.info(f"📋 [CUSTOMER_PAGE] Dispenser {i+1}: {dispenser.get('dispenser_number', 'Unknown')} - {dispenser.get('dispenser_type', 'Unknown type')}")
+                logger.info(f"📋 [CUSTOMER_PAGE] Dispenser {i+1}: #{dispenser.get('dispenser_number', 'Unknown')} - {dispenser.get('dispenser_type', 'Unknown type')}")
+                if dispenser.get('serial_number'):
+                    logger.info(f"   Serial: {dispenser['serial_number']}")
+                if dispenser.get('stand_alone_code'):
+                    logger.info(f"   Stand Alone Code: {dispenser['stand_alone_code']}")
             
             return dispensers
             
@@ -2630,7 +2759,7 @@ class WorkFossaScraper:
             logger.info(f"🔍 [DISPENSER] Looking for page in browser automation service...")
             
             # Try to get page from browser automation first
-            if hasattr(self.browser_automation, 'pages') and isinstance(self.browser_automation.pages, dict):
+            if hasattr(self.browser_automation, 'pages') and hasattr(self.browser_automation.pages, 'get'):
                 page = self.browser_automation.pages.get(session_id)
                 if page:
                     logger.info(f"✅ [DISPENSER] Found page in browser automation service")

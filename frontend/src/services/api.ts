@@ -107,9 +107,20 @@ export interface WorkOrder {
   external_id: string
   site_name: string
   address: string
+  street?: string
+  city_state?: string
+  county?: string
   scheduled_date: string | null
   status: string
   visit_url?: string
+  visit_number?: string
+  customer_url?: string
+  service_code?: string
+  service_name?: string
+  service_items?: string | string[]
+  created_date?: string
+  created_by?: string
+  instructions?: string
   created_at: string
   updated_at: string
   dispensers: Dispenser[]
@@ -120,9 +131,28 @@ export interface Dispenser {
   dispenser_number: string
   dispenser_type: string
   fuel_grades: Record<string, any>
+  fuel_grades_list?: string[]  // New field with clean fuel grade names
+  grades_list?: string[]  // Alternative field name for fuel grades
   status: string
   progress_percentage: number
   automation_completed: boolean
+  serial_number?: string
+  stand_alone_code?: string
+  number_of_nozzles?: number
+  meter_type?: string
+  make?: string  // Manufacturer
+  model?: string  // Model
+  title?: string  // Dispenser title
+  dispenser_numbers?: string[]  // Array of dispenser numbers for dual-sided
+  equipment?: {
+    make?: string
+    model?: string
+    standalone?: boolean
+    nozzles?: string[]
+  }
+  custom_fields?: Record<string, any>
+  form_data?: Record<string, any>
+  testing_requirements?: Record<string, any>
   created_at: string
   updated_at: string
 }
@@ -203,6 +233,20 @@ export const getDispenserScrapingProgress = async (userId: string): Promise<any>
 
 export const deleteWorkOrder = async (workOrderId: string, userId: string): Promise<any> => {
   const response = await apiClient.delete(`/api/v1/work-orders/${workOrderId}?user_id=${userId}`)
+  return response.data
+}
+
+// Scrape dispensers for a specific work order
+export const scrapeDispensersForWorkOrder = async (workOrderId: string, userId: string): Promise<any> => {
+  const response = await apiClient.post(`/api/v1/work-orders/${workOrderId}/scrape-dispensers?user_id=${userId}`, {}, {
+    timeout: 60000 // 1 minute timeout
+  })
+  return response.data
+}
+
+// Clear dispensers for a specific work order
+export const clearDispensersForWorkOrder = async (workOrderId: string, userId: string): Promise<any> => {
+  const response = await apiClient.delete(`/api/v1/work-orders/${workOrderId}/dispensers?user_id=${userId}`)
   return response.data
 }
 

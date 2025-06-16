@@ -45,6 +45,7 @@ async def extract_work_order_info(row):
         created_by = ""
         scheduled_date = ""
         visit_url = None
+        visit_number = None
         customer_url = None
         store_number = ""
         customer_name = ""
@@ -135,6 +136,11 @@ async def extract_work_order_info(row):
             if visit_url and not visit_url.startswith("http"):
                 visit_url = f"https://app.workfossa.com{visit_url}"
             
+            # Extract visit number from URL (e.g., "131650" from /visits/131650/)
+            visit_id_match = re.search(r'/visits/(\d+)', visit_url)
+            if visit_id_match:
+                visit_number = visit_id_match.group(1)
+            
             # Try to extract date from visit section
             parent = await visit_link.evaluate_handle("el => el.parentElement")
             if parent:
@@ -169,6 +175,7 @@ async def extract_work_order_info(row):
             'created_by': created_by,
             'scheduled_date': scheduled_date,
             'visit_url': visit_url,
+            'visit_number': visit_number,
             'customer_url': customer_url,
             'instructions': instructions,
             'raw_text': full_text.strip()  # Include full raw text for debugging
@@ -443,6 +450,8 @@ async def interactive_test():
                 print(f"      Scheduled Date: '{work_order['scheduled_date']}'")
                 if work_order['visit_url']:
                     print(f"      Visit URL: {work_order['visit_url']}")
+                if work_order.get('visit_number'):
+                    print(f"      Visit Number: {work_order['visit_number']}")
                 if work_order['customer_url']:
                     print(f"      Customer URL: {work_order['customer_url']}")
                 if work_order['instructions']:

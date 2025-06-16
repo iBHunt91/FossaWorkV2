@@ -1,69 +1,70 @@
 #!/usr/bin/env python3
-"""Check if any dispenser data exists in the database"""
+"""
+Check what dispenser data looks like in the database
+"""
 
 import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.database import SessionLocal
-from sqlalchemy import text
 import json
+from app.database import SessionLocal
+from app.models import WorkOrder, Dispenser
 
-db = SessionLocal()
-try:
-    # Check dispensers table
-    dispenser_count = db.execute(text("SELECT COUNT(*) FROM dispensers")).scalar()
-    print(f"📊 Dispenser Table Status:")
-    print(f"   Total dispensers in database: {dispenser_count}")
+def check_dispenser_data():
+    """Check dispenser data structure"""
     
-    if dispenser_count > 0:
-        # Show some examples
-        dispensers = db.execute(text("""
-            SELECT id, work_order_id, title, make, model, serial_number
-            FROM dispensers
-            LIMIT 5
-        """)).fetchall()
-        print(f"\n   Sample dispensers:")
-        for d in dispensers:
-            print(f"   - {d.title} (WO: {d.work_order_id[:8]}...)")
-            print(f"     Make/Model: {d.make} {d.model}")
-            print(f"     Serial: {d.serial_number}")
+    print("🔍 Checking Dispenser Data Structure")
+    print("=" * 80)
     
-    # Check work orders with scraped_data containing dispensers
-    wo_with_dispensers = db.execute(text("""
-        SELECT COUNT(*) as count
-        FROM work_orders
-        WHERE scraped_data LIKE '%"dispensers":%'
-        AND scraped_data NOT LIKE '%"dispensers":[]%'
-    """)).scalar()
+    db = SessionLocal()
     
-    print(f"\n📋 Work Order Scraped Data:")
-    print(f"   Work orders with dispenser data in scraped_data: {wo_with_dispensers}")
+    # Get a work order with dispensers
+    work_order = db.query(WorkOrder).filter(
+        WorkOrder.id == "31b14e5f-d29e-4513-8d9d-ed5baa3576f3"  # 7-Eleven from screenshot
+    ).first()
     
-    # Check for any dispenser scraping attempts
-    attempted = db.execute(text("""
-        SELECT COUNT(*) as count
-        FROM work_orders
-        WHERE scraped_data LIKE '%dispensers_scraped_at%'
-    """)).scalar()
+    if not work_order:
+        print("❌ Work order not found")
+        db.close()
+        return
     
-    print(f"   Work orders with scraping attempts: {attempted}")
+    print(f"✅ Found work order: {work_order.external_id} - {work_order.site_name}")
     
-    # Show a work order with scraped data
-    sample_wo = db.execute(text("""
-        SELECT id, scraped_data
-        FROM work_orders
-        WHERE scraped_data IS NOT NULL
-        LIMIT 1
-    """)).fetchone()
+    # Get dispensers
+    dispensers = db.query(Dispenser).filter(
+        Dispenser.work_order_id == work_order.id
+    ).all()
     
-    if sample_wo:
-        data = json.loads(sample_wo.scraped_data)
-        print(f"\n📄 Sample work order scraped_data keys:")
-        print(f"   Work Order: {sample_wo.id[:8]}...")
-        print(f"   Keys: {list(data.keys())}")
-        if 'dispensers' in data:
-            print(f"   Dispensers field: {data['dispensers']}")
+    print(f"\n📋 Found {len(dispensers)} dispensers")
+    
+    for i, disp in enumerate(dispensers):
+        print(f"\n{'='*60}")
+        print(f"Dispenser {i+1}:")
+        print(f"  ID: {disp.id}")
+        print(f"  Number: {disp.dispenser_number}")
+        print(f"  Type: {disp.dispenser_type}")
+        print(f"  Make: {disp.make}")
+        print(f"  Model: {disp.model}")
+        print(f"  Serial: {disp.serial_number}")
         
-finally:
+        print(f"\n  Fuel Grades Type: {type(disp.fuel_grades)}")
+        print(f"  Fuel Grades Raw: {disp.fuel_grades}")
+        
+        if isinstance(disp.fuel_grades, dict):
+            print("\n  Fuel Grades Parsed:")
+            for grade, info in disp.fuel_grades.items():
+                print(f"    {grade}: {info}")
+        
+        if hasattr(disp, 'form_data') and disp.form_data:
+            print(f"\n  Form Data: {json.dumps(disp.form_data, indent=2)}")
+    
+    # Check scraped_data
+    if work_order.scraped_data and 'dispensers' in work_order.scraped_data:
+        print(f"\n\n📝 Scraped Data Dispensers:")
+        print(json.dumps(work_order.scraped_data['dispensers'][:2], indent=2))  # First 2
+    
     db.close()
+
+if __name__ == "__main__":
+    check_dispenser_data()
