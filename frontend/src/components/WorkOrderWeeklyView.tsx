@@ -8,6 +8,7 @@ import { AnimatedCard, GlowCard } from '@/components/ui/animated-card'
 import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text'
 import { AnimatedButton, RippleButton } from '@/components/ui/animated-button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { getBrandStyle, getBrandCardStyle, getBrandBadgeStyle } from '@/utils/storeColors'
 
 interface WorkOrder {
   id: string
@@ -159,21 +160,6 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
     }
   }
   
-  // Get brand info from site name
-  const getBrandInfo = (siteName: string) => {
-    const lower = siteName.toLowerCase()
-    if (lower.includes('7-eleven') || lower.includes('7 eleven')) 
-      return { name: '7-Eleven', color: 'bg-red-500', textColor: 'text-red-600' }
-    if (lower.includes('wawa')) 
-      return { name: 'Wawa', color: 'bg-amber-500', textColor: 'text-amber-600' }
-    if (lower.includes('circle k')) 
-      return { name: 'Circle K', color: 'bg-orange-500', textColor: 'text-orange-600' }
-    if (lower.includes('shell')) 
-      return { name: 'Shell', color: 'bg-yellow-500', textColor: 'text-yellow-600' }
-    if (lower.includes('speedway'))
-      return { name: 'Speedway', color: 'bg-blue-500', textColor: 'text-blue-600' }
-    return { name: 'Other', color: 'bg-gray-500', textColor: 'text-gray-600' }
-  }
   
   // Get dispenser count from various sources
   const getDispenserCount = (order: WorkOrder): number | null => {
@@ -318,13 +304,13 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                     ) : (
                       dayOrders.map((order) => {
                         const statusInfo = getStatusInfo(order.status)
-                        const brandInfo = getBrandInfo(order.site_name)
+                        const brandStyle = getBrandStyle(order.site_name)
                         const dispenserCount = getDispenserCount(order)
                         
                         return (
                           <div
                             key={order.id}
-                            className="group relative rounded-lg border bg-card/50 hover:bg-card hover:shadow-md transition-all duration-200 overflow-hidden"
+                            className={`group relative rounded-lg border-2 hover:shadow-md transition-all duration-200 overflow-hidden ${getBrandCardStyle(order.site_name)}`}
                           >
                             {/* Status indicator bar */}
                             <div className={`absolute top-0 left-0 w-1 h-full ${statusInfo.color}`} />
@@ -401,13 +387,16 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                                     {(() => {
                                       // Use city_state if available
                                       if (order.city_state) {
+                                        // Remove zipcode from city_state
+                                        const cityStateNoZip = order.city_state.replace(/\s+\d{5}(-\d{4})?$/, '').trim()
                                         const county = order.county || ''
-                                        return county ? `${order.city_state}, ${county}` : order.city_state
+                                        return county ? `${cityStateNoZip}, ${county}` : cityStateNoZip
                                       }
                                       // Otherwise extract from address
                                       const parts = order.address.split(',')
                                       if (parts.length >= 2) {
-                                        const cityState = parts[parts.length - 2].trim()
+                                        // Get city/state and remove zipcode
+                                        const cityState = parts[parts.length - 2].trim().replace(/\s+\d{5}(-\d{4})?$/, '').trim()
                                         const county = order.county || ''
                                         return county ? `${cityState}, ${county}` : cityState
                                       }
@@ -422,10 +411,10 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                                 {/* Brand badge */}
                                 <Badge 
                                   variant="outline" 
-                                  className={`text-xs px-2 py-0.5 ${brandInfo.textColor} border-current/30`}
+                                  className={`text-xs px-2 py-0.5 ${getBrandBadgeStyle(order.site_name)}`}
                                 >
                                   <Building2 className="w-3 h-3 mr-1" />
-                                  {brandInfo.name}
+                                  {brandStyle.name}
                                 </Badge>
                                 
                                 {/* Dispenser count - clickable */}
@@ -444,23 +433,22 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                                 )}
                               </div>
                               
-                              {/* Click action hint */}
-                              <button 
-                                className="mt-2 pt-2 border-t w-full flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  if (order.visit_url) {
+                              {/* Open Visit action */}
+                              {order.visit_url && (
+                                <button 
+                                  className="mt-2 pt-2 border-t w-full flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
                                     onOpenVisit?.(order)
-                                  } else {
-                                    onWorkOrderClick?.(order)
-                                  }
-                                }}
-                              >
-                                <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                                  Click for details
-                                </span>
-                                <ChevronRight className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                              </button>
+                                  }}
+                                >
+                                  <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-1">
+                                    <ExternalLink className="w-3 h-3" />
+                                    Open Visit
+                                  </span>
+                                  <ChevronRight className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         )

@@ -1,10 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square, CalendarDays } from 'lucide-react'
+import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square, CalendarDays, Database } from 'lucide-react'
 import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder, getUserPreferences } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { useDebouncedCallback } from 'use-debounce'
 import { useWorkOrderScrapingProgress, useDispenserScrapingProgress, useSingleDispenserProgress } from '../hooks/useProgressPolling'
+import { getBrandStyle, getBrandCardStyle, getBrandBadgeStyle } from '@/utils/storeColors'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -525,21 +534,10 @@ const WorkOrders: React.FC = () => {
     return 'Other'
   }
 
-  // Brand-specific styling with modern glass morphism
+  // Use the new brand styling system
   const getBrandStyling = (siteName: string) => {
-    const brand = getBrand(siteName)
-    switch (brand) {
-      case '7-Eleven':
-        return 'gradient-border border-l-4 border-l-green-500 bg-gradient-to-br from-green-500/5 to-green-600/5 dark:from-green-500/10 dark:to-green-600/10 hover:shadow-green-500/20'
-      case 'Wawa':
-        return 'gradient-border border-l-4 border-l-amber-500 bg-gradient-to-br from-amber-500/5 to-amber-600/5 dark:from-amber-500/10 dark:to-amber-600/10 hover:shadow-amber-500/20'
-      case 'Circle K':
-        return 'gradient-border border-l-4 border-l-red-500 bg-gradient-to-br from-red-500/5 to-red-600/5 dark:from-red-500/10 dark:to-red-600/10 hover:shadow-red-500/20'
-      case 'Shell':
-        return 'gradient-border border-l-4 border-l-yellow-500 bg-gradient-to-br from-yellow-500/5 to-yellow-600/5 dark:from-yellow-500/10 dark:to-yellow-600/10 hover:shadow-yellow-500/20'
-      default:
-        return 'gradient-border border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/5 to-blue-600/5 dark:from-blue-500/10 dark:to-blue-600/10 hover:shadow-blue-500/20'
-    }
+    const brandStyle = getBrandStyle(siteName)
+    return `gradient-border border-l-4 border-l-${brandStyle.color.replace('bg-', '')} ${getBrandCardStyle(siteName)}`
   }
 
   // Status icon mapping with animations
@@ -914,17 +912,50 @@ const WorkOrders: React.FC = () => {
           </div>
           
           <div className="flex gap-2 flex-wrap">
-            <AnimatedButton
-              onClick={() => clearAllMutation.mutate()}
-              disabled={clearAllMutation.isPending || workOrders.length === 0}
-              size="lg"
-              variant="destructive"
-              animation="pulse"
-              className="min-w-[140px]"
-            >
-              <Trash2 className={`w-4 h-4 mr-2 ${clearAllMutation.isPending ? 'animate-spin' : ''}`} />
-              {clearAllMutation.isPending ? 'Clearing...' : 'Clear All'}
-            </AnimatedButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <AnimatedButton
+                  disabled={clearAllMutation.isPending || workOrders.length === 0}
+                  size="lg"
+                  variant="destructive"
+                  animation="pulse"
+                  className="min-w-[140px]"
+                >
+                  <Database className="w-4 h-4 mr-2" />
+                  Clear Data
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </AnimatedButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={() => clearAllMutation.mutate()}
+                  disabled={clearAllMutation.isPending || workOrders.length === 0}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Clear Work Orders
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => {
+                    // Clear all dispensers logic
+                    const workOrdersWithDispensers = workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0)
+                    if (workOrdersWithDispensers.length > 0 && confirm(`Clear dispensers from ${workOrdersWithDispensers.length} work orders?`)) {
+                      workOrdersWithDispensers.forEach(wo => {
+                        clearDispensersForWorkOrder(wo.id, user?.id || '')
+                      })
+                      queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+                    }
+                  }}
+                  disabled={workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0).length === 0}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Fuel className="w-4 h-4 mr-2" />
+                  Clear All Dispensers
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <AnimatedButton
               onClick={handleScrape}
               disabled={scrapeMutation.isPending || scrapeStatus === 'scraping' || isAnyScraping}
@@ -981,21 +1012,26 @@ const WorkOrders: React.FC = () => {
           <div className="animate-slide-in-from-top">
             {scrapeStatus === 'scraping' && (
               <GlowCard 
-                glowColor="rgba(59, 130, 246, 0.4)" 
-                className="w-full animate-pulse-glow border-primary/30"
+                glowColor="rgba(59, 130, 246, 0.3)" 
+                className="w-full border-blue-500/20 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20"
               >
-                <CardHeader className="pb-4">
+                <CardHeader className="pb-3">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-primary/10 rounded-full">
-                      <ProgressLoader size="lg" className="text-primary" />
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full blur-lg opacity-50 animate-pulse"></div>
+                      <div className="relative p-3 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full shadow-lg">
+                        <RefreshCw className="w-6 h-6 text-white animate-spin" />
+                      </div>
                     </div>
                     <div className="flex-1">
-                      <CardTitle className="text-xl mb-1">Scraping in Progress</CardTitle>
-                      <CardDescription className="text-base">
+                      <CardTitle className="text-lg mb-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                        Scraping Work Orders
+                      </CardTitle>
+                      <CardDescription className="text-sm">
                         <AnimatedText 
                           text={scrapingProgress?.message || scrapeMessage}
                           animationType="fade"
-                          className="font-medium"
+                          className="text-muted-foreground"
                         />
                       </CardDescription>
                     </div>
@@ -1005,59 +1041,87 @@ const WorkOrders: React.FC = () => {
                 <CardContent className="space-y-6">
                   {scrapingProgress && (
                     <>
-                      {/* Progress Display */}
-                      <div className="bg-gradient-to-r from-primary/5 to-blue-500/5 rounded-xl p-6 border border-primary/20">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                          {/* Percentage */}
-                          <div className="text-center">
-                            <div className="mb-2">
-                              <ShimmerText 
-                                text={`${Math.round(Number(scrapingProgress.percentage || 0))}%`}
-                                className="text-5xl font-black text-primary block"
-                              />
-                            </div>
-                            <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                              Complete
-                            </div>
-                          </div>
-                          
-                          {/* Progress Bar */}
-                          <div className="space-y-3">
-                            <div className="text-center">
-                              <div className="text-sm font-medium text-muted-foreground mb-2">Overall Progress</div>
-                              <Progress 
-                                value={Number(scrapingProgress.percentage || 0)} 
-                                className="h-4 bg-muted/50"
-                              />
-                            </div>
-                            <div className="text-center">
-                              <div className="text-xs text-muted-foreground">Current Phase</div>
-                              <div className="font-semibold text-sm mt-1 capitalize bg-muted/30 rounded-md px-3 py-1 inline-block">
-                                {scrapingProgress.phase}
+                      {/* Sleek Progress Section */}
+                      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-100/50 to-indigo-100/50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4">
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 animate-pulse"></div>
+                        
+                        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                          {/* Circular Progress */}
+                          <div className="flex justify-center">
+                            <div className="relative w-24 h-24">
+                              <svg className="w-24 h-24 transform -rotate-90">
+                                <circle
+                                  cx="48"
+                                  cy="48"
+                                  r="42"
+                                  stroke="currentColor"
+                                  strokeWidth="8"
+                                  fill="none"
+                                  className="text-blue-200/30 dark:text-blue-800/30"
+                                />
+                                <circle
+                                  cx="48"
+                                  cy="48"
+                                  r="42"
+                                  stroke="currentColor"
+                                  strokeWidth="8"
+                                  fill="none"
+                                  strokeDasharray={`${2 * Math.PI * 42}`}
+                                  strokeDashoffset={`${2 * Math.PI * 42 * (1 - (Number(scrapingProgress.percentage || 0) / 100))}`}
+                                  className="text-blue-600 dark:text-blue-400 transition-all duration-500 ease-out"
+                                  strokeLinecap="round"
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <GradientText 
+                                  text={`${Math.round(Number(scrapingProgress.percentage || 0))}%`}
+                                  gradient="from-blue-600 to-indigo-600"
+                                  className="text-2xl font-black"
+                                />
                               </div>
                             </div>
                           </div>
                           
-                          {/* Results */}
-                          {scrapingProgress.work_orders_found > 0 && (
-                            <div className="text-center">
+                          {/* Status Info */}
+                          <div className="space-y-3 text-center md:text-left">
+                            <div>
+                              <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Current Phase</div>
+                              <div className="font-semibold text-sm capitalize">
+                                {scrapingProgress.phase || 'Initializing'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</div>
+                              <Badge variant="secondary" className="text-xs">
+                                {scrapingProgress.message || 'Processing...'}
+                              </Badge>
+                            </div>
+                          </div>
+                          
+                          {/* Results Card */}
+                          <div className="flex justify-center">
+                            {scrapingProgress.work_orders_found > 0 ? (
                               <AnimatedCard 
                                 hover="scale" 
                                 animate="bounce" 
-                                className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30 p-4"
+                                className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30 p-4 text-center min-w-[120px]"
                               >
-                                <div className="text-green-600 text-3xl mb-2">📊</div>
                                 <GradientText 
                                   text={String(scrapingProgress.work_orders_found)}
                                   gradient="from-green-600 to-emerald-600"
                                   className="text-3xl font-black block mb-1"
                                 />
                                 <div className="text-xs font-medium text-green-600 uppercase tracking-wide">
-                                  Work Orders Found
+                                  Found
                                 </div>
                               </AnimatedCard>
-                            </div>
-                          )}
+                            ) : (
+                              <div className="text-center text-muted-foreground">
+                                <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin opacity-50" />
+                                <div className="text-xs">Searching...</div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </>
