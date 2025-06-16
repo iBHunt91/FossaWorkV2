@@ -1474,6 +1474,15 @@ const WorkOrders: React.FC = () => {
               workOrders={filteredWorkOrders}
               workDays={workDays}
               onWorkOrderClick={(workOrder) => {
+                console.log('Work order clicked:', workOrder)
+                // You can add additional click handling here if needed
+              }}
+              onViewDispensers={(workOrder) => {
+                console.log('Opening dispenser modal for work order:', workOrder)
+                setSelectedWorkOrderForModal(workOrder)
+                setShowDispenserModal(true)
+              }}
+              onOpenVisit={(workOrder) => {
                 handleOpenVisit(workOrder)
               }}
             />

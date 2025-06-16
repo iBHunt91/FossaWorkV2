@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, Calendar, MapPin, Clock, Fuel } from 'lucide-react'
-import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameDay, isWithinInterval } from 'date-fns'
+import { ChevronLeft, ChevronRight, Calendar, MapPin, Clock, Fuel, Building2, Wrench, AlertCircle, CheckCircle, ExternalLink, Eye, Sparkles, Hash, XCircle } from 'lucide-react'
+import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, isSameDay, isWithinInterval, parseISO } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { AnimatedCard, GlowCard } from '@/components/ui/animated-card'
-import { AnimatedText, ShimmerText } from '@/components/ui/animated-text'
-import { AnimatedButton } from '@/components/ui/animated-button'
+import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text'
+import { AnimatedButton, RippleButton } from '@/components/ui/animated-button'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface WorkOrder {
   id: string
@@ -30,12 +31,16 @@ interface WorkOrderWeeklyViewProps {
   workOrders: WorkOrder[]
   workDays: string[]
   onWorkOrderClick?: (workOrder: WorkOrder) => void
+  onViewDispensers?: (workOrder: WorkOrder) => void
+  onOpenVisit?: (workOrder: WorkOrder) => void
 }
 
 const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
   workOrders,
   workDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-  onWorkOrderClick
+  onWorkOrderClick,
+  onViewDispensers,
+  onOpenVisit
 }) => {
   const [currentWeek, setCurrentWeek] = useState(new Date())
   
@@ -136,205 +141,325 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
     setCurrentWeek(new Date())
   }
   
-  // Get status color
-  const getStatusColor = (status: string) => {
+  // Get status color and icon
+  const getStatusInfo = (status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
-        return 'bg-green-500'
+        return { color: 'bg-green-500', icon: CheckCircle, text: 'Completed', variant: 'success' }
       case 'in_progress':
-        return 'bg-blue-500'
+        return { color: 'bg-blue-500', icon: Clock, text: 'In Progress', variant: 'secondary' }
       case 'failed':
-        return 'bg-red-500'
+        return { color: 'bg-red-500', icon: AlertCircle, text: 'Failed', variant: 'destructive' }
       case 'cancelled':
-        return 'bg-gray-500'
+        return { color: 'bg-gray-500', icon: XCircle, text: 'Cancelled', variant: 'outline' }
       default:
-        return 'bg-yellow-500'
+        return { color: 'bg-yellow-500', icon: Clock, text: 'Pending', variant: 'warning' }
     }
   }
   
-  // Get brand from site name
-  const getBrand = (siteName: string) => {
+  // Get brand info from site name
+  const getBrandInfo = (siteName: string) => {
     const lower = siteName.toLowerCase()
-    if (lower.includes('7-eleven') || lower.includes('7 eleven')) return '7-Eleven'
-    if (lower.includes('wawa')) return 'Wawa'
-    if (lower.includes('circle k')) return 'Circle K'
-    if (lower.includes('shell')) return 'Shell'
-    return 'Other'
+    if (lower.includes('7-eleven') || lower.includes('7 eleven')) 
+      return { name: '7-Eleven', color: 'bg-red-500', textColor: 'text-red-600' }
+    if (lower.includes('wawa')) 
+      return { name: 'Wawa', color: 'bg-amber-500', textColor: 'text-amber-600' }
+    if (lower.includes('circle k')) 
+      return { name: 'Circle K', color: 'bg-orange-500', textColor: 'text-orange-600' }
+    if (lower.includes('shell')) 
+      return { name: 'Shell', color: 'bg-yellow-500', textColor: 'text-yellow-600' }
+    if (lower.includes('speedway'))
+      return { name: 'Speedway', color: 'bg-blue-500', textColor: 'text-blue-600' }
+    return { name: 'Other', color: 'bg-gray-500', textColor: 'text-gray-600' }
+  }
+  
+  // Get dispenser count from various sources
+  const getDispenserCount = (order: WorkOrder): number | null => {
+    // Direct dispenser array
+    if (order.dispensers && order.dispensers.length > 0) {
+      return order.dispensers.length
+    }
+    
+    // Extract from service items
+    if (order.service_items) {
+      const items = Array.isArray(order.service_items) 
+        ? order.service_items 
+        : [order.service_items]
+      
+      for (const item of items) {
+        const match = item.toString().match(/(\d+)\s*x\s*(All\s*)?Dispenser/i)
+        if (match) {
+          return parseInt(match[1], 10)
+        }
+      }
+    }
+    
+    return null
   }
   
   return (
-    <div className="space-y-6">
-      {/* Header with navigation */}
-      <GlowCard glowColor="rgba(59, 130, 246, 0.2)">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Calendar className="w-6 h-6 text-primary" />
-              <div>
-                <CardTitle className="text-2xl">
-                  <ShimmerText text="Weekly Schedule" />
-                </CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
-                </p>
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Header with navigation */}
+        <GlowCard glowColor="rgba(59, 130, 246, 0.15)" className="backdrop-blur-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-primary/10 backdrop-blur">
+                  <Calendar className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-2xl font-bold">
+                    <GradientText text="Weekly Schedule" gradient="from-blue-600 to-purple-600" />
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1 font-medium">
+                    {format(weekStart, 'MMMM d')} - {format(weekEnd, 'MMMM d, yyyy')}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <RippleButton
+                  onClick={goToPreviousWeek}
+                  size="sm"
+                  variant="outline"
+                  className="hover:bg-primary/10"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </RippleButton>
+                
+                <RippleButton
+                  onClick={goToCurrentWeek}
+                  size="sm"
+                  variant="outline"
+                  className="hover:bg-primary/10"
+                >
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Today
+                </RippleButton>
+                
+                <RippleButton
+                  onClick={goToNextWeek}
+                  size="sm"
+                  variant="outline"
+                  className="hover:bg-primary/10"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </RippleButton>
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
-              <AnimatedButton
-                onClick={goToPreviousWeek}
-                size="sm"
-                variant="outline"
-                animation="scale"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </AnimatedButton>
-              
-              <AnimatedButton
-                onClick={goToCurrentWeek}
-                size="sm"
-                variant="outline"
-                animation="pulse"
-              >
-                Today
-              </AnimatedButton>
-              
-              <AnimatedButton
-                onClick={goToNextWeek}
-                size="sm"
-                variant="outline"
-                animation="scale"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </AnimatedButton>
+            <div className="mt-4 flex items-center gap-3">
+              <Badge variant="secondary" className="px-3 py-1.5 bg-primary/10 border-primary/20">
+                <Wrench className="w-3 h-3 mr-1.5" />
+                <span className="font-semibold">{totalWeekOrders}</span> work orders
+              </Badge>
+              <Badge variant="outline" className="px-3 py-1.5">
+                <Calendar className="w-3 h-3 mr-1.5" />
+                {workDays.length} work days
+              </Badge>
+              {totalWeekOrders > 0 && (
+                <Badge variant="outline" className="px-3 py-1.5">
+                  <Fuel className="w-3 h-3 mr-1.5" />
+                  {workOrders.reduce((sum, wo) => sum + (getDispenserCount(wo) || 0), 0)} dispensers
+                </Badge>
+              )}
             </div>
-          </div>
-          
-          <div className="mt-4 flex items-center gap-4 text-sm">
-            <Badge variant="secondary" className="px-3 py-1">
-              <span className="font-medium">{totalWeekOrders}</span> work orders this week
-            </Badge>
-            <Badge variant="outline" className="px-3 py-1">
-              {workDays.length} work days
-            </Badge>
-          </div>
-        </CardHeader>
-      </GlowCard>
+          </CardHeader>
+        </GlowCard>
       
-      {/* Weekly calendar grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        {displayDays.map((day, index) => {
-          const dateKey = format(day.date, 'yyyy-MM-dd')
-          const dayOrders = workOrdersByDay[dateKey] || []
-          const isToday = isSameDay(day.date, new Date())
-          
-          return (
-            <AnimatedCard
-              key={day.name}
-              className={`h-full ${isToday ? 'ring-2 ring-primary' : ''}`}
-              hover="lift"
-              animate="slide"
-              delay={index * 0.1}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-lg">
-                    {day.name}
-                  </h3>
-                  {isToday && (
-                    <Badge variant="default" className="text-xs">
-                      Today
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {format(day.date, 'MMM d')}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {dayOrders.length} {dayOrders.length === 1 ? 'order' : 'orders'}
-                </p>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <div className="space-y-2">
-                  {dayOrders.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No work orders
+        {/* Weekly calendar grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+          {displayDays.map((day, index) => {
+            const dateKey = format(day.date, 'yyyy-MM-dd')
+            const dayOrders = workOrdersByDay[dateKey] || []
+            const isToday = isSameDay(day.date, new Date())
+            
+            return (
+              <AnimatedCard
+                key={day.name}
+                className={`h-full min-h-[400px] ${isToday ? 'ring-2 ring-primary shadow-lg' : ''} backdrop-blur-sm`}
+                hover="glow"
+                animate="slide"
+                delay={index * 0.1}
+              >
+                <CardHeader className="pb-3 bg-gradient-to-b from-card to-transparent">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold text-lg">
+                      {day.name}
+                    </h3>
+                    {isToday && (
+                      <Badge variant="default" className="text-xs animate-pulse">
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        Today
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {format(day.date, 'MMMM d')}
                     </p>
-                  ) : (
-                    dayOrders.map((order) => (
-                      <div
-                        key={order.id}
-                        onClick={() => onWorkOrderClick?.(order)}
-                        className="p-3 rounded-lg border bg-card hover:bg-accent/50 cursor-pointer transition-colors space-y-2"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="font-medium text-sm leading-tight line-clamp-1">
-                            {order.site_name}
-                          </h4>
-                          <div className={`w-2 h-2 rounded-full ${getStatusColor(order.status)} flex-shrink-0 mt-1.5`} />
-                        </div>
-                        
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <MapPin className="w-3 h-3" />
-                          <span className="line-clamp-1">{order.store_number || 'Store'}</span>
-                        </div>
-                        
-                        {order.scheduled_date && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            <span>{format(new Date(order.scheduled_date), 'h:mm a')}</span>
-                          </div>
-                        )}
-                        
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          <Badge variant="outline" className="text-xs px-2 py-0">
-                            {order.service_code || 'Service'}
-                          </Badge>
-                          {(() => {
-                            // Try dispenser count from various sources
-                            if (order.dispensers && order.dispensers.length > 0) {
-                              return (
-                                <Badge variant="secondary" className="text-xs px-2 py-0">
-                                  <Fuel className="w-3 h-3 mr-1" />
-                                  {order.dispensers.length}
-                                </Badge>
-                              )
-                            }
-                            
-                            // Extract from service items
-                            if (order.service_items) {
-                              const items = Array.isArray(order.service_items) 
-                                ? order.service_items 
-                                : [order.service_items]
-                              
-                              for (const item of items) {
-                                const match = item.toString().match(/(\d+)\s*x\s*(All\s*)?Dispenser/i)
-                                if (match) {
-                                  const count = parseInt(match[1], 10)
-                                  return (
-                                    <Badge variant="secondary" className="text-xs px-2 py-0">
-                                      <Fuel className="w-3 h-3 mr-1" />
-                                      {count}
-                                    </Badge>
-                                  )
-                                }
-                              }
-                            }
-                            
-                            return null
-                          })()}
-                        </div>
+                    <Badge variant={dayOrders.length > 0 ? "secondary" : "outline"} className="text-xs">
+                      {dayOrders.length} {dayOrders.length === 1 ? 'job' : 'jobs'}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="pt-0 px-3 pb-3">
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+                    {dayOrders.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                        <Calendar className="w-8 h-8 mb-2 opacity-50" />
+                        <p className="text-sm font-medium">No work orders</p>
+                        <p className="text-xs mt-1">Enjoy your day!</p>
                       </div>
-                    ))
-                  )}
-                </div>
-              </CardContent>
-            </AnimatedCard>
-          )
-        })}
+                    ) : (
+                      dayOrders.map((order) => {
+                        const statusInfo = getStatusInfo(order.status)
+                        const brandInfo = getBrandInfo(order.site_name)
+                        const dispenserCount = getDispenserCount(order)
+                        
+                        return (
+                          <div
+                            key={order.id}
+                            className="group relative rounded-lg border bg-card/50 hover:bg-card hover:shadow-md transition-all duration-200 overflow-hidden"
+                          >
+                            {/* Status indicator bar */}
+                            <div className={`absolute top-0 left-0 w-1 h-full ${statusInfo.color}`} />
+                            
+                            <div className="p-3 pl-4">
+                              {/* Header with site name and actions */}
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-semibold text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
+                                    {order.site_name}
+                                  </h4>
+                                  {order.store_number && (
+                                    <div className="flex items-center gap-1 mt-1">
+                                      <Hash className="w-3 h-3 text-muted-foreground" />
+                                      <span className="text-xs font-medium text-muted-foreground">
+                                        {order.store_number}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Action buttons */}
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {dispenserCount && dispenserCount > 0 && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-6 w-6"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            onViewDispensers?.(order)
+                                          }}
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>View Dispensers</TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  
+                                  {order.visit_url && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-6 w-6"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            onOpenVisit?.(order)
+                                          }}
+                                        >
+                                          <ExternalLink className="h-3 w-3" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Open Visit</TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Time */}
+                              {order.scheduled_date && (
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
+                                  <Clock className="w-3 h-3" />
+                                  <span className="font-medium">
+                                    {format(new Date(order.scheduled_date), 'h:mm a')}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Address preview */}
+                              {order.address && (
+                                <div className="flex items-start gap-1.5 text-xs text-muted-foreground mb-2">
+                                  <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                  <span className="line-clamp-2 leading-tight">
+                                    {order.address}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {/* Badges row */}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {/* Brand badge */}
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs px-2 py-0.5 ${brandInfo.textColor} border-current/30`}
+                                >
+                                  <Building2 className="w-3 h-3 mr-1" />
+                                  {brandInfo.name}
+                                </Badge>
+                                
+                                {/* Service code */}
+                                {order.service_code && (
+                                  <Badge variant="secondary" className="text-xs px-2 py-0.5">
+                                    <Wrench className="w-3 h-3 mr-1" />
+                                    {order.service_code}
+                                  </Badge>
+                                )}
+                                
+                                {/* Dispenser count */}
+                                {dispenserCount && dispenserCount > 0 && (
+                                  <Badge 
+                                    variant="secondary" 
+                                    className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-600 border-blue-500/20"
+                                  >
+                                    <Fuel className="w-3 h-3 mr-1" />
+                                    {dispenserCount}
+                                  </Badge>
+                                )}
+                              </div>
+                              
+                              {/* Click action hint */}
+                              <div 
+                                className="mt-2 pt-2 border-t flex items-center justify-between cursor-pointer"
+                                onClick={() => onWorkOrderClick?.(order)}
+                              >
+                                <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                                  Click for details
+                                </span>
+                                <ChevronRight className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </CardContent>
+              </AnimatedCard>
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }
 
