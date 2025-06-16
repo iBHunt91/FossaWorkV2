@@ -25,6 +25,8 @@ interface WorkOrder {
   visit_url?: string
   dispenser_count?: number
   dispensers?: any[]
+  county?: string
+  city_state?: string
 }
 
 interface WorkOrderWeeklyViewProps {
@@ -331,13 +333,10 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                               {/* Header with site name and actions */}
                               <div className="flex items-start justify-between gap-2 mb-2">
                                 <div className="flex-1 min-w-0">
-                                  <h4 className="font-semibold text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
-                                    {order.site_name}
-                                  </h4>
                                   {order.store_number && (
-                                    <div className="flex items-center gap-1 mt-1">
+                                    <div className="flex items-center gap-1">
                                       <Hash className="w-3 h-3 text-muted-foreground" />
-                                      <span className="text-xs font-medium text-muted-foreground">
+                                      <span className="text-sm font-semibold text-foreground">
                                         {order.store_number}
                                       </span>
                                     </div>
@@ -386,22 +385,34 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                                 </div>
                               </div>
                               
-                              {/* Time */}
-                              {order.scheduled_date && (
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
-                                  <Clock className="w-3 h-3" />
-                                  <span className="font-medium">
-                                    {format(new Date(order.scheduled_date), 'h:mm a')}
-                                  </span>
-                                </div>
-                              )}
-                              
-                              {/* Address preview */}
+                              {/* Location info */}
                               {order.address && (
-                                <div className="flex items-start gap-1.5 text-xs text-muted-foreground mb-2">
+                                <div 
+                                  className="flex items-start gap-1.5 text-xs text-muted-foreground mb-2 cursor-pointer hover:text-primary transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    const address = order.address
+                                    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+                                    window.open(mapsUrl, '_blank')
+                                  }}
+                                >
                                   <MapPin className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                                  <span className="line-clamp-2 leading-tight">
-                                    {order.address}
+                                  <span className="line-clamp-1 leading-tight underline">
+                                    {(() => {
+                                      // Use city_state if available
+                                      if (order.city_state) {
+                                        const county = order.county || ''
+                                        return county ? `${order.city_state}, ${county}` : order.city_state
+                                      }
+                                      // Otherwise extract from address
+                                      const parts = order.address.split(',')
+                                      if (parts.length >= 2) {
+                                        const cityState = parts[parts.length - 2].trim()
+                                        const county = order.county || ''
+                                        return county ? `${cityState}, ${county}` : cityState
+                                      }
+                                      return order.address
+                                    })()}
                                   </span>
                                 </div>
                               )}
@@ -417,19 +428,15 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                                   {brandInfo.name}
                                 </Badge>
                                 
-                                {/* Service code */}
-                                {order.service_code && (
-                                  <Badge variant="secondary" className="text-xs px-2 py-0.5">
-                                    <Wrench className="w-3 h-3 mr-1" />
-                                    {order.service_code}
-                                  </Badge>
-                                )}
-                                
-                                {/* Dispenser count */}
+                                {/* Dispenser count - clickable */}
                                 {dispenserCount && dispenserCount > 0 && (
                                   <Badge 
                                     variant="secondary" 
-                                    className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-600 border-blue-500/20"
+                                    className="text-xs px-2 py-0.5 bg-blue-500/10 text-blue-600 border-blue-500/20 cursor-pointer hover:bg-blue-500/20 transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      onViewDispensers?.(order)
+                                    }}
                                   >
                                     <Fuel className="w-3 h-3 mr-1" />
                                     {dispenserCount}
@@ -438,15 +445,22 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                               </div>
                               
                               {/* Click action hint */}
-                              <div 
-                                className="mt-2 pt-2 border-t flex items-center justify-between cursor-pointer"
-                                onClick={() => onWorkOrderClick?.(order)}
+                              <button 
+                                className="mt-2 pt-2 border-t w-full flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (order.visit_url) {
+                                    onOpenVisit?.(order)
+                                  } else {
+                                    onWorkOrderClick?.(order)
+                                  }
+                                }}
                               >
                                 <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
                                   Click for details
                                 </span>
                                 <ChevronRight className="w-3 h-3 text-muted-foreground group-hover:text-primary transition-colors" />
-                              </div>
+                              </button>
                             </div>
                           </div>
                         )
