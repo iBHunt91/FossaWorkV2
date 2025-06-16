@@ -688,14 +688,62 @@ const WorkOrders: React.FC = () => {
   const handleBatchDispenserScrape = async () => {
     if (selectedWorkOrders.size === 0) return
 
-    console.log(`Starting batch dispenser scrape for ${selectedWorkOrders.size} selected work orders`)
+    const selectedIds = Array.from(selectedWorkOrders)
+    console.log(`Starting selective dispenser scrape for ${selectedIds.length} work orders:`, selectedIds)
     
     // Clear selections after starting
     deselectAllWorkOrders()
     
-    // For now, trigger batch scraping for the entire user
-    // In the future, we could implement selective batch scraping
-    handleDispenserScrape()
+    // Set scraping status
+    setDispenserScrapeStatus('scraping')
+    setDispenserScrapeMessage(`Scraping dispensers for ${selectedIds.length} selected work orders...`)
+    
+    try {
+      // Scrape each selected work order sequentially
+      for (let i = 0; i < selectedIds.length; i++) {
+        const workOrderId = selectedIds[i]
+        const workOrder = workOrders.find(wo => wo.id === workOrderId)
+        
+        if (workOrder) {
+          setDispenserScrapeMessage(`Scraping ${i + 1} of ${selectedIds.length}: ${workOrder.site_name}...`)
+          
+          try {
+            await scrapeDispensersForWorkOrder(workOrderId, currentUserId)
+            console.log(`Successfully scraped dispensers for ${workOrderId}`)
+          } catch (error) {
+            console.error(`Failed to scrape dispensers for ${workOrderId}:`, error)
+          }
+          
+          // Small delay between scrapes to avoid overwhelming the server
+          if (i < selectedIds.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        }
+      }
+      
+      // Success message
+      setDispenserScrapeStatus('success')
+      setDispenserScrapeMessage(`Successfully scraped dispensers for ${selectedIds.length} work orders!`)
+      
+      // Refresh work orders to show updated dispenser counts
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+      
+      // Reset status after showing success
+      setTimeout(() => {
+        setDispenserScrapeStatus('idle')
+        setDispenserScrapeMessage('')
+      }, 3000)
+      
+    } catch (error) {
+      console.error('Batch dispenser scrape failed:', error)
+      setDispenserScrapeStatus('error')
+      setDispenserScrapeMessage('Failed to complete batch dispenser scraping')
+      
+      setTimeout(() => {
+        setDispenserScrapeStatus('idle')
+        setDispenserScrapeMessage('')
+      }, 5000)
+    }
   }
 
   // Handler for scraping dispensers for a specific work order
