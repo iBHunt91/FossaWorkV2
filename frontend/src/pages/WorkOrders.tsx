@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square } from 'lucide-react'
-import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder } from '../services/api'
+import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square, CalendarDays } from 'lucide-react'
+import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder, getUserPreferences } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { useDebouncedCallback } from 'use-debounce'
 import { useWorkOrderScrapingProgress, useDispenserScrapingProgress, useSingleDispenserProgress } from '../hooks/useProgressPolling'
@@ -20,6 +20,7 @@ import { ParticleBackground } from '@/components/ui/animated-background'
 import { DispenserInfoModal } from '@/components/DispenserInfoModal'
 import { DispenserInfoModalDebug } from '@/components/DispenserInfoModalDebug'
 import { DebugModal } from '@/components/DebugModal'
+import WorkOrderWeeklyView from '@/components/WorkOrderWeeklyView'
 
 // Enhanced work order interface with V1 compatibility
 interface EnhancedWorkOrder {
@@ -77,7 +78,7 @@ const WorkOrders: React.FC = () => {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [brandFilter, setBrandFilter] = useState('all')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'weekly'>('grid')
   const [selectedWorkOrders, setSelectedWorkOrders] = useState<Set<string>>(new Set())
   const [scrapeStatus, setScrapeStatus] = useState<'idle' | 'scraping' | 'success' | 'error'>('idle')
   const [scrapeMessage, setScrapeMessage] = useState('')
@@ -134,6 +135,21 @@ const WorkOrders: React.FC = () => {
   }
 
   const currentUserId = user.id
+
+  // Fetch user preferences for work week settings
+  const { data: userPreferences } = useQuery({
+    queryKey: ['user-preferences', currentUserId],
+    queryFn: () => getUserPreferences(currentUserId),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+
+  // Get work days from preferences or use default
+  const workDays = useMemo(() => {
+    if (userPreferences?.workWeek?.workDays && Array.isArray(userPreferences.workWeek.workDays)) {
+      return userPreferences.workWeek.workDays
+    }
+    return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] // Default work week
+  }, [userPreferences])
 
   // Use custom hooks for progress polling
   const {
@@ -931,8 +947,8 @@ const WorkOrders: React.FC = () => {
               {dispenserScrapeStatus === 'scraping' ? 'Scraping Dispensers...' : 'Scrape Dispensers'}
             </AnimatedButton>
             
-            {/* Batch Actions */}
-            {selectedWorkOrders.size > 0 && (
+            {/* Batch Actions - hide in weekly view */}
+            {selectedWorkOrders.size > 0 && viewMode !== 'weekly' && (
               <>
                 <div className="h-10 w-px bg-border/50" />
                 <AnimatedButton
@@ -1339,8 +1355,8 @@ const WorkOrders: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {/* Selection controls */}
-              {filteredWorkOrders.length > 0 && (
+              {/* Selection controls - hide in weekly view */}
+              {filteredWorkOrders.length > 0 && viewMode !== 'weekly' && (
                 <div className="flex items-center gap-4 pb-2 border-b border-border/50">
                   <button
                     onClick={(e) => {
@@ -1429,6 +1445,16 @@ const WorkOrders: React.FC = () => {
                     <List className="w-4 h-4 mr-1" />
                     List
                   </MagneticButton>
+                  <MagneticButton
+                    variant={viewMode === 'weekly' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setViewMode('weekly')}
+                    className="rounded-none flex-1"
+                    strength={0.1}
+                  >
+                    <CalendarDays className="w-4 h-4 mr-1" />
+                    Week
+                  </MagneticButton>
                 </div>
               </div>
             </div>
@@ -1443,6 +1469,15 @@ const WorkOrders: React.FC = () => {
             <AnimatedText text="Loading work orders..." animationType="fade" className="text-muted-foreground" />
           </div>
         ) : filteredWorkOrders.length > 0 ? (
+          viewMode === 'weekly' ? (
+            <WorkOrderWeeklyView 
+              workOrders={filteredWorkOrders}
+              workDays={workDays}
+              onWorkOrderClick={(workOrder) => {
+                handleOpenVisit(workOrder)
+              }}
+            />
+          ) : (
           <div className={viewMode === 'grid' ? 'work-orders-grid grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6' : 'work-orders-list space-y-4'}>
             {filteredWorkOrders.map((workOrder, index) => (
               <div key={workOrder.id} className="relative">
@@ -1792,6 +1827,7 @@ const WorkOrders: React.FC = () => {
               </div>
             ))}
           </div>
+          )
         ) : (
           <AnimatedCard animate="bounce" hover="glow">
             <CardContent className="text-center py-12">
