@@ -88,6 +88,13 @@ apiClient.interceptors.response.use(
       response: error.response?.data
     })
     
+    // Handle 401 Unauthorized by clearing auth and redirecting to login
+    if (status === 401 && !error.config?.url?.includes('/api/auth/login')) {
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('authUser')
+      window.location.href = '/login'
+    }
+    
     return Promise.reject(error)
   }
 )

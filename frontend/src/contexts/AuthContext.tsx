@@ -37,17 +37,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (savedToken && savedUser) {
       setToken(savedToken)
       setUser(JSON.parse(savedUser))
-    } else {
-      // Auto-login with demo user for testing
-      const demoUser = {
-        id: '7bea3bdb7e8e303eacaba442bd824004',
-        email: 'demo@fossawork.com',
-        username: 'demo'
-      }
-      setToken('demo-token')
-      setUser(demoUser)
-      localStorage.setItem('authToken', 'demo-token')
-      localStorage.setItem('authUser', JSON.stringify(demoUser))
     }
     setLoading(false)
   }, [])
