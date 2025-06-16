@@ -302,13 +302,39 @@ The Work Orders page includes a dedicated "Scrape Dispensers" button that:
 3. View updated dispenser counts in work order cards
 4. Check individual work order details for full dispenser information
 
-## Recent Improvements (June 2025)
+## Recent Improvements
 
+### June 2025
 1. **Content-Based Waiting**: Replaced arbitrary timeouts with intelligent wait conditions
 2. **Loader Detection**: Monitor `.loader-line` element to ensure page is ready
 3. **Enhanced Click Handling**: Specific handling for WorkFossa's dispenser toggle structure
 4. **Improved Reliability**: Better error handling and fallback strategies
 5. **Performance**: Faster scraping with targeted waits instead of fixed delays
+
+### January 2025 - UI/UX Enhancements
+1. **Progress Tracking Improvements**:
+   - Fixed NaN display issues in progress indicators
+   - Improved percentage calculations (30-95% range for actual scraping work)
+   - Added dedicated single work order dispenser scraping with real-time progress
+   - Implemented polling mechanism for progress updates
+
+2. **User Experience**:
+   - Removed all modal dialogs (alert/confirm) for non-blocking interactions
+   - Fixed issue where UI showed completion before backend finished
+   - Ensured progress bar reaches 100% before showing success message
+   - Added 500ms delay for smooth transition from progress to success
+
+3. **Technical Enhancements**:
+   - Created `/api/v1/work-orders/{work_order_id}/scrape-dispensers/progress` endpoint
+   - Added `singleDispenserProgress` state management in frontend
+   - Implemented proper cleanup of polling intervals to prevent memory leaks
+   - Separated batch vs single dispenser progress displays
+
+4. **Visual Improvements**:
+   - Modern gradient-based progress cards with glow effects
+   - Circular progress indicator for batch operations
+   - Sleek progress bars with animated transitions
+   - Consistent orange/amber color scheme for dispenser operations
 
 ## Future Enhancements
 

@@ -76,6 +76,7 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
     auto_continue_on_error: false,
     notify_on_completion: true
   });
+  const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info' | null; text: string }>({ type: null, text: '' });
 
   const API_BASE = 'http://localhost:8000';
 
@@ -116,7 +117,8 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
 
   const createBatch = async () => {
     if (selectedWorkOrders.length === 0) {
-      alert('Please select at least one work order');
+      setMessage({ type: 'error', text: 'Please select at least one work order' });
+      setTimeout(() => setMessage({ type: null, text: '' }), 3000);
       return;
     }
 
@@ -168,13 +170,18 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
         
         onBatchStarted?.(response.job_id);
         
-        alert(`Batch "${newBatch.name}" queued successfully!\nJob ID: ${response.job_id}\nVisits: ${visits.length}`);
+        setMessage({ 
+          type: 'success', 
+          text: `Batch "${newBatch.name}" queued successfully! Job ID: ${response.job_id}, Visits: ${visits.length}` 
+        });
+        setTimeout(() => setMessage({ type: null, text: '' }), 5000);
       } else {
         throw new Error(response.message || 'Failed to queue batch');
       }
     } catch (error) {
       console.error('Failed to create batch:', error);
-      alert(`Failed to create batch: ${error}`);
+      setMessage({ type: 'error', text: `Failed to create batch: ${error}` });
+      setTimeout(() => setMessage({ type: null, text: '' }), 5000);
     }
   };
 
@@ -220,11 +227,13 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
         
       } else {
         const error = await response.json();
-        alert(`Failed to start batch: ${error.detail}`);
+        setMessage({ type: 'error', text: `Failed to start batch: ${error.detail}` });
+        setTimeout(() => setMessage({ type: null, text: '' }), 5000);
       }
     } catch (error) {
       console.error('Batch start error:', error);
-      alert('Network error while starting batch');
+      setMessage({ type: 'error', text: 'Network error while starting batch' });
+      setTimeout(() => setMessage({ type: null, text: '' }), 5000);
     }
   };
 
@@ -314,6 +323,23 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
 
   return (
     <div className="space-y-6">
+      {/* Message Display */}
+      {message.type && (
+        <Alert className={`animate-slide-in-from-top ${
+          message.type === 'success' ? 'border-green-500 bg-green-50 dark:bg-green-950/20' :
+          message.type === 'error' ? 'border-red-500 bg-red-50 dark:bg-red-950/20' :
+          'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+        }`}>
+          <AlertDescription className={`font-medium ${
+            message.type === 'success' ? 'text-green-700 dark:text-green-300' :
+            message.type === 'error' ? 'text-red-700 dark:text-red-300' :
+            'text-blue-700 dark:text-blue-300'
+          }`}>
+            {message.text}
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Batch Configuration */}
       <AnimatedCard animate="slide" hover="lift" className="glass-dark">
         <CardContent className="p-6">

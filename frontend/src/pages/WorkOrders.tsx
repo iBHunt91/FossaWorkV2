@@ -87,6 +87,11 @@ const WorkOrders: React.FC = () => {
   const [dispenserScrapingProgress, setDispenserScrapingProgress] = useState<any>(null)
   const [isPollingDispenserProgress, setIsPollingDispenserProgress] = useState(false)
   
+  // Single dispenser scraping state
+  const [singleDispenserProgress, setSingleDispenserProgress] = useState<any>(null)
+  const [activeScrapeWorkOrderId, setActiveScrapeWorkOrderId] = useState<string | null>(null)
+  const singleDispenserPollInterval = React.useRef<NodeJS.Timeout | null>(null)
+  
   // Dispenser modal state
   const [showDispenserModal, setShowDispenserModal] = useState(false)
   const [selectedWorkOrderForModal, setSelectedWorkOrderForModal] = useState<EnhancedWorkOrder | null>(null)
@@ -97,6 +102,15 @@ const WorkOrders: React.FC = () => {
   
   const queryClient = useQueryClient()
   const { user } = useAuth()
+
+  // Cleanup on unmount
+  React.useEffect(() => {
+    return () => {
+      if (singleDispenserPollInterval.current) {
+        clearInterval(singleDispenserPollInterval.current)
+      }
+    }
+  }, [])
 
   // Require authentication
   if (!user) {
@@ -634,47 +648,152 @@ const WorkOrders: React.FC = () => {
       event.stopPropagation()
     }
     
+    // Clear any existing polling interval
+    if (singleDispenserPollInterval.current) {
+      clearInterval(singleDispenserPollInterval.current)
+      singleDispenserPollInterval.current = null
+    }
+    
     try {
       console.log(`Scraping dispensers for work order ${workOrder.external_id}`)
       
       // Set scraping status
       setDispenserScrapeStatus('scraping')
+      setDispenserScrapeMessage(`Starting dispenser scrape for ${workOrder.external_id}...`)
+      setActiveScrapeWorkOrderId(workOrder.id)
+      setSingleDispenserProgress({
+        status: 'in_progress',
+        phase: 'initializing',
+        percentage: 0,
+        message: 'Starting dispenser scrape...',
+        work_order_id: workOrder.id
+      })
       
-      // Show loading state
+      // Start the scraping
       const result = await scrapeDispensersForWorkOrder(workOrder.id, currentUserId)
       
-      if (result.status === 'success' || result.status === 'scraping_started') {
-        // Wait a bit for the scraping to complete
-        await new Promise(resolve => setTimeout(resolve, 5000))
+      if (result.status === 'scraping_started') {
+        // Wait a bit before starting to poll to ensure backend has initialized progress
+        await new Promise(resolve => setTimeout(resolve, 500))
         
-        // Refresh work orders to show updated dispenser data
-        await queryClient.invalidateQueries({ queryKey: ['work-orders'] })
-        await queryClient.refetchQueries({ queryKey: ['work-orders'] })
+        // Start polling for progress
+        singleDispenserPollInterval.current = setInterval(async () => {
+          try {
+            const progressResponse = await fetch(
+              `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/work-orders/${workOrder.id}/scrape-dispensers/progress?user_id=${currentUserId}`,
+              { 
+                credentials: 'include',
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            )
+            
+            if (!progressResponse.ok) {
+              console.error('Progress endpoint error:', progressResponse.status, progressResponse.statusText)
+              return
+            }
+            
+            const progress = await progressResponse.json()
+            console.log('Single dispenser progress:', progress)
+            
+            if (progress.status === 'in_progress') {
+              setDispenserScrapeMessage(progress.message || 'Scraping in progress...')
+              setSingleDispenserProgress(progress)
+            } else if (progress.status === 'completed' || (progress.percentage && progress.percentage >= 100)) {
+              // Update progress to show 100% before transitioning to success
+              setSingleDispenserProgress({
+                ...progress,
+                percentage: 100,
+                status: 'in_progress',
+                message: progress.message || 'Completing...'
+              })
+              
+              // Wait a bit to show 100% before transitioning to success
+              setTimeout(async () => {
+                if (singleDispenserPollInterval.current) {
+                  clearInterval(singleDispenserPollInterval.current)
+                  singleDispenserPollInterval.current = null
+                }
+                setDispenserScrapeStatus('success')
+                setDispenserScrapeMessage(progress.message || `Successfully scraped dispensers for ${workOrder.external_id}`)
+                setSingleDispenserProgress(null)
+                
+                // Refresh work orders to show updated dispenser data
+                await queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+                
+                // Clear message after delay
+                setTimeout(() => {
+                  setDispenserScrapeStatus('idle')
+                  setDispenserScrapeMessage('')
+                  setActiveScrapeWorkOrderId(null)
+                }, 5000)
+              }, 500) // Show 100% for half a second before success message
+            } else if (progress.status === 'failed') {
+              if (singleDispenserPollInterval.current) {
+                clearInterval(singleDispenserPollInterval.current)
+                singleDispenserPollInterval.current = null
+              }
+              setDispenserScrapeStatus('error')
+              setDispenserScrapeMessage(progress.error || 'Dispenser scraping failed')
+              
+              // Clear message after delay
+              setTimeout(() => {
+                setDispenserScrapeStatus('idle')
+                setDispenserScrapeMessage('')
+                setSingleDispenserProgress(null)
+                setActiveScrapeWorkOrderId(null)
+              }, 5000)
+            }
+          } catch (error) {
+            console.error('Error polling dispenser scrape progress:', error)
+          }
+        }, 1000) // Poll every second
         
-        // Show success message
-        alert(`Dispenser scraping completed for ${workOrder.external_id}.`)
-        setDispenserScrapeStatus('success')
+        // Set a timeout to stop polling after 2 minutes
+        setTimeout(() => {
+          if (singleDispenserPollInterval.current) {
+            clearInterval(singleDispenserPollInterval.current)
+            singleDispenserPollInterval.current = null
+          }
+          if (dispenserScrapeStatus === 'scraping') {
+            setDispenserScrapeStatus('error')
+            setDispenserScrapeMessage('Scraping timeout - please try again')
+            setSingleDispenserProgress(null)
+            setActiveScrapeWorkOrderId(null)
+            setTimeout(() => {
+              setDispenserScrapeStatus('idle')
+              setDispenserScrapeMessage('')
+            }, 5000)
+          }
+        }, 120000)
       } else {
-        alert(result.message || 'Failed to scrape dispensers')
+        setDispenserScrapeMessage(result.message || 'Failed to start dispenser scraping')
         setDispenserScrapeStatus('error')
+        setSingleDispenserProgress(null)
+        setActiveScrapeWorkOrderId(null)
+        setTimeout(() => {
+          setDispenserScrapeStatus('idle')
+          setDispenserScrapeMessage('')
+        }, 5000)
       }
     } catch (error: any) {
       console.error('Error scraping dispensers:', error)
-      alert(error.response?.data?.detail || error.message || 'Failed to scrape dispensers')
+      setDispenserScrapeMessage(error.response?.data?.detail || error.message || 'Failed to scrape dispensers')
       setDispenserScrapeStatus('error')
-    } finally {
-      // Reset status after a delay
+      setSingleDispenserProgress(null)
+      setActiveScrapeWorkOrderId(null)
       setTimeout(() => {
         setDispenserScrapeStatus('idle')
-      }, 3000)
+        setDispenserScrapeMessage('')
+      }, 5000)
     }
   }
 
   // Handler for clearing dispensers for a specific work order
   const handleClearDispensers = async (workOrder: EnhancedWorkOrder) => {
-    if (!confirm(`Are you sure you want to clear all dispensers for ${workOrder.external_id}?`)) {
-      return
-    }
+    // Skip confirmation dialog
     
     try {
       console.log(`Clearing dispensers for work order ${workOrder.external_id}`)
@@ -686,13 +805,21 @@ const WorkOrders: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: ['work-orders'] })
         
         // Show success message
-        alert(`Successfully cleared ${result.cleared_count || 0} dispensers for ${workOrder.external_id}`)
+        setDispenserScrapeMessage(`Successfully cleared ${result.cleared_count || 0} dispensers for ${workOrder.external_id}`)
+        setDispenserScrapeStatus('success')
       } else {
-        alert(result.message || 'Failed to clear dispensers')
+        setDispenserScrapeMessage(result.message || 'Failed to clear dispensers')
+        setDispenserScrapeStatus('error')
       }
     } catch (error: any) {
       console.error('Error clearing dispensers:', error)
-      alert(error.response?.data?.detail || error.message || 'Failed to clear dispensers')
+      setDispenserScrapeMessage(error.response?.data?.detail || error.message || 'Failed to clear dispensers')
+      setDispenserScrapeStatus('error')
+    } finally {
+      // Reset status after a delay
+      setTimeout(() => {
+        setDispenserScrapeStatus('idle')
+      }, 3000)
     }
   }
 
@@ -823,7 +950,7 @@ const WorkOrders: React.FC = () => {
                           <div className="text-center">
                             <div className="mb-2">
                               <ShimmerText 
-                                text={`${isNaN(Number(scrapingProgress.percentage)) ? '0' : Math.round(Number(scrapingProgress.percentage) || 0)}%`}
+                                text={`${Math.round(Number(scrapingProgress.percentage || 0))}%`}
                                 className="text-5xl font-black text-primary block"
                               />
                             </div>
@@ -837,7 +964,7 @@ const WorkOrders: React.FC = () => {
                             <div className="text-center">
                               <div className="text-sm font-medium text-muted-foreground mb-2">Overall Progress</div>
                               <Progress 
-                                value={isNaN(Number(scrapingProgress.percentage)) ? 0 : Number(scrapingProgress.percentage) || 0} 
+                                value={Number(scrapingProgress.percentage || 0)} 
                                 className="h-4 bg-muted/50"
                               />
                             </div>
@@ -905,96 +1032,140 @@ const WorkOrders: React.FC = () => {
           </div>
         )}
 
-        {/* Dispenser Scraping Status Display */}
-        {dispenserScrapeStatus !== 'idle' && (
+        {/* Batch Dispenser Scraping Status Display */}
+        {dispenserScrapeStatus !== 'idle' && !singleDispenserProgress && (
           <div className="animate-slide-in-from-top">
-            {dispenserScrapeStatus === 'scraping' && (
+            {dispenserScrapeStatus === 'scraping' && dispenserScrapingProgress && (
               <GlowCard 
-                glowColor="rgba(251, 146, 60, 0.4)" 
-                className="w-full animate-pulse-glow border-orange-500/30"
+                glowColor="rgba(251, 146, 60, 0.3)" 
+                className="w-full border-orange-500/20 bg-gradient-to-br from-orange-50/50 to-amber-50/50 dark:from-orange-950/20 dark:to-amber-950/20"
               >
-                <CardHeader className="pb-4">
+                <CardHeader className="pb-3">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-orange-500/10 rounded-full">
-                      <ProgressLoader size="lg" className="text-orange-500" />
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-amber-400 rounded-full blur-lg opacity-50 animate-pulse"></div>
+                      <div className="relative p-3 bg-gradient-to-br from-orange-500 to-amber-500 rounded-full shadow-lg">
+                        <Fuel className="w-6 h-6 text-white animate-pulse" />
+                      </div>
                     </div>
                     <div className="flex-1">
-                      <CardTitle className="text-xl mb-1">Dispenser Scraping in Progress</CardTitle>
-                      <CardDescription className="text-base">
+                      <CardTitle className="text-lg mb-0.5 bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                        Scraping Dispenser Data
+                      </CardTitle>
+                      <CardDescription className="text-sm">
                         <AnimatedText 
                           text={dispenserScrapingProgress?.message || dispenserScrapeMessage}
                           animationType="fade"
-                          className="font-medium"
+                          className="text-muted-foreground"
                         />
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 
-                <CardContent className="space-y-6">
+                <CardContent className="pt-2">
                   {dispenserScrapingProgress && (
-                    <>
-                      {/* Progress Display */}
-                      <div className="bg-gradient-to-r from-orange-500/5 to-amber-500/5 rounded-xl p-6 border border-orange-500/20">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                          {/* Percentage */}
-                          <div className="text-center">
-                            <div className="mb-2">
-                              <ShimmerText 
-                                text={`${isNaN(Number(dispenserScrapingProgress.percentage)) ? '0' : Math.round(Number(dispenserScrapingProgress.percentage) || 0)}%`}
-                                className="text-5xl font-black text-orange-500 block"
-                              />
-                            </div>
-                            <div className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                              Complete
-                            </div>
-                          </div>
-                          
-                          {/* Progress Bar */}
-                          <div className="space-y-3">
-                            <div className="text-center">
-                              <div className="text-sm font-medium text-muted-foreground mb-2">Overall Progress</div>
-                              <Progress 
-                                value={isNaN(Number(dispenserScrapingProgress.percentage)) ? 0 : Number(dispenserScrapingProgress.percentage) || 0} 
-                                className="h-4 bg-muted/50"
-                              />
-                            </div>
-                            <div className="text-center">
-                              <div className="text-xs text-muted-foreground">
-                                {dispenserScrapingProgress.processed || 0} / {dispenserScrapingProgress.total_work_orders || 0} Work Orders
+                    <div className="space-y-4">
+                      {/* Sleek Progress Section */}
+                      <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-100/50 to-amber-100/50 dark:from-orange-900/20 dark:to-amber-900/20 p-4">
+                        <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-amber-500/5 animate-pulse"></div>
+                        
+                        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                          {/* Circular Progress */}
+                          <div className="flex justify-center">
+                            <div className="relative w-24 h-24">
+                              <svg className="w-24 h-24 transform -rotate-90">
+                                <circle
+                                  cx="48"
+                                  cy="48"
+                                  r="40"
+                                  stroke="currentColor"
+                                  strokeWidth="8"
+                                  fill="none"
+                                  className="text-gray-200 dark:text-gray-700"
+                                />
+                                <circle
+                                  cx="48"
+                                  cy="48"
+                                  r="40"
+                                  stroke="currentColor"
+                                  strokeWidth="8"
+                                  fill="none"
+                                  strokeDasharray={`${2 * Math.PI * 40}`}
+                                  strokeDashoffset={`${2 * Math.PI * 40 * (1 - (Number(dispenserScrapingProgress.percentage || 0) / 100))}`}
+                                  className="text-gradient-to-r from-orange-500 to-amber-500 transition-all duration-500"
+                                  style={{
+                                    stroke: 'url(#gradient)',
+                                  }}
+                                />
+                                <defs>
+                                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#f97316" />
+                                    <stop offset="100%" stopColor="#f59e0b" />
+                                  </linearGradient>
+                                </defs>
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-2xl font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                                  {Math.round(Number(dispenserScrapingProgress.percentage || 0))}%
+                                </span>
                               </div>
                             </div>
                           </div>
                           
-                          {/* Results */}
-                          <div className="text-center">
-                            <AnimatedCard 
-                              hover="scale" 
-                              animate="bounce" 
-                              className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30 p-4"
-                            >
-                              <div className="text-amber-600 text-3xl mb-2">⛽</div>
-                              <div className="space-y-1">
-                                <div className="text-sm font-medium text-green-600">
-                                  ✅ {dispenserScrapingProgress.successful || 0} Successful
+                          {/* Progress Details */}
+                          <div className="text-center space-y-2">
+                            <div>
+                              <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                                {dispenserScrapingProgress.processed || 0} / {dispenserScrapingProgress.total_work_orders || 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                Work Orders Processed
+                              </div>
+                            </div>
+                            <Progress 
+                              value={Number(dispenserScrapingProgress.percentage || 0)} 
+                              className="h-2 bg-gray-200 dark:bg-gray-700"
+                            />
+                          </div>
+                          
+                          {/* Status Summary */}
+                          <div className="flex justify-center">
+                            <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur rounded-lg p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+                              <div className="flex items-center gap-4">
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold text-green-600">
+                                    {dispenserScrapingProgress.successful || 0}
+                                  </div>
+                                  <div className="text-xs text-green-600/80 font-medium">
+                                    Success
+                                  </div>
                                 </div>
                                 {dispenserScrapingProgress.failed > 0 && (
-                                  <div className="text-sm font-medium text-red-600">
-                                    ❌ {dispenserScrapingProgress.failed || 0} Failed
-                                  </div>
+                                  <>
+                                    <div className="w-px h-8 bg-gray-300 dark:bg-gray-600"></div>
+                                    <div className="text-center">
+                                      <div className="text-2xl font-bold text-red-600">
+                                        {dispenserScrapingProgress.failed || 0}
+                                      </div>
+                                      <div className="text-xs text-red-600/80 font-medium">
+                                        Failed
+                                      </div>
+                                    </div>
+                                  </>
                                 )}
                               </div>
-                            </AnimatedCard>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </>
+                    </div>
                   )}
                 </CardContent>
               </GlowCard>
             )}
             
-            {dispenserScrapeStatus === 'success' && (
+            {dispenserScrapeStatus === 'success' && !activeScrapeWorkOrderId && (
               <AnimatedCard animate="slide" hover="glow" className="border-green-500 bg-green-50 dark:bg-green-950/20">
                 <CardContent className="flex items-center gap-3 p-4">
                   <CheckCircle className="h-5 w-5 text-green-600 animate-scale-in flex-shrink-0" />
@@ -1007,7 +1178,96 @@ const WorkOrders: React.FC = () => {
               </AnimatedCard>
             )}
             
-            {dispenserScrapeStatus === 'error' && (
+            {dispenserScrapeStatus === 'error' && !activeScrapeWorkOrderId && (
+              <AnimatedCard animate="slide" hover="border" className="border-red-500 bg-red-50 dark:bg-red-950/20">
+                <CardContent className="flex items-center gap-3 p-4">
+                  <XCircle className="h-5 w-5 animate-shake flex-shrink-0" />
+                  <AnimatedText 
+                    text={dispenserScrapeMessage}
+                    animationType="fade"
+                    className="font-medium text-red-700 dark:text-red-300"
+                  />
+                </CardContent>
+              </AnimatedCard>
+            )}
+          </div>
+        )}
+
+        {/* Single Dispenser Scraping Display */}
+        {(singleDispenserProgress || (activeScrapeWorkOrderId && dispenserScrapeStatus !== 'idle')) && (
+          <div className="animate-slide-in-from-top">
+            {/* Progress Card - Show only when in progress */}
+            {singleDispenserProgress && singleDispenserProgress.status === 'in_progress' && (
+            <GlowCard 
+              glowColor="rgba(251, 146, 60, 0.3)" 
+              className="w-full border-orange-500/20 bg-gradient-to-br from-orange-50/50 to-amber-50/50 dark:from-orange-950/20 dark:to-amber-950/20"
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-orange-400 to-amber-400 rounded-full blur-lg opacity-50 animate-pulse"></div>
+                    <div className="relative p-3 bg-gradient-to-br from-orange-500 to-amber-500 rounded-full shadow-lg">
+                      <Fuel className="w-6 h-6 text-white animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <CardTitle className="text-lg mb-0.5 bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                      Scraping Dispenser Data
+                    </CardTitle>
+                    <CardDescription className="text-sm">
+                      <AnimatedText 
+                        text={singleDispenserProgress.message || 'Processing...'}
+                        animationType="fade"
+                        className="text-muted-foreground"
+                      />
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              
+              <CardContent className="pt-2">
+                <div className="space-y-4">
+                  {/* Sleek Progress Section */}
+                  <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-100/50 to-amber-100/50 dark:from-orange-900/20 dark:to-amber-900/20 p-4">
+                    <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-amber-500/5 animate-pulse"></div>
+                    
+                    <div className="relative flex items-center justify-between gap-4">
+                      {/* Progress Bar */}
+                      <div className="flex-1">
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className="text-muted-foreground capitalize">{singleDispenserProgress.phase}</span>
+                          <span className="font-bold bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+                            {Math.round(Number(singleDispenserProgress.percentage || 0))}%
+                          </span>
+                        </div>
+                        <Progress 
+                          value={Number(singleDispenserProgress.percentage || 0)} 
+                          className="h-3 bg-gray-200 dark:bg-gray-700"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </GlowCard>
+            )}
+            
+            {/* Success Message - Show when completed */}
+            {dispenserScrapeStatus === 'success' && activeScrapeWorkOrderId && (
+              <AnimatedCard animate="slide" hover="glow" className="border-green-500 bg-green-50 dark:bg-green-950/20">
+                <CardContent className="flex items-center gap-3 p-4">
+                  <CheckCircle className="h-5 w-5 text-green-600 animate-scale-in flex-shrink-0" />
+                  <AnimatedText 
+                    text={dispenserScrapeMessage}
+                    animationType="fade"
+                    className="font-medium text-green-700 dark:text-green-300"
+                  />
+                </CardContent>
+              </AnimatedCard>
+            )}
+            
+            {/* Error Message - Show when failed */}
+            {dispenserScrapeStatus === 'error' && activeScrapeWorkOrderId && (
               <AnimatedCard animate="slide" hover="border" className="border-red-500 bg-red-50 dark:bg-red-950/20">
                 <CardContent className="flex items-center gap-3 p-4">
                   <XCircle className="h-5 w-5 animate-shake flex-shrink-0" />

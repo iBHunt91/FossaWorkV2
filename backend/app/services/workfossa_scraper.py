@@ -205,7 +205,7 @@ class WorkFossaScraper:
             await self._emit_progress(ScrapingProgress(
                 session_id=session_id,
                 phase="navigation",
-                percentage=10,
+                percentage=5,
                 message="Navigating to work orders page..."
             ))
             
@@ -261,7 +261,7 @@ class WorkFossaScraper:
             await self._emit_progress(ScrapingProgress(
                 session_id=session_id,
                 phase="discovery",
-                percentage=20,
+                percentage=15,
                 message="Discovering page structure..."
             ))
             
@@ -274,7 +274,12 @@ class WorkFossaScraper:
             work_orders = []
             for i, element in enumerate(work_order_elements):
                 try:
-                    progress_percentage = 30 + (i / total_work_orders) * 60
+                    # More accurate progress calculation
+                    # 0-20%: Initial setup and navigation
+                    # 20-30%: Page discovery and structure analysis
+                    # 30-95%: Actual work order scraping (bulk of the work)
+                    # 95-100%: Final processing
+                    progress_percentage = 30 + ((i + 1) / total_work_orders) * 65
                     logger.info(f"🔄 [DEBUG] Starting work order {i+1}/{total_work_orders} (Progress: {progress_percentage:.1f}%)")
                     
                     await self._emit_progress(ScrapingProgress(
@@ -283,7 +288,7 @@ class WorkFossaScraper:
                         percentage=progress_percentage,
                         message=f"Scraping work order {i+1} of {total_work_orders}...",
                         work_orders_found=total_work_orders,
-                        work_orders_processed=i
+                        work_orders_processed=i + 1
                     ))
                     
                     logger.info(f"🔍 [DEBUG] About to call _scrape_work_order_from_element for work order {i+1}")

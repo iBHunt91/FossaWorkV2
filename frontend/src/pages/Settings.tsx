@@ -325,9 +325,8 @@ const Settings: React.FC = () => {
   }
 
   const handleDeleteCredentials = () => {
-    if (window.confirm('Are you sure you want to delete your WorkFossa credentials?')) {
-      deleteCredentialsMutation.mutate()
-    }
+    // Delete without confirmation
+    deleteCredentialsMutation.mutate()
   }
 
   // Load saved credentials into form when available

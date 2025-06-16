@@ -159,9 +159,7 @@ const CredentialManager: React.FC<Props> = ({ userId, onCredentialsUpdated }) =>
   };
 
   const deleteCredentials = async () => {
-    if (!confirm('Are you sure you want to delete these credentials?')) {
-      return;
-    }
+    // Delete without confirmation
 
     try {
       setLoading(true);

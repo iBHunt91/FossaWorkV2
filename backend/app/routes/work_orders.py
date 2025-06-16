@@ -610,12 +610,12 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         from ..services.workfossa_automation import WorkFossaAutomationService
         
         logger.info("[SCRAPE] Creating WorkFossa automation service...")
-        update_progress("initializing", 10, "Creating browser automation service...")
+        update_progress("initializing", 5, "Creating browser automation service...")
         workfossa_automation = WorkFossaAutomationService(headless=False)  # Visible browser for debugging
         
         # Create automation session with credentials
         logger.info("[SCRAPE] Creating automation session...")
-        update_progress("initializing", 20, "Starting browser session...")
+        update_progress("initializing", 10, "Starting browser session...")
         try:
             await workfossa_automation.create_session(
                 session_id=session_id,
@@ -628,7 +628,7 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
             return
         
         logger.info("[SCRAPE] Automation session created")
-        update_progress("logging_in", 30, "Logging in to WorkFossa...")
+        update_progress("logging_in", 15, "Logging in to WorkFossa...")
         
         # Login to WorkFossa using the proper automation service
         logger.info("[SCRAPE] Logging in to WorkFossa...")
@@ -639,7 +639,7 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
             await workfossa_automation.cleanup_session(session_id)
             return
         logger.info("[SCRAPE] Successfully logged in to WorkFossa")
-        update_progress("logged_in", 40, "Successfully logged in, navigating to work orders...")
+        update_progress("logged_in", 20, "Successfully logged in, navigating to work orders...")
         
         # Get the page from WorkFossa automation service
         session_data = workfossa_automation.sessions.get(session_id)
@@ -652,12 +652,14 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         
         # Use the scraper to get work orders, passing the page
         logger.info("[SCRAPE] Starting work order scraping...")
-        update_progress("scraping", 50, "Scraping work orders from WorkFossa...")
+        update_progress("scraping", 25, "Starting work order discovery...")
         
         # Add progress callback to get real-time updates
         async def scraping_progress_callback(progress):
             if hasattr(progress, 'percentage') and hasattr(progress, 'message'):
-                update_progress("scraping", 50 + (progress.percentage * 0.4), progress.message, progress.work_orders_found)
+                # Map the scraper's 0-100% to our 40-90% range (since scraping is the main work)
+                mapped_percentage = 40 + (progress.percentage * 0.5)
+                update_progress("scraping", mapped_percentage, progress.message, progress.work_orders_found)
         
         workfossa_scraper.add_progress_callback(scraping_progress_callback)
         work_orders = await workfossa_scraper.scrape_work_orders(session_id, page=page)
@@ -940,8 +942,32 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
     db = SessionLocal()
     session_id = None
     
+    # Set up progress tracking for single work order
+    progress_key = f"single_dispenser_{user_id}_{work_order_id}"
+    scraping_progress[progress_key] = {
+        "status": "in_progress",
+        "phase": "initializing",
+        "percentage": 0,
+        "message": "Starting dispenser scrape...",
+        "work_order_id": work_order_id,
+        "started_at": datetime.now().isoformat()
+    }
+    
+    def update_progress(phase: str, percentage: float, message: str, error: str = None):
+        if progress_key in scraping_progress:
+            scraping_progress[progress_key].update({
+                "phase": phase,
+                "percentage": percentage,
+                "message": message,
+                "error": error
+            })
+            if error:
+                scraping_progress[progress_key]["status"] = "failed"
+            logger.info(f"[SINGLE_DISPENSER] {work_order_id}: {phase} ({percentage}%) - {message}")
+    
     try:
         logger.info(f"🔧 [SINGLE_DISPENSER] Starting dispenser scrape for work order {work_order_id}")
+        update_progress("initializing", 5, "Setting up browser automation...")
         
         # Import automation services
         from ..services.workfossa_automation import workfossa_automation, WorkFossaCredentials
@@ -955,11 +981,14 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
         )
         
         # Create browser session (will use visible browser for testing)
+        update_progress("connecting", 10, "Creating browser session...")
         session_id = await workfossa_automation.create_automation_session(user_id, workfossa_creds)
         
         # Login
+        update_progress("logging_in", 20, "Logging in to WorkFossa...")
         login_success = await workfossa_automation.login_to_workfossa(session_id)
         if not login_success:
+            update_progress("error", 0, "Failed to login to WorkFossa", error="Login failed")
             raise Exception("Failed to login to WorkFossa")
         
         # Get the page from session
@@ -977,12 +1006,17 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
             raise Exception("Browser page is no longer valid. Session may have timed out.")
         
         # Use dispenser scraper directly with the page
+        update_progress("navigating", 30, f"Navigating to customer location page...")
         from ..services.dispenser_scraper import dispenser_scraper
+        
+        update_progress("scraping", 50, "Scraping dispenser information...")
         dispenser_infos, raw_html = await dispenser_scraper.scrape_dispensers_for_work_order(
             page=page,
             work_order_id=work_order_id,
             visit_url=customer_url
         )
+        
+        update_progress("processing", 80, f"Processing {len(dispenser_infos)} dispensers...")
         
         # Convert DispenserInfo objects to dictionaries
         dispensers = []
@@ -1092,16 +1126,28 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
                 
                 # Commit changes
                 logger.info(f"💾 Committing database changes...")
+                update_progress("saving", 90, "Saving dispensers to database...")
                 db.commit()
                 logger.info(f"✅ Successfully updated {work_order.external_id} with {len(dispensers)} dispensers")
+                update_progress("completed", 100, f"Successfully scraped {len(dispensers)} dispensers")
             else:
                 logger.warning(f"⚠️ No dispensers found for {work_order.external_id}")
+                update_progress("completed", 100, "No dispensers found")
+        
+        # Mark as completed
+        if progress_key in scraping_progress:
+            scraping_progress[progress_key]["status"] = "completed"
+            scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
         
         # Cleanup
         await workfossa_automation.close_session(session_id)
         
     except Exception as e:
         logger.error(f"Dispenser scraping failed for work order {work_order_id}: {e}", exc_info=True)
+        update_progress("error", 0, f"Scraping failed: {str(e)}", error=str(e))
+        if progress_key in scraping_progress:
+            scraping_progress[progress_key]["status"] = "failed"
+            scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
         db.rollback()
         # Try to cleanup session if it was created
         if session_id:
@@ -1111,6 +1157,25 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
                 pass
     finally:
         db.close()
+
+
+@router.get("/{work_order_id}/scrape-dispensers/progress")
+async def get_single_dispenser_scraping_progress(
+    work_order_id: str,
+    user_id: str = Query(..., description="User ID"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
+):
+    """Get the progress of single work order dispenser scraping"""
+    progress_key = f"single_dispenser_{user_id}_{work_order_id}"
+    
+    if progress_key in scraping_progress:
+        return scraping_progress[progress_key]
+    
+    return {
+        "status": "not_found",
+        "message": "No active scraping session found for this work order"
+    }
 
 
 @router.post("/scrape-dispensers-batch")
@@ -1309,7 +1374,8 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
         
         for i, wo_data in enumerate(work_order_data):
             try:
-                progress_percentage = 20 + ((i / len(work_order_data)) * 70)
+                # More accurate progress: 0-20% setup, 20-95% actual scraping, 95-100% cleanup
+                progress_percentage = 20 + (((i + 1) / len(work_order_data)) * 75)
                 logger.info(f"🔄 [BATCH_DISPENSER] Processing work order {i+1}/{len(work_order_data)}: {wo_data['external_id']}")
                 
                 # Verify session is still valid before each work order
@@ -1344,7 +1410,7 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
                     "scraping",
                     progress_percentage,
                     f"Scraping dispensers for work order {i+1}/{len(work_order_data)}: {work_order.external_id}",
-                    processed=i,
+                    processed=i + 1,
                     successful=successful,
                     failed=failed
                 )
