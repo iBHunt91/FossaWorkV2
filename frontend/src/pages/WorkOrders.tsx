@@ -20,7 +20,7 @@ import { ParticleBackground } from '@/components/ui/animated-background'
 import { DispenserInfoModal } from '@/components/DispenserInfoModal'
 import { DispenserInfoModalDebug } from '@/components/DispenserInfoModalDebug'
 import { DebugModal } from '@/components/DebugModal'
-import WorkOrderWeeklyView from '@/components/WorkOrderWeeklyView'
+import WorkOrderWeeklyView from '../components/WorkOrderWeeklyView'
 
 // Enhanced work order interface with V1 compatibility
 interface EnhancedWorkOrder {
