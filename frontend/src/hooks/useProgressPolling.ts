@@ -28,6 +28,17 @@ export const useProgressPolling = <T = any>(
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const startTimeRef = useRef<number | null>(null)
+  
+  // Store callbacks in refs to avoid dependency issues
+  const onSuccessRef = useRef(onSuccess)
+  const onErrorRef = useRef(onError)
+  const onCompleteRef = useRef(onComplete)
+  
+  useEffect(() => {
+    onSuccessRef.current = onSuccess
+    onErrorRef.current = onError
+    onCompleteRef.current = onComplete
+  })
 
   const stopPolling = useCallback(() => {
     if (intervalRef.current) {
@@ -48,8 +59,8 @@ export const useProgressPolling = <T = any>(
       setData(result)
       setError(null)
       
-      if (onSuccess) {
-        onSuccess(result)
+      if (onSuccessRef.current) {
+        onSuccessRef.current(result)
       }
 
       // Check if polling should stop based on result
@@ -57,22 +68,22 @@ export const useProgressPolling = <T = any>(
         const status = (result as any).status
         if (status === 'completed' || status === 'failed' || status === 'cancelled') {
           stopPolling()
-          if (onComplete) {
-            onComplete()
+          if (onCompleteRef.current) {
+            onCompleteRef.current()
           }
         }
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Polling failed')
       setError(error)
-      if (onError) {
-        onError(error)
+      if (onErrorRef.current) {
+        onErrorRef.current(error)
       }
     }
-  }, [pollFunction, onSuccess, onError, onComplete, stopPolling])
+  }, [pollFunction, stopPolling])
 
   useEffect(() => {
-    if (shouldPoll && !isPolling) {
+    if (shouldPoll) {
       setIsPolling(true)
       startTimeRef.current = Date.now()
       
@@ -87,18 +98,16 @@ export const useProgressPolling = <T = any>(
         stopPolling()
         const timeoutError = new Error('Polling timeout')
         setError(timeoutError)
-        if (onError) {
-          onError(timeoutError)
+        if (onErrorRef.current) {
+          onErrorRef.current(timeoutError)
         }
       }, timeout)
-    } else if (!shouldPoll && isPolling) {
-      stopPolling()
     }
 
     return () => {
       stopPolling()
     }
-  }, [shouldPoll, poll, interval, timeout, stopPolling, isPolling, onError])
+  }, [shouldPoll, poll, interval, timeout, stopPolling])
 
   const getElapsedTime = useCallback(() => {
     if (!startTimeRef.current) return 0

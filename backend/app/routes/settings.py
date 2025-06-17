@@ -160,35 +160,43 @@ def save_settings(user_id: str, setting_type: str, settings: Dict[str, Any]) -> 
 async def get_smtp_settings(
     user_id: str,
     current_user: User = Depends(get_current_user),
-    user_service: UserManagementService = Depends(get_user_service)
+    user_service: UserManagementService = Depends(get_user_service),
+    logging_service: LoggingService = Depends(get_logging_service)
 ):
     """Get SMTP settings for a user"""
-    # Check if user exists and has permission
-    if current_user.id != user_id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Not authorized to access these settings")
-    
-    default_settings = SMTPSettings(
-        smtp_server="smtp.gmail.com",
-        smtp_port=587,
-        username="",
-        password="",
-        use_tls=True,
-        use_ssl=False,
-        from_email="",
-        from_name="FossaWork Automation"
-    ).dict()
-    
-    settings = load_settings(user_id, "smtp", default_settings)
-    
-    # Mask password for security
-    if settings.get("password"):
-        settings["password"] = "*" * 8
-    
-    return {
-        "success": True,
-        "user_id": user_id,
-        "settings": settings
-    }
+    try:
+        # Check if user exists and has permission
+        if current_user.id != user_id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to access these settings")
+        
+        default_settings = SMTPSettings(
+            smtp_server="smtp.gmail.com",
+            smtp_port=587,
+            username="",
+            password="",
+            use_tls=True,
+            use_ssl=False,
+            from_email="",
+            from_name="FossaWork Automation"
+        ).model_dump()
+        
+        settings = load_settings(user_id, "smtp", default_settings)
+        
+        # Mask password for security
+        if settings.get("password"):
+            settings["password"] = "*" * 8
+        
+        return {
+            "success": True,
+            "user_id": user_id,
+            "settings": settings
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await logging_service.log_error(f"Failed to get SMTP settings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/smtp/{user_id}")
@@ -206,7 +214,7 @@ async def update_smtp_settings(
         raise HTTPException(status_code=403, detail="Not authorized to update these settings")
     
     # Don't save masked password
-    settings_dict = settings.dict()
+    settings_dict = settings.model_dump()
     if settings_dict.get("password") == "*" * 8:
         # Load existing password
         existing = load_settings(user_id, "smtp", {})
@@ -325,7 +333,7 @@ async def get_filter_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    default_settings = WorkOrderFilterSettings().dict()
+    default_settings = WorkOrderFilterSettings().model_dump()
     settings = load_settings(user_id, "work_order_filters", default_settings)
     
     return {
@@ -345,7 +353,7 @@ async def update_filter_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "work_order_filters", settings.dict()):
+    if not save_settings(user_id, "work_order_filters", settings.model_dump()):
         raise HTTPException(status_code=500, detail="Failed to save filter settings")
     
     return {
@@ -365,7 +373,7 @@ async def get_automation_delays(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    default_settings = AutomationDelaySettings().dict()
+    default_settings = AutomationDelaySettings().model_dump()
     settings = load_settings(user_id, "automation_delays", default_settings)
     
     return {
@@ -385,7 +393,7 @@ async def update_automation_delays(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "automation_delays", settings.dict()):
+    if not save_settings(user_id, "automation_delays", settings.model_dump()):
         raise HTTPException(status_code=500, detail="Failed to save delay settings")
     
     return {
@@ -405,7 +413,7 @@ async def get_prover_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    default_settings = ProverSettings().dict()
+    default_settings = ProverSettings().model_dump()
     settings = load_settings(user_id, "prover_preferences", default_settings)
     
     return {
@@ -425,7 +433,7 @@ async def update_prover_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "prover_preferences", settings.dict()):
+    if not save_settings(user_id, "prover_preferences", settings.model_dump()):
         raise HTTPException(status_code=500, detail="Failed to save prover settings")
     
     return {
@@ -445,7 +453,7 @@ async def get_browser_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    default_settings = BrowserSettings().dict()
+    default_settings = BrowserSettings().model_dump()
     settings = load_settings(user_id, "browser_settings", default_settings)
     
     return {
@@ -465,7 +473,7 @@ async def update_browser_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "browser_settings", settings.dict()):
+    if not save_settings(user_id, "browser_settings", settings.model_dump()):
         raise HTTPException(status_code=500, detail="Failed to save browser settings")
     
     return {
@@ -485,7 +493,7 @@ async def get_notification_display_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    default_settings = NotificationDisplaySettings().dict()
+    default_settings = NotificationDisplaySettings().model_dump()
     settings = load_settings(user_id, "notification_display", default_settings)
     
     return {
@@ -505,7 +513,7 @@ async def update_notification_display_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "notification_display", settings.dict()):
+    if not save_settings(user_id, "notification_display", settings.model_dump()):
         raise HTTPException(status_code=500, detail="Failed to save display settings")
     
     return {
@@ -525,7 +533,7 @@ async def get_schedule_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    default_settings = ScheduleSettings().dict()
+    default_settings = ScheduleSettings().model_dump()
     settings = load_settings(user_id, "schedule_settings", default_settings)
     
     return {
@@ -545,7 +553,7 @@ async def update_schedule_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "schedule_settings", settings.dict()):
+    if not save_settings(user_id, "schedule_settings", settings.model_dump()):
         raise HTTPException(status_code=500, detail="Failed to save schedule settings")
     
     return {

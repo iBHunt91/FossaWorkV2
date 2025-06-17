@@ -9,6 +9,8 @@ import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animate
 import { AnimatedButton, RippleButton } from '@/components/ui/animated-button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getBrandStyle, getBrandCardStyle, getBrandBadgeStyle, cleanSiteName } from '@/utils/storeColors'
+import BackToTop from '@/components/BackToTop'
+import BackToTopVisible from '@/components/BackToTopVisible'
 
 interface WorkOrder {
   id: string
@@ -691,6 +693,8 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
         )}
       </div>
       
+      <BackToTop />
+      <BackToTopVisible />
     </TooltipProvider>
   )
 }

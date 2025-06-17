@@ -33,6 +33,10 @@ import { DispenserInfoModal } from '@/components/DispenserInfoModal'
 import { DispenserInfoModalDebug } from '@/components/DispenserInfoModalDebug'
 import { DebugModal } from '@/components/DebugModal'
 import WorkOrderWeeklyView from '../components/WorkOrderWeeklyView'
+import InstructionSummary from '../components/InstructionSummary'
+import { hasImportantInfo } from '../utils/instructionParser'
+import BackToTop from '../components/BackToTop'
+import BackToTopVisible from '../components/BackToTopVisible'
 
 // Enhanced work order interface with V1 compatibility
 interface EnhancedWorkOrder {
@@ -2192,7 +2196,7 @@ const WorkOrders: React.FC = () => {
                   delay={index * 0.1}
                 >
                   <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
+                    <div className="flex justify-between items-start gap-4">
                       <div className="flex items-start gap-3 pl-10 flex-1 min-w-0">
                         <div className="flex-1 min-w-0">
                           {viewMode === 'list' && groupOrders.length > 1 && (
@@ -2223,6 +2227,16 @@ const WorkOrders: React.FC = () => {
                           </div>
                         </div>
                       </div>
+                      {/* Key Instructions - Inline in header */}
+                      {workOrder.instructions && hasImportantInfo(workOrder.instructions, workOrder.service_code) && (
+                        <div className="flex-shrink-0">
+                          <InstructionSummary 
+                            instructions={workOrder.instructions}
+                            serviceCode={workOrder.service_code}
+                            mode="compact-badges"
+                          />
+                        </div>
+                      )}
                     </div>
                   </CardHeader>
 
@@ -2401,7 +2415,7 @@ const WorkOrders: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Collapsible Instructions */}
+                  {/* Collapsible Full Instructions */}
                   {workOrder.instructions && (
                     <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
                       <button
@@ -2421,7 +2435,7 @@ const WorkOrders: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
                             <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                              Instructions
+                              Full Instructions
                             </h4>
                           </div>
                           {expandedInstructions.has(workOrder.id) ? (
@@ -2582,7 +2596,12 @@ const WorkOrders: React.FC = () => {
         }}
         workOrder={selectedWorkOrderForDebug}
       />
+      
       </div>
+      
+      {/* Back to Top Button - Moved outside container */}
+      <BackToTop />
+      <BackToTopVisible />
     </div>
   )
 }

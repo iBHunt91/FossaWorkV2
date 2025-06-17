@@ -7,10 +7,10 @@ user preferences, digest scheduling, and notification testing.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
-from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 from datetime import datetime, time
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..services.notification_manager import (
@@ -27,6 +27,18 @@ from ..auth.dependencies import require_auth
 from ..models import User
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
+
+def get_user_service(db: Session = Depends(get_db)):
+    """Get user management service instance"""
+    return UserManagementService(db)
+
+def get_logging_service(db: Session = Depends(get_db)):
+    """Get logging service instance"""
+    return LoggingService(db)
+
+def get_notification_manager_dependency():
+    """Get notification manager instance without exposing Session type"""
+    return get_notification_manager()
 
 
 # Pydantic models for request/response
@@ -127,11 +139,147 @@ async def get_user_notification_preferences(
         )
 
 
+@router.get("/preferences/{user_id}", response_model=Dict[str, Any])
+async def get_notification_preferences_by_user_id(
+    user_id: str,
+    user_service: UserManagementService = Depends(get_user_service),
+    current_user: User = Depends(require_auth)
+) -> Dict[str, Any]:
+    """Get notification preferences for a specific user"""
+    try:
+        # Verify the requesting user has permission to access this user's preferences
+        # For now, users can only access their own preferences
+        if current_user.id != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Cannot access another user's preferences"
+            )
+        
+        # Get user from database
+        user = user_service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User not found: {user_id}"
+            )
+        
+        # Get preferences
+        preferences = user_service.get_user_preference(user_id, "notification_preferences")
+        
+        if not preferences:
+            # Return default preferences
+            preferences = {
+                "email_enabled": True,
+                "pushover_enabled": False,
+                "automation_started": "email",
+                "automation_completed": "both",
+                "automation_failed": "both",
+                "automation_progress": "pushover",
+                "schedule_change": "email",
+                "daily_digest": "email",
+                "weekly_summary": "email",
+                "error_alert": "both",
+                "digest_time": "08:00",
+                "quiet_hours_start": "22:00",
+                "quiet_hours_end": "07:00",
+                "pushover_user_key": None,
+                "pushover_device": None,
+                "pushover_sound": "pushover"
+            }
+        
+        return {
+            "success": True,
+            "user_id": user_id,
+            "user_email": user.email,
+            "preferences": preferences
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get notification preferences: {str(e)}"
+        )
+
+
+@router.put("/preferences/{user_id}", response_model=Dict[str, Any])
+async def update_notification_preferences_by_user_id(
+    user_id: str,
+    preferences: NotificationPreferencesRequest,
+    background_tasks: BackgroundTasks,
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
+    user_service: UserManagementService = Depends(get_user_service),
+    logging_service: LoggingService = Depends(get_logging_service),
+    current_user: User = Depends(require_auth)
+) -> Dict[str, Any]:
+    """Update notification preferences for a specific user"""
+    try:
+        # Verify the requesting user has permission to update this user's preferences
+        # For now, users can only update their own preferences
+        if current_user.id != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: Cannot update another user's preferences"
+            )
+        
+        # Get user from database
+        user = user_service.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User not found: {user_id}"
+            )
+        
+        # Convert request to dict
+        preferences_dict = preferences.dict()
+        
+        # Update preferences
+        success = await notification_manager.update_user_preferences(user_id, preferences_dict)
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update notification preferences"
+            )
+        
+        # Track activity
+        background_tasks.add_task(
+            user_service.track_activity,
+            user_id,
+            user.email,
+            "notification_preferences_updated",
+            {
+                "email_enabled": preferences.email_enabled,
+                "pushover_enabled": preferences.pushover_enabled,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+        
+        return {
+            "success": True,
+            "message": "Notification preferences updated successfully",
+            "user_id": user_id,
+            "preferences": preferences_dict
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        await logging_service.log_error(
+            f"Failed to update notification preferences for user {user_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update notification preferences: {str(e)}"
+        )
+
+
 @router.put("/preferences")
 async def update_user_notification_preferences(
     preferences: NotificationPreferencesRequest,
     background_tasks: BackgroundTasks,
-    notification_manager: NotificationManager = Depends(get_notification_manager),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
     user_service: UserManagementService = Depends(get_user_service),
     logging_service: LoggingService = Depends(get_logging_service),
     current_user: User = Depends(require_auth)
@@ -189,7 +337,7 @@ async def update_user_notification_preferences(
 @router.post("/test")
 async def send_test_notification(
     test_request: TestNotificationRequest,
-    notification_manager: NotificationManager = Depends(get_notification_manager),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
     user_service: UserManagementService = Depends(get_user_service),
     logging_service: LoggingService = Depends(get_logging_service),
     current_user: User = Depends(require_auth)
@@ -262,7 +410,7 @@ async def send_test_notification(
 @router.post("/digest")
 async def send_manual_digest(
     digest_type: str = Query("daily", description="Type of digest (daily/weekly)"),
-    notification_manager: NotificationManager = Depends(get_notification_manager),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
     user_service: UserManagementService = Depends(get_user_service),
     logging_service: LoggingService = Depends(get_logging_service),
     current_user: User = Depends(require_auth)
@@ -315,7 +463,7 @@ async def send_manual_digest(
 async def send_emergency_alert(
     alert_request: EmergencyAlertRequest,
     background_tasks: BackgroundTasks,
-    notification_manager: NotificationManager = Depends(get_notification_manager),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
     user_service: UserManagementService = Depends(get_user_service),
     logging_service: LoggingService = Depends(get_logging_service),
     current_user: User = Depends(require_auth)
@@ -374,7 +522,7 @@ async def send_emergency_alert(
 @router.post("/validate-pushover")
 async def validate_pushover_key(
     pushover_user_key: str,
-    notification_manager: NotificationManager = Depends(get_notification_manager),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
     user_service: UserManagementService = Depends(get_user_service),
     current_user: User = Depends(require_auth)
 ):
@@ -409,7 +557,7 @@ async def validate_pushover_key(
 
 @router.get("/status")
 async def get_notification_status(
-    notification_manager: NotificationManager = Depends(get_notification_manager),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
     current_user: User = Depends(require_auth)
 ):
     """Get notification system status"""
