@@ -2083,14 +2083,33 @@ const WorkOrders: React.FC = () => {
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="bg-secondary/50">
-                        <Wrench className="w-3 h-3 mr-1" />
-                        {groupOrders.length} {groupOrders.length === 1 ? 'job' : 'jobs'}
+                      {/* Job Count Badge - Enhanced Styling */}
+                      <Badge 
+                        variant="secondary" 
+                        className="bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 px-3 py-1.5 font-medium shadow-sm hover:shadow-md transition-all duration-200"
+                      >
+                        <Wrench className="w-3.5 h-3.5 mr-2 text-slate-600 dark:text-slate-400" />
+                        <span className="font-semibold text-sm">
+                          {groupOrders.length}
+                        </span>
+                        <span className="ml-1 text-xs">
+                          {groupOrders.length === 1 ? 'job' : 'jobs'}
+                        </span>
                       </Badge>
+                      
+                      {/* Dispensers Count Badge - Enhanced Styling */}
                       {groupOrders.some(wo => wo.dispensers && wo.dispensers.length > 0) && (
-                        <Badge variant="outline" className="border-blue-500/50 text-blue-600 dark:text-blue-400">
-                          <Fuel className="w-3 h-3 mr-1" />
-                          {groupOrders.reduce((sum, wo) => sum + (wo.dispensers?.length || 0), 0)} dispensers
+                        <Badge 
+                          variant="outline" 
+                          className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-3 py-1.5 font-medium shadow-sm hover:shadow-md hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 transition-all duration-200"
+                        >
+                          <Fuel className="w-3.5 h-3.5 mr-2 text-blue-600 dark:text-blue-400" />
+                          <span className="font-semibold text-sm">
+                            {groupOrders.reduce((sum, wo) => sum + (wo.dispensers?.length || 0), 0)}
+                          </span>
+                          <span className="ml-1 text-xs">
+                            dispensers
+                          </span>
                         </Badge>
                       )}
                     </div>
@@ -2249,10 +2268,10 @@ const WorkOrders: React.FC = () => {
                       if (dispenserCount > 0) {
                         return (
                           <Badge 
-                            variant="secondary" 
-                            className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 font-medium"
+                            variant="outline" 
+                            className="text-xs px-2.5 py-1 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium shadow-sm hover:shadow-md hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 transition-all duration-200"
                           >
-                            <Fuel className="w-3 h-3 mr-1" />
+                            <Fuel className="w-3 h-3 mr-1.5 text-blue-600 dark:text-blue-400" />
                             {dispenserCount}
                           </Badge>
                         );

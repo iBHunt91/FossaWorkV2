@@ -279,8 +279,11 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                 {workDays.length} work days
               </Badge>
               {totalWeekDispensers > 0 && (
-                <Badge variant="outline" className="px-3 py-1.5">
-                  <Fuel className="w-3 h-3 mr-1.5" />
+                <Badge 
+                  variant="outline" 
+                  className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-3 py-1.5 font-medium shadow-sm hover:shadow-md hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 transition-all duration-200"
+                >
+                  <Fuel className="w-3 h-3 mr-1.5 text-blue-600 dark:text-blue-400" />
                   {totalWeekDispensers} dispensers
                 </Badge>
               )}
@@ -457,14 +460,14 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                                         <div className="flex items-center gap-2">
                                           {dispenserCount && dispenserCount > 0 && (
                                             <Badge 
-                                              variant="secondary" 
-                                              className="text-xs px-2 py-0.5 inline-flex items-center bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors font-medium"
+                                              variant="outline" 
+                                              className="text-xs px-2.5 py-1 inline-flex items-center bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 cursor-pointer font-medium shadow-sm hover:shadow-md hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 transition-all duration-200"
                                               onClick={(e) => {
                                                 e.stopPropagation()
                                                 onViewDispensers?.(order)
                                               }}
                                             >
-                                              <Fuel className="w-3 h-3 mr-1 flex-shrink-0" />
+                                              <Fuel className="w-3 h-3 mr-1.5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
                                               <span>{dispenserCount}</span>
                                             </Badge>
                                           )}
@@ -648,14 +651,14 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                                 <div className="flex items-center gap-2">
                                   {dispenserCount && dispenserCount > 0 && (
                                     <Badge 
-                                      variant="secondary" 
-                                      className="text-xs px-2 py-0.5 inline-flex items-center bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors font-medium"
+                                      variant="outline" 
+                                      className="text-xs px-2.5 py-1 inline-flex items-center bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 cursor-pointer font-medium shadow-sm hover:shadow-md hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 transition-all duration-200"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         onViewDispensers?.(order)
                                       }}
                                     >
-                                      <Fuel className="w-3 h-3 mr-1 flex-shrink-0" />
+                                      <Fuel className="w-3 h-3 mr-1.5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
                                       <span>{dispenserCount}</span>
                                     </Badge>
                                   )}
