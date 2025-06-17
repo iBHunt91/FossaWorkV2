@@ -76,10 +76,11 @@ memory_monitor: Optional[MemoryMonitor] = None
 
 def setup_memory_monitoring(max_memory_mb: int = 6144, 
                            check_interval: int = 30,
+                           warning_threshold: float = 0.8,
                            restart_callback: Optional[Callable] = None):
     """Setup global memory monitoring"""
     global memory_monitor
-    memory_monitor = MemoryMonitor(max_memory_mb, check_interval, restart_callback)
+    memory_monitor = MemoryMonitor(max_memory_mb, check_interval, warning_threshold, restart_callback)
     return memory_monitor
 
 async def start_memory_monitoring():

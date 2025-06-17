@@ -1077,11 +1077,11 @@ const WorkOrders: React.FC = () => {
               <AnimatedText text="Manage and monitor fuel dispenser automation tasks" animationType="split" delay={0.2} />
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground animate-fade-in" style={{animationDelay: '0.4s'}}>
-              <span className="inline-flex items-center gap-1">
-                <span className="number-display text-sm">{viewMode === 'weekly' ? filteredWorkOrders.length : weekFilteredWorkOrders.length}</span>
-                <span>of</span>
-                <span className="number-display text-sm">{workOrders.length}</span>
-                <span>work orders</span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="font-semibold text-base text-foreground">{viewMode === 'weekly' ? filteredWorkOrders.length : weekFilteredWorkOrders.length}</span>
+                <span className="text-muted-foreground/60">of</span>
+                <span className="font-semibold text-base text-foreground">{workOrders.length}</span>
+                <span className="text-muted-foreground">work orders</span>
                 {viewMode !== 'weekly' && !showAllJobs && (
                   <span className="text-muted-foreground/70 ml-1">
                     in {format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'MMM d')} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'MMM d')}
@@ -1094,9 +1094,12 @@ const WorkOrders: React.FC = () => {
                 )}
               </span>
               {workOrders.length > 0 && (
-                <span className="chip chip-primary">
-                  Brands: {availableBrands.join(', ')}
-                </span>
+                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                  {brandFilter === 'all' 
+                    ? `${availableBrands.length} Brands`
+                    : brandFilter
+                  }
+                </Badge>
               )}
             </div>
           </div>
@@ -1116,16 +1119,23 @@ const WorkOrders: React.FC = () => {
                   <ChevronDown className="w-4 h-4 ml-1" />
                 </AnimatedButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 z-50">
-                <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="w-64 z-50">
+                <DropdownMenuLabel className="text-base font-semibold">Clear Options</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={() => clearAllMutation.mutate()}
                   disabled={clearAllMutation.isPending || workOrders.length === 0}
-                  className="text-destructive focus:text-destructive"
+                  className="text-destructive focus:text-destructive py-3 cursor-pointer"
                 >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Clear Work Orders
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center">
+                      <Trash2 className="w-4 h-4 mr-3" />
+                      <span className="font-medium">Clear Work Orders</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {workOrders.length} items
+                    </span>
+                  </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={() => {
@@ -1139,10 +1149,17 @@ const WorkOrders: React.FC = () => {
                     }
                   }}
                   disabled={workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0).length === 0}
-                  className="text-destructive focus:text-destructive"
+                  className="text-destructive focus:text-destructive py-3 cursor-pointer"
                 >
-                  <Fuel className="w-4 h-4 mr-2" />
-                  Clear All Dispensers
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center">
+                      <Fuel className="w-4 h-4 mr-3" />
+                      <span className="font-medium">Clear All Dispensers</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      {workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0).length} orders
+                    </span>
+                  </div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1160,28 +1177,44 @@ const WorkOrders: React.FC = () => {
                   <ChevronDown className="w-4 h-4 ml-1" />
                 </AnimatedButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 z-50">
-                <DropdownMenuLabel>Scraping Options</DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="w-72 z-50">
+                <DropdownMenuLabel className="text-base font-semibold">Scraping Options</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
                   onClick={handleScrape}
                   disabled={scrapeMutation.isPending || scrapeStatus === 'scraping' || isAnyScraping}
+                  className="py-3 cursor-pointer"
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Scrape Work Orders
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {workOrders.length} current
-                  </span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center">
+                      <RefreshCw className="w-4 h-4 mr-3 text-blue-600 dark:text-blue-400" />
+                      <div>
+                        <div className="font-medium">Scrape Work Orders</div>
+                        <div className="text-xs text-muted-foreground">Update work order list from WorkFossa</div>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="ml-2">
+                      {workOrders.length}
+                    </Badge>
+                  </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={handleDispenserScrape}
                   disabled={dispenserScrapeMutation.isPending || dispenserScrapeStatus === 'scraping' || isAnyScraping}
+                  className="py-3 cursor-pointer"
                 >
-                  <Fuel className="w-4 h-4 mr-2" />
-                  Scrape All Dispensers
-                  <span className="ml-auto text-xs text-muted-foreground">
-                    {workOrders.filter(wo => !wo.dispensers || wo.dispensers.length === 0).length} pending
-                  </span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center">
+                      <Fuel className="w-4 h-4 mr-3 text-orange-600 dark:text-orange-400" />
+                      <div>
+                        <div className="font-medium">Scrape All Dispensers</div>
+                        <div className="text-xs text-muted-foreground">Get dispenser data for all orders</div>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="ml-2">
+                      {workOrders.filter(wo => !wo.dispensers || wo.dispensers.length === 0).length}
+                    </Badge>
+                  </div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -2440,7 +2473,7 @@ const WorkOrders: React.FC = () => {
         ) : (
           <AnimatedCard animate="bounce" hover="glow">
             <CardContent className="text-center py-12">
-              {searchTerm || statusFilter !== 'all' || brandFilter !== 'all' ? (
+              {searchTerm || brandFilter !== 'all' ? (
                 // Filtered but no results
                 <>
                   <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4 animate-pulse" />

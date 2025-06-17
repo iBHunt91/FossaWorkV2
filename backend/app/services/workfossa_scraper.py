@@ -2550,7 +2550,7 @@ class WorkFossaScraper:
         try:
             # Method 1: Look for expanded Dispenser section (pattern from screenshot)
             logger.info(f"🔍 [EXTRACT] Method 1: Looking for dispenser data using pattern matching...")
-            dispensers_data = await page.evaluate("""
+            dispensers_data = await page.evaluate(r"""
                 () => {
                     const dispensers = [];
                     
@@ -2673,7 +2673,7 @@ class WorkFossaScraper:
             
             # Method 3: Debug what content is available
             logger.info(f"🔍 [EXTRACT] Method 3: Debugging page content for dispenser information...")
-            page_content_debug = await page.evaluate("""
+            page_content_debug = await page.evaluate(r"""
                 () => {
                     const debug = {
                         dispenserText: [],

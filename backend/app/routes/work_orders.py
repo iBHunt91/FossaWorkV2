@@ -611,7 +611,24 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         
         logger.info("[SCRAPE] Creating WorkFossa automation service...")
         update_progress("initializing", 5, "Creating browser automation service...")
-        workfossa_automation = WorkFossaAutomationService(headless=False)  # Visible browser for debugging
+        
+        # Load user's browser settings
+        import json
+        from pathlib import Path
+        browser_settings = {}
+        try:
+            settings_path = Path(f"data/users/{user_id}/settings/browser_settings.json")
+            if settings_path.exists():
+                with open(settings_path, 'r') as f:
+                    browser_settings = json.load(f)
+                logger.info(f"[SCRAPE] Loaded browser settings for user {user_id}: headless={browser_settings.get('headless', True)}")
+        except Exception as e:
+            logger.warning(f"[SCRAPE] Could not load browser settings: {e}")
+        
+        workfossa_automation = WorkFossaAutomationService(
+            headless=browser_settings.get('headless', True),  # Use user preference, default to True
+            user_settings={'browser_settings': browser_settings}
+        )
         
         # Create automation session with credentials
         logger.info("[SCRAPE] Creating automation session...")
@@ -970,7 +987,7 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
         update_progress("initializing", 5, "Setting up browser automation...")
         
         # Import automation services
-        from ..services.workfossa_automation import workfossa_automation, WorkFossaCredentials
+        from ..services.workfossa_automation import WorkFossaAutomationService, WorkFossaCredentials
         from ..services.workfossa_scraper import workfossa_scraper
         
         # Create credentials object
@@ -980,7 +997,26 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
             user_id=user_id
         )
         
-        # Create browser session (will use visible browser for testing)
+        # Load user's browser settings
+        import json
+        from pathlib import Path
+        browser_settings = {}
+        try:
+            settings_path = Path(f"data/users/{user_id}/settings/browser_settings.json")
+            if settings_path.exists():
+                with open(settings_path, 'r') as f:
+                    browser_settings = json.load(f)
+                logger.info(f"[SINGLE_DISPENSER] Loaded browser settings for user {user_id}: headless={browser_settings.get('headless', True)}")
+        except Exception as e:
+            logger.warning(f"[SINGLE_DISPENSER] Could not load browser settings: {e}")
+        
+        # Create automation service with user settings
+        workfossa_automation = WorkFossaAutomationService(
+            headless=browser_settings.get('headless', True),
+            user_settings={'browser_settings': browser_settings}
+        )
+        
+        # Create browser session
         update_progress("connecting", 10, "Creating browser session...")
         session_id = await workfossa_automation.create_automation_session(user_id, workfossa_creds)
         
@@ -1349,7 +1385,24 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
         
         # Create session
         session_id = f"batch_dispenser_{user_id}_{datetime.now().timestamp()}"
-        workfossa_automation = WorkFossaAutomationService(headless=False)  # Visible browser for debugging
+        
+        # Load user's browser settings
+        import json
+        from pathlib import Path
+        browser_settings = {}
+        try:
+            settings_path = Path(f"data/users/{user_id}/settings/browser_settings.json")
+            if settings_path.exists():
+                with open(settings_path, 'r') as f:
+                    browser_settings = json.load(f)
+                logger.info(f"[BATCH_DISPENSER] Loaded browser settings for user {user_id}: headless={browser_settings.get('headless', True)}")
+        except Exception as e:
+            logger.warning(f"[BATCH_DISPENSER] Could not load browser settings: {e}")
+        
+        workfossa_automation = WorkFossaAutomationService(
+            headless=browser_settings.get('headless', True),  # Use user preference, default to True
+            user_settings={'browser_settings': browser_settings}
+        )
         
         # Create automation session
         update_progress("connecting", 10, "Connecting to WorkFossa...")

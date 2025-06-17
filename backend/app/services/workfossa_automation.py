@@ -75,20 +75,27 @@ class WorkFossaAutomationService:
         '.work-orders-nav'
     ]
     
-    def __init__(self, headless: bool = True, timeout: int = 30000):
+    def __init__(self, headless: bool = True, timeout: int = 30000, user_settings: Dict[str, Any] = None):
         # Check environment variable to override headless mode
         import os
         if os.environ.get('BROWSER_VISIBLE', '').lower() in ['true', '1', 'yes']:
             self.headless = False
             logger.info("🖥️ Browser visibility enabled via BROWSER_VISIBLE environment variable")
         else:
-            self.headless = headless
+            # Check user settings for browser visibility preference
+            if user_settings and 'browser_settings' in user_settings:
+                browser_settings = user_settings['browser_settings']
+                self.headless = browser_settings.get('headless', headless)
+                logger.info(f"🖥️ Browser headless mode set to {self.headless} from user settings")
+            else:
+                self.headless = headless
         
         self.timeout = timeout
         self.sessions: Dict[str, Any] = {}
         self.progress_callbacks: List[Callable] = []
         self.playwright = None
         self.browser = None
+        self.user_settings = user_settings or {}
         
     def add_progress_callback(self, callback: Callable[[AutomationProgress], None]):
         """Add callback for real-time progress updates"""
@@ -1263,9 +1270,9 @@ class WorkFossaAutomationService:
             logger.error(f"[ERROR] Error during cleanup: {e}")
 
 # Global automation service instance
-# Default to visible browser for testing - set BROWSER_VISIBLE=false to run headless
+# Default to headless mode unless overridden by environment variable
 import os
-default_headless = os.environ.get('BROWSER_VISIBLE', 'true').lower() not in ['true', '1', 'yes']
+default_headless = os.environ.get('BROWSER_VISIBLE', '').lower() not in ['true', '1', 'yes']
 workfossa_automation = WorkFossaAutomationService(headless=default_headless)
 
 # Test function

@@ -142,7 +142,7 @@ async def startup_event():
     logger.info("[METRICS] Prometheus metrics collection started")
     
     # Setup memory monitoring
-    setup_memory_monitoring(max_memory_mb=6144, check_interval=30)
+    setup_memory_monitoring(max_memory_mb=6144, check_interval=30, warning_threshold=0.8)
     
     # Start memory monitoring in background
     asyncio.create_task(start_memory_monitoring())
@@ -230,4 +230,5 @@ async def api_status():
         },
         "timestamp": datetime.now().isoformat()
     }
+
 

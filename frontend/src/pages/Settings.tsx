@@ -26,7 +26,10 @@ import {
   type AutomationDelaySettings,
   getNotificationDisplaySettings,
   updateNotificationDisplaySettings,
-  type NotificationDisplaySettings
+  type NotificationDisplaySettings,
+  getBrowserSettings,
+  updateBrowserSettings,
+  type BrowserSettings
 } from '../services/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -117,6 +120,11 @@ const Settings: React.FC = () => {
   const { data: displaySettings } = useQuery({
     queryKey: ['notification-display', currentUserId],
     queryFn: () => getNotificationDisplaySettings(currentUserId),
+  })
+
+  const { data: browserSettings, refetch: refetchBrowserSettings } = useQuery({
+    queryKey: ['browser-settings', currentUserId],
+    queryFn: () => getBrowserSettings(currentUserId),
   })
 
   const updatePreferenceMutation = useMutation({
@@ -266,6 +274,15 @@ const Settings: React.FC = () => {
       updateNotificationDisplaySettings(currentUserId, settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notification-display', currentUserId] })
+    }
+  })
+
+  const updateBrowserMutation = useMutation({
+    mutationFn: (settings: BrowserSettings) =>
+      updateBrowserSettings(currentUserId, settings),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['browser-settings', currentUserId] })
+      refetchBrowserSettings()
     }
   })
 
@@ -1520,6 +1537,164 @@ const Settings: React.FC = () => {
                     >
                       <Save className="w-4 h-4 mr-2" />
                       Save Delay Settings
+                    </AnimatedButton>
+                  </CardContent>
+                </AnimatedCard>
+
+                {/* Browser Settings */}
+                <AnimatedCard animate="fade" hover="lift">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Monitor className="w-5 h-5" />
+                      <ShimmerText text="Browser Settings" />
+                    </CardTitle>
+                    <CardDescription>
+                      Configure browser behavior for web scraping and automation
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-1">
+                          <Label className="text-sm font-medium">Browser Visibility</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Show browser window during scraping (useful for debugging)
+                          </p>
+                        </div>
+                        <input 
+                          type="checkbox" 
+                          checked={!browserSettings?.settings?.headless}
+                          onChange={(e) => {
+                            const newSettings = {
+                              ...browserSettings?.settings,
+                              headless: !e.target.checked
+                            }
+                            updateBrowserMutation.mutate(newSettings)
+                          }}
+                          className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Browser Type</Label>
+                        <select 
+                          value={browserSettings?.settings?.browser_type || 'chromium'}
+                          onChange={(e) => updateBrowserMutation.mutate({
+                            ...browserSettings?.settings,
+                            browser_type: e.target.value
+                          })}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring input-modern"
+                        >
+                          <option value="chromium">Chromium (Recommended)</option>
+                          <option value="firefox">Firefox</option>
+                          <option value="webkit">WebKit (Safari)</option>
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="viewport-width">Viewport Width</Label>
+                          <Input 
+                            id="viewport-width"
+                            type="number"
+                            value={browserSettings?.settings?.viewport_width || 1280}
+                            onChange={(e) => updateBrowserMutation.mutate({
+                              ...browserSettings?.settings,
+                              viewport_width: parseInt(e.target.value)
+                            })}
+                            className="input-modern" 
+                            min="800"
+                            max="3840"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="viewport-height">Viewport Height</Label>
+                          <Input 
+                            id="viewport-height"
+                            type="number"
+                            value={browserSettings?.settings?.viewport_height || 720}
+                            onChange={(e) => updateBrowserMutation.mutate({
+                              ...browserSettings?.settings,
+                              viewport_height: parseInt(e.target.value)
+                            })}
+                            className="input-modern" 
+                            min="600"
+                            max="2160"
+                          />
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium">Performance Options</h4>
+                        
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={browserSettings?.settings?.enable_screenshots ?? true}
+                            onChange={(e) => updateBrowserMutation.mutate({
+                              ...browserSettings?.settings,
+                              enable_screenshots: e.target.checked
+                            })}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
+                          />
+                          <span className="text-sm">Capture screenshots on errors</span>
+                        </label>
+
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={browserSettings?.settings?.disable_images ?? false}
+                            onChange={(e) => updateBrowserMutation.mutate({
+                              ...browserSettings?.settings,
+                              disable_images: e.target.checked
+                            })}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
+                          />
+                          <span className="text-sm">Disable image loading (faster scraping)</span>
+                        </label>
+
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={browserSettings?.settings?.clear_cache_on_start ?? true}
+                            onChange={(e) => updateBrowserMutation.mutate({
+                              ...browserSettings?.settings,
+                              clear_cache_on_start: e.target.checked
+                            })}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
+                          />
+                          <span className="text-sm">Clear browser cache on startup</span>
+                        </label>
+
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={browserSettings?.settings?.enable_debug_mode ?? false}
+                            onChange={(e) => updateBrowserMutation.mutate({
+                              ...browserSettings?.settings,
+                              enable_debug_mode: e.target.checked
+                            })}
+                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
+                          />
+                          <span className="text-sm">Enable debug logging</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <AnimatedButton
+                      onClick={() => {
+                        if (browserSettings?.settings) {
+                          updateBrowserMutation.mutate(browserSettings.settings)
+                        }
+                      }}
+                      disabled={updateBrowserMutation.isPending}
+                      animation="shimmer"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Browser Settings
                     </AnimatedButton>
                   </CardContent>
                 </AnimatedCard>
