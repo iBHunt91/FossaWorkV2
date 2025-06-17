@@ -2267,13 +2267,24 @@ const WorkOrders: React.FC = () => {
                       
                       if (dispenserCount > 0) {
                         return (
-                          <Badge 
-                            variant="outline" 
-                            className="text-xs px-2.5 py-1 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 font-medium shadow-sm hover:shadow-md hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 transition-all duration-200"
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation() // Prevent work order card click
+                              console.log('Opening dispenser modal for work order:', workOrder)
+                              setSelectedWorkOrderForModal(workOrder)
+                              setShowDispenserModal(true)
+                            }}
+                            className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-md font-medium shadow-sm hover:shadow-lg hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 hover:scale-105 transition-all duration-200 flex items-center gap-2 cursor-pointer"
+                            title="Click to view dispenser details"
                           >
-                            <Fuel className="w-3 h-3 mr-1.5 text-blue-600 dark:text-blue-400" />
-                            {dispenserCount}
-                          </Badge>
+                            <Fuel className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            <span className="text-sm font-semibold">
+                              {dispenserCount}
+                            </span>
+                            <span className="text-xs text-blue-600/80 dark:text-blue-400/80">
+                              {dispenserCount === 1 ? 'dispenser' : 'dispensers'}
+                            </span>
+                          </button>
                         );
                       }
                       return null;

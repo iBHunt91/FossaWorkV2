@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Modal } from './ui/modal';
+import { Badge } from './ui/badge';
 import { cleanSiteName } from '@/utils/storeColors';
+import { format } from 'date-fns';
 import { 
   Fuel, 
   Wrench, 
@@ -15,8 +17,71 @@ import {
   Info,
   Package,
   Settings,
-  Droplet
+  Droplet,
+  Calendar,
+  MapPin,
+  Store,
+  FileText
 } from 'lucide-react';
+
+// Comprehensive fuel grade ordering based on backend fuel_grades.py
+const FUEL_GRADE_ORDER = [
+  'Regular',
+  'Anti-Freeze', 
+  'Regular/Premium',
+  'Regular/Premium/Diesel',
+  'Sodium Hydroxide',
+  'Special 88',
+  'Stage 1 Dry Break',
+  'Super',
+  'Super Premium',
+  'Toluene',
+  'Trans Fluid',
+  'Transmission Fluid',
+  'Aviation Fuel',
+  'Truck Diesel',
+  'Ultra Blend',
+  'Ultra Low Sulfur Diesel',
+  'Bio-Diesel',
+  'Regular/Premium/E-0',
+  'Ethanol-Free',
+  'Midgrade 91',
+  'Regular (2nd)',
+  'Regular / E-85',
+  'Diesel (Generator)',
+  'Diesel (drone)',
+  'Diesel / DEF',
+  'Diesel / Diesel',
+  'Plus',
+  'Diesel / Ethanol-Free',
+  'DEF',
+  'Diesel High Flow',
+  'E85',
+  'Ethanol',
+  'Premium',
+  'Mid',
+  'Midgrade',
+  'Diesel'
+];
+
+// Helper function to get fuel grade order index
+const getGradeIndex = (grade: string): number => {
+  // Direct match
+  const directIndex = FUEL_GRADE_ORDER.findIndex(orderGrade => 
+    orderGrade.toLowerCase() === grade.toLowerCase()
+  );
+  if (directIndex !== -1) return directIndex;
+  
+  // Partial match for complex grades
+  const partialIndex = FUEL_GRADE_ORDER.findIndex(orderGrade => 
+    grade.toLowerCase().includes(orderGrade.toLowerCase()) ||
+    orderGrade.toLowerCase().includes(grade.toLowerCase())
+  );
+  if (partialIndex !== -1) return partialIndex;
+  
+  // Unknown grades go to end
+  return FUEL_GRADE_ORDER.length;
+};
 
 interface FuelGrade {
   octane?: number;
@@ -70,6 +135,10 @@ interface WorkOrder {
   address: string;
   service_name?: string;
   dispensers?: Dispenser[];
+  store_number?: string;
+  visit_url?: string;
+  scheduled_date?: string;
+  created_date?: string;
 }
 
 interface DispenserModalData {
@@ -162,41 +231,6 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
     console.log('DispenserInfoModal - First dispenser full data:', dispensers[0]);
   }
   
-  // Collect all unique fuel grade types across all dispensers for consistent column alignment
-  const allFuelGradeTypes = new Set<string>();
-  dispensers.forEach(dispenser => {
-    let fuelGrades = (dispenser as any).fuel_grades_list || dispenser.grades_list || formatFuelGrades(dispenser.fuel_grades);
-    
-    // Filter out non-fuel grade items
-    if (Array.isArray(fuelGrades)) {
-      fuelGrades = fuelGrades.filter(grade => {
-        if (typeof grade !== 'string') return false;
-        const gradeLower = grade.toLowerCase();
-        const nonFuelKeywords = [
-          'stand alone', 'standalone', 'code',
-          'nozzle', 'nozzles',
-          'meter', 'type',
-          'number of',
-          'per side'
-        ];
-        return !nonFuelKeywords.some(keyword => gradeLower.includes(keyword));
-      });
-      
-      fuelGrades.forEach(grade => allFuelGradeTypes.add(grade));
-    }
-  });
-  
-  // Convert to array and sort in a consistent order (Regular, Plus, Premium, Diesel, others...)
-  const sortedFuelGradeTypes = Array.from(allFuelGradeTypes).sort((a, b) => {
-    const order = ['Regular', 'Plus', 'Mid', 'Premium', 'Super', 'Diesel', 'DEF'];
-    const aIndex = order.findIndex(o => a.toLowerCase().includes(o.toLowerCase()));
-    const bIndex = order.findIndex(o => b.toLowerCase().includes(o.toLowerCase()));
-    
-    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-    if (aIndex !== -1) return -1;
-    if (bIndex !== -1) return 1;
-    return a.localeCompare(b);
-  });
 
   // Helper to get dispenser manufacturer
   const getManufacturer = (dispenser: Dispenser): string => {
@@ -244,7 +278,7 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
         ? `${cleanSiteName(dispenserData.workOrder.site_name)} - Dispenser Information`
         : 'Dispenser Information'
       }
-      size="2xl"
+      size="xl"
     >
       {!dispenserData || dispensers.length === 0 ? (
         <div className="text-center py-12">
@@ -259,6 +293,136 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Header Information - Store, Visit, Date */}
+          {dispenserData?.workOrder && (
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              {/* Top row - Store, Visit, Date badges */}
+              <div className="flex flex-wrap items-center gap-3 mb-3">
+                {/* Store Number Badge */}
+                {dispenserData.workOrder.store_number && (
+                  <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-3 py-1.5 font-medium">
+                    <Store className="w-3 h-3 mr-1.5" />
+                    Store {dispenserData.workOrder.store_number.replace('#', '')}
+                  </Badge>
+                )}
+                
+                {/* Visit Number Badge */}
+                {dispenserData.workOrder.external_id && (
+                  <Badge variant="outline" className="bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300 px-3 py-1.5 font-medium">
+                    <FileText className="w-3 h-3 mr-1.5" />
+                    Visit {dispenserData.workOrder.external_id.replace('W-', '')}
+                  </Badge>
+                )}
+                
+                {/* Date Information */}
+                {(dispenserData.workOrder.scheduled_date || dispenserData.workOrder.created_date) && (
+                  <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 px-3 py-1.5 font-medium">
+                    <Calendar className="w-3 h-3 mr-1.5" />
+                    {(() => {
+                      const dateStr = dispenserData.workOrder.scheduled_date || dispenserData.workOrder.created_date;
+                      if (!dateStr) return 'No date';
+                      
+                      try {
+                        const date = new Date(dateStr);
+                        const dayOfWeek = format(date, 'EEEE');
+                        const formattedDate = format(date, 'MMM d, yyyy');
+                        return `${dayOfWeek}, ${formattedDate}`;
+                      } catch (error) {
+                        return dateStr;
+                      }
+                    })()}
+                  </Badge>
+                )}
+              </div>
+              
+              {/* Bottom row - Address (full width, clickable) */}
+              {dispenserData.workOrder.address && (
+                <button
+                  onClick={() => {
+                    // Intelligent address parsing for better navigation
+                    const parseAddressForNavigation = (address: string): string => {
+                      let cleanAddress = address.trim();
+                      
+                      // Remove common prefixes that might interfere with navigation
+                      cleanAddress = cleanAddress.replace(/^(Location:|Address:|Site:|Store:|Station:)\s*/i, '');
+                      
+                      // Handle multi-line addresses (sometimes addresses have line breaks)
+                      cleanAddress = cleanAddress.replace(/\n+/g, ', ');
+                      
+                      // Clean up multiple spaces and commas
+                      cleanAddress = cleanAddress.replace(/\s+/g, ' ').replace(/,+/g, ',').replace(/,\s*,/g, ',');
+                      
+                      // Extract components for better parsing
+                      const parts = cleanAddress.split(',').map(part => part.trim()).filter(part => part.length > 0);
+                      
+                      if (parts.length === 0) return cleanAddress;
+                      
+                      // Try to identify and reconstruct address components
+                      let streetAddress = '';
+                      let cityStateZip = '';
+                      
+                      // Look for ZIP code pattern (5 digits or 5+4 format)
+                      const zipPattern = /\b\d{5}(-\d{4})?\b/;
+                      
+                      // Find the part with ZIP code (likely city, state zip)
+                      const zipPartIndex = parts.findIndex(part => zipPattern.test(part));
+                      
+                      if (zipPartIndex > -1) {
+                        // Everything before ZIP part is likely street address
+                        streetAddress = parts.slice(0, zipPartIndex).join(', ');
+                        // ZIP part is city, state, zip
+                        cityStateZip = parts[zipPartIndex];
+                        
+                        // If there are parts after the ZIP, they might be additional info (county, etc.)
+                        // We'll ignore those for navigation as they can confuse maps
+                        
+                        return streetAddress && cityStateZip ? `${streetAddress}, ${cityStateZip}` : cleanAddress;
+                      }
+                      
+                      // If no ZIP found, try to identify state abbreviations
+                      const statePattern = /\b[A-Z]{2}\b/;
+                      const statePartIndex = parts.findIndex(part => statePattern.test(part));
+                      
+                      if (statePartIndex > -1) {
+                        streetAddress = parts.slice(0, statePartIndex).join(', ');
+                        cityStateZip = parts.slice(statePartIndex).join(', ');
+                        return streetAddress && cityStateZip ? `${streetAddress}, ${cityStateZip}` : cleanAddress;
+                      }
+                      
+                      // If we can't parse intelligently, use the first 2-3 parts (likely street + city/state)
+                      if (parts.length >= 3) {
+                        return parts.slice(0, 3).join(', ');
+                      }
+                      
+                      return cleanAddress;
+                    };
+                    
+                    const parsedAddress = parseAddressForNavigation(dispenserData.workOrder.address);
+                    const encodedAddress = encodeURIComponent(parsedAddress);
+                    
+                    // Use Google Maps search with place API for better accuracy
+                    window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`, '_blank');
+                  }}
+                  className="w-full bg-white dark:bg-gray-800 px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-all duration-200 flex items-center gap-3 text-left group"
+                  title="Click to open in Google Maps"
+                >
+                  <div className="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-800/60 transition-colors">
+                    <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Address</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 break-words">
+                      {dispenserData.workOrder.address}
+                    </p>
+                  </div>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Summary Stats */}
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
             <div className="flex items-center justify-between">
@@ -317,9 +481,9 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
                     onClick={() => toggleDispenser(dispenser.dispenser_number)}
                     className="w-full px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <div className="flex items-center">
+                    <div className="flex items-start gap-4">
                       {/* Left Side - Dispenser Number and Basic Info */}
-                      <div className="flex items-center space-x-4 flex-1">
+                      <div className="flex items-center space-x-4 flex-shrink-0">
                         <div className="flex items-center space-x-2">
                           <div className="bg-blue-600 text-white rounded-md px-3 py-1 text-sm font-bold min-w-[4rem] text-center">
                             {dispenserNum}
@@ -332,51 +496,80 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
                         </div>
                         
                         <div className="text-left">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                             {getManufacturer(dispenser)} {getModelInfo(dispenser)}
                           </div>
                         </div>
                       </div>
 
-                      {/* Right Side - Fuel Grades (Fixed Width for Consistent Alignment) */}
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center gap-2">
-                          {sortedFuelGradeTypes.map((gradeType) => {
-                            // Check if this dispenser has this grade type
-                            const hasGrade = fuelGrades.includes(gradeType);
+                      {/* Right Side - Fuel Grades (Responsive Layout) */}
+                      <div className="flex items-center space-x-4 min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                          {fuelGrades.sort((a, b) => {
+                            const aIndex = getGradeIndex(a);
+                            const bIndex = getGradeIndex(b);
                             
-                            if (!hasGrade) {
-                              // Empty placeholder to maintain alignment
-                              return (
-                                <div
-                                  key={gradeType}
-                                  className="w-20 h-7" // Fixed width placeholder
-                                />
-                              );
+                            if (aIndex !== bIndex) return aIndex - bIndex;
+                            return a.localeCompare(b); // Alphabetical for same priority
+                          }).map((gradeType) => {
+                            // API Standard Color Coding + Industry Best Practices
+                            let colorClasses = "bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100";
+                            
+                            const grade = gradeType.toLowerCase();
+                            
+                            // API Standard: White = Regular gasoline (87 octane)
+                            if (grade.includes('regular') || grade.includes('87')) {
+                              colorClasses = "bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-700 border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200";
                             }
-                            
-                            // Determine color based on grade type
-                            let colorClasses = "bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 border-blue-200 dark:border-blue-700 text-blue-900 dark:text-blue-100";
-                            
-                            if (gradeType.toLowerCase().includes('plus') || gradeType.toLowerCase().includes('mid')) {
-                              colorClasses = "bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 border-green-200 dark:border-green-700 text-green-900 dark:text-green-100";
-                            } else if (gradeType.toLowerCase().includes('premium')) {
-                              colorClasses = "bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800 border-purple-200 dark:border-purple-700 text-purple-900 dark:text-purple-100";
-                            } else if (gradeType.toLowerCase().includes('diesel')) {
-                              colorClasses = "bg-gradient-to-r from-gray-600 to-gray-700 dark:from-gray-700 dark:to-gray-800 border-gray-500 dark:border-gray-600 text-white";
-                            } else if (gradeType.toLowerCase().includes('e85') || gradeType.toLowerCase().includes('ethanol')) {
-                              colorClasses = "bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900 dark:to-yellow-800 border-yellow-200 dark:border-yellow-700 text-yellow-900 dark:text-yellow-100";
-                            } else if (gradeType.toLowerCase().includes('def')) {
-                              colorClasses = "bg-gradient-to-r from-cyan-50 to-cyan-100 dark:from-cyan-900 dark:to-cyan-800 border-cyan-200 dark:border-cyan-700 text-cyan-900 dark:text-cyan-100";
+                            // API Standard: Blue = Midgrade gasoline (89 octane)
+                            else if (grade.includes('plus') || grade.includes('mid') || grade.includes('89') || grade.includes('88')) {
+                              colorClasses = "bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800 border-blue-300 dark:border-blue-600 text-blue-900 dark:text-blue-100";
+                            }
+                            // API Standard: Red = Premium gasoline (91+ octane)
+                            else if (grade.includes('premium') || grade.includes('super') || grade.includes('91') || grade.includes('93')) {
+                              colorClasses = "bg-gradient-to-r from-red-100 to-red-200 dark:from-red-900 dark:to-red-800 border-red-300 dark:border-red-600 text-red-900 dark:text-red-100";
+                            }
+                            // Green = Diesel (industry standard pump color)
+                            else if (grade.includes('diesel') || grade.includes('dsl')) {
+                              colorClasses = "bg-gradient-to-r from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 border-green-300 dark:border-green-600 text-green-900 dark:text-green-100";
+                            }
+                            // Yellow = E85/Ethanol (industry standard pump handle color)
+                            else if (grade.includes('e85') || grade.includes('e15') || grade.includes('ethanol')) {
+                              colorClasses = "bg-gradient-to-r from-yellow-100 to-yellow-200 dark:from-yellow-900 dark:to-yellow-800 border-yellow-300 dark:border-yellow-600 text-yellow-900 dark:text-yellow-100";
+                            }
+                            // Light Blue = DEF (Diesel Exhaust Fluid)
+                            else if (grade.includes('def') || grade.includes('exhaust')) {
+                              colorClasses = "bg-gradient-to-r from-sky-100 to-sky-200 dark:from-sky-900 dark:to-sky-800 border-sky-300 dark:border-sky-600 text-sky-900 dark:text-sky-100";
+                            }
+                            // Purple = Special/Aviation fuels
+                            else if (grade.includes('aviation') || grade.includes('jet') || grade.includes('avgas')) {
+                              colorClasses = "bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900 dark:to-purple-800 border-purple-300 dark:border-purple-600 text-purple-900 dark:text-purple-100";
+                            }
+                            // Orange = Bio-diesel and alternative fuels
+                            else if (grade.includes('bio') || grade.includes('biodiesel') || grade.includes('renewable')) {
+                              colorClasses = "bg-gradient-to-r from-orange-100 to-orange-200 dark:from-orange-900 dark:to-orange-800 border-orange-300 dark:border-orange-600 text-orange-900 dark:text-orange-100";
+                            }
+                            // Cyan = Kerosene and heating fuels
+                            else if (grade.includes('kerosene') || grade.includes('heating') || grade.includes('fuel oil')) {
+                              colorClasses = "bg-gradient-to-r from-cyan-100 to-cyan-200 dark:from-cyan-900 dark:to-cyan-800 border-cyan-300 dark:border-cyan-600 text-cyan-900 dark:text-cyan-100";
+                            }
+                            // Pink = Racing/Special fuels
+                            else if (grade.includes('race') || grade.includes('racing') || grade.includes('high octane')) {
+                              colorClasses = "bg-gradient-to-r from-pink-100 to-pink-200 dark:from-pink-900 dark:to-pink-800 border-pink-300 dark:border-pink-600 text-pink-900 dark:text-pink-100";
+                            }
+                            // Indigo = CNG/LNG and gas fuels
+                            else if (grade.includes('cng') || grade.includes('lng') || grade.includes('natural gas')) {
+                              colorClasses = "bg-gradient-to-r from-indigo-100 to-indigo-200 dark:from-indigo-900 dark:to-indigo-800 border-indigo-300 dark:border-indigo-600 text-indigo-900 dark:text-indigo-100";
                             }
                             
                             return (
                               <div
                                 key={gradeType}
-                                className={`inline-flex items-center justify-center px-2 py-1 border rounded text-xs font-medium w-20 ${colorClasses}`}
+                                className={`inline-flex items-center px-2 py-1 border rounded text-xs font-medium ${colorClasses} whitespace-nowrap`}
+                                title={gradeType} // Tooltip for full text
                               >
                                 <Droplet className="w-3 h-3 mr-1 flex-shrink-0" />
-                                <span className="truncate">{gradeType}</span>
+                                <span>{gradeType}</span>
                               </div>
                             );
                           })}
