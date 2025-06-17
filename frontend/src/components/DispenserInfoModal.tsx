@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal } from './ui/modal';
+import { cleanSiteName } from '@/utils/storeColors';
 import { 
   Fuel, 
   Wrench, 
@@ -240,7 +241,7 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={dispenserData?.workOrder 
-        ? `${dispenserData.workOrder.site_name} - Dispenser Information`
+        ? `${cleanSiteName(dispenserData.workOrder.site_name)} - Dispenser Information`
         : 'Dispenser Information'
       }
       size="2xl"

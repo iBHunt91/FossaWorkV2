@@ -6,13 +6,16 @@ interface AnimatedButtonProps extends ButtonProps {
   animation?: 'pulse' | 'shimmer' | 'glow' | 'bounce'
 }
 
-export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
-  children,
-  className,
-  animation = 'pulse',
-  variant = 'default',
-  ...props
-}) => {
+export const AnimatedButton = React.forwardRef<HTMLButtonElement, AnimatedButtonProps>((
+  {
+    children,
+    className,
+    animation = 'pulse',
+    variant = 'default',
+    ...props
+  },
+  ref
+) => {
   const animationClasses = {
     pulse: 'hover:animate-pulse-glow',
     shimmer: 'relative overflow-hidden before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent before:animate-shimmer',
@@ -22,6 +25,7 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
   
   return (
     <Button
+      ref={ref}
       variant={variant}
       className={cn(
         "transition-all duration-300",
@@ -33,7 +37,9 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
       {children}
     </Button>
   )
-}
+})
+
+AnimatedButton.displayName = 'AnimatedButton'
 
 interface MagneticButtonProps extends ButtonProps {
   strength?: number
@@ -108,13 +114,16 @@ export const MagneticButton: React.FC<MagneticButtonProps> = ({
 
 interface RippleButtonProps extends ButtonProps {}
 
-export const RippleButton: React.FC<RippleButtonProps> = ({
-  children,
-  className,
-  onClick,
-  variant = 'default',
-  ...props
-}) => {
+export const RippleButton = React.forwardRef<HTMLButtonElement, RippleButtonProps>((
+  {
+    children,
+    className,
+    onClick,
+    variant = 'default',
+    ...props
+  },
+  ref
+) => {
   const [ripples, setRipples] = React.useState<Array<{ x: number; y: number; id: number }>>([])
   
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -134,6 +143,7 @@ export const RippleButton: React.FC<RippleButtonProps> = ({
   
   return (
     <Button
+      ref={ref}
       variant={variant}
       className={cn("relative overflow-hidden", className)}
       onClick={handleClick}
@@ -152,4 +162,6 @@ export const RippleButton: React.FC<RippleButtonProps> = ({
       <span className="relative z-10 inline-flex items-center">{children}</span>
     </Button>
   )
-}
+})
+
+RippleButton.displayName = 'RippleButton'

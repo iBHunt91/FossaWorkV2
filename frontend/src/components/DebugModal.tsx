@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal } from './ui/modal';
 import { Bug, Database, Calendar, MapPin, User, Package, Globe, Code } from 'lucide-react';
+import { cleanSiteName } from '@/utils/storeColors';
 
 interface WorkOrder {
   id: string;
@@ -128,7 +129,7 @@ export const DebugModal: React.FC<DebugModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Debug Info: ${workOrder.site_name}`}
+      title={`Debug Info: ${cleanSiteName(workOrder.site_name)}`}
       size="xl"
     >
       <div className="space-y-6 max-h-[80vh] overflow-y-auto">
@@ -141,7 +142,7 @@ export const DebugModal: React.FC<DebugModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <div><strong>ID:</strong> {workOrder.id}</div>
             <div><strong>Work Number:</strong> {formatValue(workOrder.external_id)}</div>
-            <div><strong>Site Name:</strong> {formatValue(workOrder.site_name)}</div>
+            <div><strong>Site Name:</strong> {formatValue(cleanSiteName(workOrder.site_name))}</div>
             <div><strong>Address:</strong> {formatValue(workOrder.address)}</div>
             <div><strong>Status:</strong> {formatValue(workOrder.status)}</div>
             <div><strong>Visit Number:</strong> {formatValue(workOrder.visit_number || workOrder.visit_id)}</div>

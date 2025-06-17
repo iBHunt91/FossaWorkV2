@@ -14,6 +14,7 @@ import { AnimatedButton, RippleButton, MagneticButton } from '@/components/ui/an
 import { DotsLoader, SkeletonLoader } from '@/components/ui/animated-loader';
 import { GradientBackground } from '@/components/ui/animated-background';
 import { useAuth } from '../contexts/AuthContext';
+import { cleanSiteName } from '@/utils/storeColors';
 
 interface WorkOrder {
   id: string;
@@ -213,7 +214,7 @@ export const Automation: React.FC = () => {
                                 {workOrder.external_id}
                               </h3>
                               <p className="text-sm text-muted-foreground">
-                                {workOrder.site_name}
+                                {cleanSiteName(workOrder.site_name)}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {workOrder.address}

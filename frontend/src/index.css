@@ -487,6 +487,11 @@
   .dark .dropdown-modern {
     @apply bg-card/95 shadow-2xl shadow-black/50;
   }
+  
+  /* Ensure dropdowns appear above other content */
+  [data-radix-popper-content-wrapper] {
+    z-index: 50 !important;
+  }
 
   /* Animated icons */
   .icon-bounce {

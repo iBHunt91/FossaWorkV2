@@ -11,6 +11,7 @@ import { getWorkOrders, WorkOrder, getScheduleSettings, ScheduleSettings } from 
 import { useAuth } from '@/contexts/AuthContext'
 import { logger } from '@/services/fileLoggingService'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { cleanSiteName } from '@/utils/storeColors'
 import 'leaflet/dist/leaflet.css'
 
 // Fix leaflet default icons
@@ -440,7 +441,7 @@ const JobMap: React.FC = () => {
       // Geocode with rate limiting to avoid hitting API limits
       for (const order of currentWeekOrders) {
         if (order.address && order.address.trim() && order.address !== 'Address not available') {
-          logger.debug('job-map', `Geocoding address for ${order.site_name}: ${order.address}`)
+          logger.debug('job-map', `Geocoding address for ${cleanSiteName(order.site_name)}: ${order.address}`)
           
           // Add a small delay to avoid rate limiting
           await new Promise(resolve => setTimeout(resolve, 1000))
@@ -453,20 +454,20 @@ const JobMap: React.FC = () => {
               lng: coords.lng,
               workOrder: order
             })
-            logger.debug('job-map', `Successfully geocoded ${order.site_name}: ${coords.lat}, ${coords.lng}`)
+            logger.debug('job-map', `Successfully geocoded ${cleanSiteName(order.site_name)}: ${coords.lat}, ${coords.lng}`)
           } else {
             failed.push({
               workOrder: order,
               reason: 'Geocoding failed'
             })
-            logger.warn('job-map', `Failed to geocode address for ${order.site_name}: ${order.address}`)
+            logger.warn('job-map', `Failed to geocode address for ${cleanSiteName(order.site_name)}: ${order.address}`)
           }
         } else {
           failed.push({
             workOrder: order,
             reason: 'No valid address'
           })
-          logger.warn('job-map', `No valid address for order ${order.id} - ${order.site_name}`)
+          logger.warn('job-map', `No valid address for order ${order.id} - ${cleanSiteName(order.site_name)}`)
         }
       }
 
@@ -651,7 +652,7 @@ const JobMap: React.FC = () => {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-medium text-sm">{workOrder.site_name}</h3>
+                        <h3 className="font-medium text-sm">{cleanSiteName(workOrder.site_name)}</h3>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                           {workOrder.address}
                         </p>
@@ -703,7 +704,7 @@ const JobMap: React.FC = () => {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h3 className="font-medium text-sm">{workOrder.site_name}</h3>
+                        <h3 className="font-medium text-sm">{cleanSiteName(workOrder.site_name)}</h3>
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                           {workOrder.address || 'No address available'}
                         </p>
@@ -822,7 +823,7 @@ const JobMap: React.FC = () => {
                 >
                   <Popup>
                     <div className="w-64 p-2">
-                      <h3 className="font-semibold text-sm mb-2">{workOrder.site_name}</h3>
+                      <h3 className="font-semibold text-sm mb-2">{cleanSiteName(workOrder.site_name)}</h3>
                       <p className="text-xs text-gray-600 mb-2">{workOrder.address}</p>
                       
                       <div className="space-y-2 text-xs">

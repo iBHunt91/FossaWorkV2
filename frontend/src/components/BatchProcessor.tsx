@@ -5,6 +5,7 @@ import { AnimatedCard, GlowCard } from '@/components/ui/animated-card';
 import { AnimatedButton, RippleButton, MagneticButton } from '@/components/ui/animated-button';
 import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text';
 import { ProgressLoader, DotsLoader, SkeletonLoader } from '@/components/ui/animated-loader';
+import { cleanSiteName } from '@/utils/storeColors';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -477,7 +478,7 @@ const BatchProcessor: React.FC<Props> = ({ userId, onBatchStarted }) => {
                   />
                   <div className="flex-1">
                     <div className="font-medium">{workOrder.basic_info.external_id}</div>
-                    <div className="text-sm text-muted-foreground">{workOrder.basic_info.site_name}</div>
+                    <div className="text-sm text-muted-foreground">{cleanSiteName(workOrder.basic_info.site_name)}</div>
                     <div className="text-xs text-muted-foreground">
                       {workOrder.dispensers?.length || 0} dispensers
                     </div>

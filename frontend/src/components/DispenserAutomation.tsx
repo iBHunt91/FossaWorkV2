@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text';
 import { ProgressLoader, DotsLoader } from '@/components/ui/animated-loader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { cleanSiteName } from '@/utils/storeColors';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -288,7 +289,7 @@ export const DispenserAutomation: React.FC<DispenserAutomationProps> = ({
               <ShimmerText text="Dispenser Automation" />
             </h3>
             <p className="text-sm text-muted-foreground">
-              <AnimatedText text={`${workOrder.site_name} - ${workOrder.external_id}`} animationType="fade" delay={0.2} />
+              <AnimatedText text={`${cleanSiteName(workOrder.site_name)} - ${workOrder.external_id}`} animationType="fade" delay={0.2} />
             </p>
           </div>
           

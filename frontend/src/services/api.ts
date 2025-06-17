@@ -263,6 +263,12 @@ export const clearDispensersForWorkOrder = async (workOrderId: string, userId: s
   return response.data
 }
 
+// Clear all work orders for a user
+export const clearAllWorkOrders = async (userId: string): Promise<any> => {
+  const response = await apiClient.delete(`/api/v1/work-orders/clear-all?user_id=${userId}`)
+  return response.data
+}
+
 // Users
 export const fetchUsers = async (): Promise<User[]> => {
   const response = await apiClient.get('/api/v1/users')

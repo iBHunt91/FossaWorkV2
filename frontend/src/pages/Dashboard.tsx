@@ -13,6 +13,7 @@ import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animate
 import { AnimatedCard, GlowCard } from '@/components/ui/animated-card'
 import { AnimatedButton, RippleButton } from '@/components/ui/animated-button'
 import { ProgressLoader, DotsLoader } from '@/components/ui/animated-loader'
+import { cleanSiteName } from '@/utils/storeColors'
 
 const Dashboard: React.FC = () => {
   const { token, user } = useAuth()
@@ -99,7 +100,7 @@ const Dashboard: React.FC = () => {
     const uniqueStores = new Set<string>()
 
     workOrders.forEach((wo: any) => {
-      const storeName = wo.location?.site_name || wo.site_name || 'Unknown'
+      const storeName = cleanSiteName(wo.location?.site_name || wo.site_name || 'Unknown')
       uniqueStores.add(storeName)
 
       // Check if work order has a scheduled date

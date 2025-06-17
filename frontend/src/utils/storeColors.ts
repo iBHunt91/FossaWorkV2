@@ -13,14 +13,65 @@ export interface BrandStyle {
   darkHoverBgColor: string
 }
 
-export const getBrandStyle = (siteName: string): BrandStyle => {
-  const lower = siteName.toLowerCase()
+// Helper function to clean site names by removing time suffixes and extracting brand name
+export const cleanSiteName = (siteName: string): string => {
+  // Remove time patterns like "1956am", "456pm", etc.
+  let cleaned = siteName.replace(/\s+\d{1,4}[ap]m$/i, '').trim()
   
-  if (lower.includes('7-eleven') || lower.includes('7 eleven')) {
+  // Extract just the brand name
+  const lower = cleaned.toLowerCase()
+  if (lower.includes('7-eleven') || lower.includes('7 eleven') || lower.includes('seven eleven')) {
+    return '7-Eleven'
+  } else if (lower.includes('wawa')) {
+    return 'Wawa'
+  } else if (lower.includes('circle k') || lower.includes('circle-k') || lower.includes('circlek')) {
+    return 'Circle K'
+  } else if (lower.includes('speedway')) {
+    return 'Speedway'
+  } else if (lower.includes('costco')) {
+    return 'Costco'
+  } else if (lower.includes('mobil')) {
+    return 'Mobil'
+  } else if (lower.includes('exxon')) {
+    return 'Exxon'
+  }
+  
+  // For other stores, try to extract just the brand name
+  // Remove common suffixes like "Stores", "Inc", etc.
+  cleaned = cleaned.replace(/\s+(Stores?|Inc\.?|LLC|Corp\.?|Corporation|Company|Co\.|Wholesale).*$/i, '').trim()
+  
+  return cleaned
+}
+
+export const getBrandStyle = (siteName: string): BrandStyle => {
+  const cleanedName = cleanSiteName(siteName)
+  const lower = cleanedName.toLowerCase()
+  
+  // 7-Eleven family (7-Eleven, Speedway, Mobil - all owned by 7-Eleven)
+  // Using 7-Eleven's official colors: Green #007A53, Red #DA291C, Orange #FF6720
+  if (lower.includes('7-eleven') || lower.includes('7 eleven') || lower.includes('seven eleven') || 
+      lower.includes('7eleven') || (lower.includes('eleven') && lower.includes('stores')) ||
+      lower.includes('speedway') || lower.includes('mobil') || lower.includes('exxon')) {
     return {
       name: '7-Eleven',
-      color: 'bg-red-500',
-      textColor: 'text-red-600',
+      color: 'bg-emerald-600', // Close to #007A53
+      textColor: 'text-emerald-700',
+      bgColor: 'bg-emerald-50',
+      borderColor: 'border-emerald-200',
+      hoverBgColor: 'hover:bg-emerald-100',
+      darkBgColor: 'dark:bg-emerald-950/20',
+      darkTextColor: 'dark:text-emerald-400',
+      darkBorderColor: 'dark:border-emerald-800',
+      darkHoverBgColor: 'dark:hover:bg-emerald-900/30'
+    }
+  }
+  
+  // Wawa - Using their red and yellow brand colors
+  if (lower.includes('wawa')) {
+    return {
+      name: 'Wawa',
+      color: 'bg-red-600', // Their red color
+      textColor: 'text-red-700',
       bgColor: 'bg-red-50',
       borderColor: 'border-red-200',
       hoverBgColor: 'hover:bg-red-100',
@@ -31,25 +82,11 @@ export const getBrandStyle = (siteName: string): BrandStyle => {
     }
   }
   
-  if (lower.includes('wawa')) {
-    return {
-      name: 'Wawa',
-      color: 'bg-amber-500',
-      textColor: 'text-amber-600',
-      bgColor: 'bg-amber-50',
-      borderColor: 'border-amber-200',
-      hoverBgColor: 'hover:bg-amber-100',
-      darkBgColor: 'dark:bg-amber-950/20',
-      darkTextColor: 'dark:text-amber-400',
-      darkBorderColor: 'dark:border-amber-800',
-      darkHoverBgColor: 'dark:hover:bg-amber-900/30'
-    }
-  }
-  
-  if (lower.includes('circle k')) {
+  // Circle K - Using their red and orange brand colors
+  if (lower.includes('circle k') || lower.includes('circlek') || lower.includes('circle-k')) {
     return {
       name: 'Circle K',
-      color: 'bg-orange-500',
+      color: 'bg-orange-500', // Their orange accent
       textColor: 'text-orange-600',
       bgColor: 'bg-orange-50',
       borderColor: 'border-orange-200',
@@ -61,26 +98,13 @@ export const getBrandStyle = (siteName: string): BrandStyle => {
     }
   }
   
-  if (lower.includes('shell')) {
-    return {
-      name: 'Shell',
-      color: 'bg-yellow-500',
-      textColor: 'text-yellow-600',
-      bgColor: 'bg-yellow-50',
-      borderColor: 'border-yellow-200',
-      hoverBgColor: 'hover:bg-yellow-100',
-      darkBgColor: 'dark:bg-yellow-950/20',
-      darkTextColor: 'dark:text-yellow-400',
-      darkBorderColor: 'dark:border-yellow-800',
-      darkHoverBgColor: 'dark:hover:bg-yellow-900/30'
-    }
-  }
   
-  if (lower.includes('speedway')) {
+  // Costco - Using their official colors: Blue #005DAA, Red #E31837
+  if (lower.includes('costco')) {
     return {
-      name: 'Speedway',
-      color: 'bg-blue-500',
-      textColor: 'text-blue-600',
+      name: 'Costco',
+      color: 'bg-blue-700', // Close to #005DAA
+      textColor: 'text-blue-800',
       bgColor: 'bg-blue-50',
       borderColor: 'border-blue-200',
       hoverBgColor: 'hover:bg-blue-100',
@@ -91,80 +115,6 @@ export const getBrandStyle = (siteName: string): BrandStyle => {
     }
   }
   
-  if (lower.includes('bp') || lower.includes('british petroleum')) {
-    return {
-      name: 'BP',
-      color: 'bg-green-500',
-      textColor: 'text-green-600',
-      bgColor: 'bg-green-50',
-      borderColor: 'border-green-200',
-      hoverBgColor: 'hover:bg-green-100',
-      darkBgColor: 'dark:bg-green-950/20',
-      darkTextColor: 'dark:text-green-400',
-      darkBorderColor: 'dark:border-green-800',
-      darkHoverBgColor: 'dark:hover:bg-green-900/30'
-    }
-  }
-  
-  if (lower.includes('exxon') || lower.includes('mobil')) {
-    return {
-      name: 'ExxonMobil',
-      color: 'bg-indigo-500',
-      textColor: 'text-indigo-600',
-      bgColor: 'bg-indigo-50',
-      borderColor: 'border-indigo-200',
-      hoverBgColor: 'hover:bg-indigo-100',
-      darkBgColor: 'dark:bg-indigo-950/20',
-      darkTextColor: 'dark:text-indigo-400',
-      darkBorderColor: 'dark:border-indigo-800',
-      darkHoverBgColor: 'dark:hover:bg-indigo-900/30'
-    }
-  }
-  
-  if (lower.includes('chevron')) {
-    return {
-      name: 'Chevron',
-      color: 'bg-sky-500',
-      textColor: 'text-sky-600',
-      bgColor: 'bg-sky-50',
-      borderColor: 'border-sky-200',
-      hoverBgColor: 'hover:bg-sky-100',
-      darkBgColor: 'dark:bg-sky-950/20',
-      darkTextColor: 'dark:text-sky-400',
-      darkBorderColor: 'dark:border-sky-800',
-      darkHoverBgColor: 'dark:hover:bg-sky-900/30'
-    }
-  }
-  
-  if (lower.includes('sunoco')) {
-    return {
-      name: 'Sunoco',
-      color: 'bg-purple-500',
-      textColor: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      borderColor: 'border-purple-200',
-      hoverBgColor: 'hover:bg-purple-100',
-      darkBgColor: 'dark:bg-purple-950/20',
-      darkTextColor: 'dark:text-purple-400',
-      darkBorderColor: 'dark:border-purple-800',
-      darkHoverBgColor: 'dark:hover:bg-purple-900/30'
-    }
-  }
-  
-  if (lower.includes('valero')) {
-    return {
-      name: 'Valero',
-      color: 'bg-teal-500',
-      textColor: 'text-teal-600',
-      bgColor: 'bg-teal-50',
-      borderColor: 'border-teal-200',
-      hoverBgColor: 'hover:bg-teal-100',
-      darkBgColor: 'dark:bg-teal-950/20',
-      darkTextColor: 'dark:text-teal-400',
-      darkBorderColor: 'dark:border-teal-800',
-      darkHoverBgColor: 'dark:hover:bg-teal-900/30'
-    }
-  }
   
   // Default for unknown brands
   return {
@@ -184,7 +134,24 @@ export const getBrandStyle = (siteName: string): BrandStyle => {
 // Get card styling classes based on brand
 export const getBrandCardStyle = (siteName: string): string => {
   const brand = getBrandStyle(siteName)
-  return `${brand.bgColor} ${brand.borderColor} ${brand.hoverBgColor} ${brand.darkBgColor} ${brand.darkBorderColor} ${brand.darkHoverBgColor} border-2`
+  return `${brand.bgColor} ${brand.borderColor} ${brand.hoverBgColor} ${brand.darkBgColor} ${brand.darkBorderColor} ${brand.darkHoverBgColor} border-2 border-l-4 ${getBrandAccentBorder(siteName)}`
+}
+
+// Get the accent border color for brand
+export const getBrandAccentBorder = (siteName: string): string => {
+  const lower = siteName.toLowerCase()
+  
+  // 7-Eleven family (7-Eleven, Speedway, Mobil)
+  if (lower.includes('7-eleven') || lower.includes('7 eleven') || lower.includes('seven eleven') || 
+      lower.includes('7eleven') || (lower.includes('eleven') && lower.includes('stores')) ||
+      lower.includes('speedway') || lower.includes('mobil') || lower.includes('exxon')) {
+    return 'border-l-emerald-600'
+  }
+  if (lower.includes('wawa')) return 'border-l-red-600'
+  if (lower.includes('circle k') || lower.includes('circlek') || lower.includes('circle-k')) return 'border-l-orange-500'
+  if (lower.includes('costco')) return 'border-l-blue-700'
+  
+  return 'border-l-gray-500'
 }
 
 // Get badge styling classes based on brand

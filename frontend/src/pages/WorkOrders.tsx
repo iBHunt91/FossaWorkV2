@@ -1,11 +1,14 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, LayoutGrid, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square, CalendarDays, Database } from 'lucide-react'
-import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder, getUserPreferences } from '../services/api'
+import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square, CalendarDays, Database, ChevronLeft, ChevronRight, Hash } from 'lucide-react'
+import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder, getUserPreferences, clearAllWorkOrders } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { useDebouncedCallback } from 'use-debounce'
 import { useWorkOrderScrapingProgress, useDispenserScrapingProgress, useSingleDispenserProgress } from '../hooks/useProgressPolling'
-import { getBrandStyle, getBrandCardStyle, getBrandBadgeStyle } from '@/utils/storeColors'
+import { getBrandStyle, getBrandCardStyle, getBrandBadgeStyle, cleanSiteName } from '@/utils/storeColors'
+import { cn } from '@/lib/utils'
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isThisWeek } from 'date-fns'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,10 +88,14 @@ interface EnhancedWorkOrder {
 const WorkOrders: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
   const [brandFilter, setBrandFilter] = useState('all')
-  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'weekly'>('grid')
+  const [viewMode, setViewMode] = useState<'list' | 'weekly'>('list')
   const [selectedWorkOrders, setSelectedWorkOrders] = useState<Set<string>>(new Set())
+  const [selectedWeek, setSelectedWeek] = useState(new Date())
+  const [highlightedWorkOrderId, setHighlightedWorkOrderId] = useState<string | null>(null)
+  const [showCalendar, setShowCalendar] = useState(false)
+  const [showAllJobs, setShowAllJobs] = useState(false)
+  const calendarRef = useRef<HTMLDivElement>(null)
   const [scrapeStatus, setScrapeStatus] = useState<'idle' | 'scraping' | 'success' | 'error'>('idle')
   const [scrapeMessage, setScrapeMessage] = useState('')
   const [scrapingProgress, setScrapingProgress] = useState<any>(null)
@@ -113,8 +120,28 @@ const WorkOrders: React.FC = () => {
   const [showDebugModal, setShowDebugModal] = useState(false)
   const [selectedWorkOrderForDebug, setSelectedWorkOrderForDebug] = useState<EnhancedWorkOrder | null>(null)
   
+  // Dropdown states
+  const [clearDataOpen, setClearDataOpen] = useState(false)
+  const [scrapeDataOpen, setScrapeDataOpen] = useState(false)
+  
   const queryClient = useQueryClient()
   const { user } = useAuth()
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
+        setShowCalendar(false)
+      }
+    }
+
+    if (showCalendar) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [showCalendar])
 
   // Debounced search implementation
   const debouncedSearch = useDebouncedCallback(
@@ -161,6 +188,14 @@ const WorkOrders: React.FC = () => {
   }, [userPreferences])
 
   // Use custom hooks for progress polling
+  // Fetch work orders - defined early so refetchWorkOrders is available
+  const { data: rawWorkOrders, isLoading, error, refetch: refetchWorkOrders } = useQuery({
+    queryKey: ['work-orders', currentUserId],
+    queryFn: () => fetchWorkOrders(currentUserId),
+    refetchInterval: isPollingProgress || isPollingDispenserProgress ? 2000 : 30000, // Poll faster during scraping
+    staleTime: isPollingProgress || isPollingDispenserProgress ? 0 : 5000, // Consider data stale immediately during scraping
+  })
+
   const {
     data: workOrderProgress,
     isPolling: isPollingWorkOrders
@@ -188,7 +223,9 @@ const WorkOrders: React.FC = () => {
         localStorage.removeItem(`wo_scraping_${currentUserId}`)
         
         if (workOrderProgress.status === 'completed') {
+          // Immediately refetch work orders
           queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+          refetchWorkOrders()
         }
         
         setTimeout(() => {
@@ -198,7 +235,7 @@ const WorkOrders: React.FC = () => {
         }, 5000)
       }
     }
-  }, [workOrderProgress, currentUserId, queryClient])
+  }, [workOrderProgress, currentUserId, queryClient, refetchWorkOrders])
 
   useEffect(() => {
     if (dispenserProgress) {
@@ -211,7 +248,9 @@ const WorkOrders: React.FC = () => {
         localStorage.removeItem(`disp_scraping_${currentUserId}`)
         
         if (dispenserProgress.status === 'completed') {
+          // Immediately refetch work orders
           queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+          refetchWorkOrders()
         }
         
         setTimeout(() => {
@@ -221,7 +260,7 @@ const WorkOrders: React.FC = () => {
         }, 5000)
       }
     }
-  }, [dispenserProgress, currentUserId, queryClient])
+  }, [dispenserProgress, currentUserId, queryClient, refetchWorkOrders])
 
   useEffect(() => {
     if (singleDispenserProgressData) {
@@ -261,6 +300,32 @@ const WorkOrders: React.FC = () => {
       }
     }
   }, [singleDispenserProgressData, queryClient])
+
+  // Handle click outside to close calendar
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showCalendar && calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
+        // Check if the click is not on the calendar dropdown itself
+        const calendarDropdown = document.querySelector('.calendar-dropdown')
+        if (calendarDropdown && !calendarDropdown.contains(event.target as Node)) {
+          setShowCalendar(false)
+        }
+      }
+    }
+    
+    if (showCalendar) {
+      // Add small delay to ensure calendar is fully rendered before adding listener
+      const timer = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside)
+      }, 100)
+      
+      return () => {
+        clearTimeout(timer)
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [showCalendar])
+
 
   // Check for existing scraping progress on component mount
   useEffect(() => {
@@ -316,13 +381,6 @@ const WorkOrders: React.FC = () => {
     checkExistingProgress()
   }, [currentUserId])
 
-
-  const { data: rawWorkOrders, isLoading, error } = useQuery({
-    queryKey: ['work-orders', currentUserId],
-    queryFn: () => fetchWorkOrders(currentUserId),
-    refetchInterval: 30000,
-  })
-
   const scrapeMutation = useMutation({
     mutationFn: () => triggerScrape(currentUserId),
     onMutate: () => {
@@ -368,19 +426,11 @@ const WorkOrders: React.FC = () => {
 
   // Clear all work orders mutation
   const clearAllMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch(`/api/v1/work-orders/clear-all?user_id=${currentUserId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      })
-      if (!response.ok) {
-        throw new Error('Failed to clear work orders')
-      }
-      return response.json()
-    },
+    mutationFn: () => clearAllWorkOrders(currentUserId),
     onSuccess: (data) => {
       console.log('Cleared work orders:', data)
       queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+      refetchWorkOrders() // Immediately refetch
     },
     onError: (error) => {
       console.error('Failed to clear work orders:', error)
@@ -454,71 +504,76 @@ const WorkOrders: React.FC = () => {
   const getCleanStoreName = (siteName: string) => {
     if (!siteName) return ''
     
-    const lower = siteName.toLowerCase()
+    // First clean the site name to remove time suffixes
+    const cleanedName = cleanSiteName(siteName)
+    const lower = cleanedName.toLowerCase()
     
     // Handle 7-Eleven variations (including "Eleven Stores, Inc")
     if (lower.includes('7-eleven') || lower.includes('7 eleven') || lower.includes('seven eleven') || 
         lower.includes('eleven stores') || lower.includes('speedway')) {
       // Extract store number if present
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `7-Eleven #${storeMatch[1]}` : '7-Eleven'
     }
     
     // Handle Wawa variations (including "Wawa 2025 AccuMeasure")
     if (lower.includes('wawa')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `Wawa #${storeMatch[1]}` : 'Wawa'
     }
     
     // Handle Circle-K variations
     if (lower.includes('circle k') || lower.includes('circlek') || lower.includes('circle-k')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `Circle-K #${storeMatch[1]}` : 'Circle-K'
     }
     
     // Handle other brands
     if (lower.includes('costco')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `Costco #${storeMatch[1]}` : 'Costco'
     }
     
     if (lower.includes('shell')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `Shell #${storeMatch[1]}` : 'Shell'
     }
     
     if (lower.includes('marathon')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `Marathon #${storeMatch[1]}` : 'Marathon'
     }
     
     if (lower.includes('bp') && !lower.includes('bpx')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `BP #${storeMatch[1]}` : 'BP'
     }
     
     if (lower.includes('exxon') || lower.includes('mobil')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `ExxonMobil #${storeMatch[1]}` : 'ExxonMobil'
     }
     
     if (lower.includes('chevron')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `Chevron #${storeMatch[1]}` : 'Chevron'
     }
     
     if (lower.includes('texaco')) {
-      const storeMatch = siteName.match(/#(\d+)/)
+      const storeMatch = cleanedName.match(/#(\d+)/)
       return storeMatch ? `Texaco #${storeMatch[1]}` : 'Texaco'
     }
     
-    // Fallback: return original if no brand detected
-    return siteName
+    // Fallback: return cleaned name if no brand detected
+    return cleanedName
   }
+
+  // Clean site name to remove time suffixes (like "1956am" from "Circle K 1956am")
 
   // Brand detection from site name - improved parsing
   const getBrand = (siteName: string) => {
-    const lower = siteName.toLowerCase()
+    const cleanedName = cleanSiteName(siteName)
+    const lower = cleanedName.toLowerCase()
     // Handle variations and common misspellings
     if (lower.includes('7-eleven') || lower.includes('7 eleven') || lower.includes('seven eleven') || 
         lower.includes('eleven stores') || lower.includes('speedway')) return '7-Eleven'
@@ -536,8 +591,7 @@ const WorkOrders: React.FC = () => {
 
   // Use the new brand styling system
   const getBrandStyling = (siteName: string) => {
-    const brandStyle = getBrandStyle(siteName)
-    return `gradient-border border-l-4 border-l-${brandStyle.color.replace('bg-', '')} ${getBrandCardStyle(siteName)}`
+    return getBrandCardStyle(siteName)
   }
 
   // Status icon mapping with animations
@@ -648,21 +702,133 @@ const WorkOrders: React.FC = () => {
   const filteredWorkOrders = useMemo(() => {
     return workOrders.filter((wo) => {
       const searchText = debouncedSearchTerm.toLowerCase()
+      const cleanedSiteName = cleanSiteName(wo.site_name)
       const matchesSearch = 
         !searchText || // Show all if no search term
-        wo.site_name.toLowerCase().includes(searchText) ||
+        cleanedSiteName.toLowerCase().includes(searchText) ||
         wo.external_id.toLowerCase().includes(searchText) ||
         wo.address.toLowerCase().includes(searchText) ||
         (wo.store_number && wo.store_number.toLowerCase().includes(searchText)) ||
         (wo.service_code && wo.service_code.toLowerCase().includes(searchText)) ||
         (wo.service_description && wo.service_description.toLowerCase().includes(searchText))
       
-      const matchesStatus = statusFilter === 'all' || wo.status === statusFilter
       const matchesBrand = brandFilter === 'all' || getBrand(wo.site_name) === brandFilter
 
-      return matchesSearch && matchesStatus && matchesBrand
+      return matchesSearch && matchesBrand
     })
-  }, [workOrders, debouncedSearchTerm, statusFilter, brandFilter])
+  }, [workOrders, debouncedSearchTerm, brandFilter])
+
+  // Filter work orders by selected week (or show all if toggle is on)
+  const weekFilteredWorkOrders = useMemo(() => {
+    if (showAllJobs) {
+      return filteredWorkOrders
+    }
+    
+    const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })
+    const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 })
+    
+    return filteredWorkOrders.filter(wo => {
+      if (!wo.scheduled_date) return false
+      const date = new Date(wo.scheduled_date)
+      return date >= weekStart && date <= weekEnd
+    })
+  }, [filteredWorkOrders, selectedWeek, showAllJobs])
+
+  // Group work orders by week or day
+  const groupedByWeek = useMemo(() => {
+    if (viewMode === 'weekly') return {} // Weekly view handles its own grouping
+    
+    const groups: { [key: string]: EnhancedWorkOrder[] } = {}
+    
+    // Use weekFilteredWorkOrders for list view
+    const ordersToGroup = viewMode === 'weekly' ? filteredWorkOrders : weekFilteredWorkOrders
+    
+    // When showing all jobs, group all work orders by their scheduled week
+    if (showAllJobs) {
+      // Include unscheduled orders
+      filteredWorkOrders.forEach(wo => {
+        if (!wo.scheduled_date) {
+          if (!groups['Unscheduled']) {
+            groups['Unscheduled'] = []
+          }
+          groups['Unscheduled'].push(wo)
+        }
+      })
+    } else {
+      // Also include unscheduled orders when viewing current week
+      if (isThisWeek(selectedWeek)) {
+        filteredWorkOrders.forEach(wo => {
+          if (!wo.scheduled_date) {
+            if (!groups['Unscheduled']) {
+              groups['Unscheduled'] = []
+            }
+            groups['Unscheduled'].push(wo)
+          }
+        })
+      }
+    }
+    
+    ordersToGroup.forEach(wo => {
+      if (wo.scheduled_date) {
+        const date = new Date(wo.scheduled_date)
+        const weekStart = startOfWeek(date, { weekStartsOn: 1 })
+        const weekEnd = endOfWeek(date, { weekStartsOn: 1 })
+        const weekKey = `${format(weekStart, 'MMM d')} - ${format(weekEnd, 'MMM d, yyyy')}`
+        
+        if (!groups[weekKey]) {
+          groups[weekKey] = []
+        }
+        groups[weekKey].push(wo)
+      }
+    })
+    
+    // Sort work orders within each week by scheduled date
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => {
+        if (!a.scheduled_date) return 1
+        if (!b.scheduled_date) return -1
+        return new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime()
+      })
+    })
+    
+    return groups
+  }, [filteredWorkOrders, weekFilteredWorkOrders, viewMode, selectedWeek, showAllJobs])
+  
+  // Group work orders by day for list view
+  const groupedByDay = useMemo(() => {
+    if (viewMode !== 'list') return {}
+    
+    const groups: { [key: string]: EnhancedWorkOrder[] } = {}
+    
+    const ordersToGroup = showAllJobs ? filteredWorkOrders : weekFilteredWorkOrders
+    
+    // Group by day
+    ordersToGroup.forEach(wo => {
+      if (!wo.scheduled_date) {
+        const key = 'Unscheduled'
+        if (!groups[key]) groups[key] = []
+        groups[key].push(wo)
+      } else {
+        const date = new Date(wo.scheduled_date)
+        const dayName = format(date, 'EEEE')
+        const dateStr = format(date, 'MMMM d, yyyy')
+        const key = `${dayName} - ${dateStr}`
+        if (!groups[key]) groups[key] = []
+        groups[key].push(wo)
+      }
+    })
+    
+    // Sort work orders within each day
+    Object.keys(groups).forEach(key => {
+      groups[key].sort((a, b) => {
+        if (!a.scheduled_date) return 1
+        if (!b.scheduled_date) return -1
+        return new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime()
+      })
+    })
+    
+    return groups
+  }, [filteredWorkOrders, weekFilteredWorkOrders, viewMode, showAllJobs])
 
   const handleScrape = () => {
     if (isAnyScraping) {
@@ -883,6 +1049,20 @@ const WorkOrders: React.FC = () => {
     )
   }
 
+  // Show loading state only on initial load, not during refetches
+  if (isLoading && !rawWorkOrders) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <AnimatedCard animate="bounce" hover="glow">
+          <CardContent className="p-8 text-center">
+            <DotsLoader size="lg" className="mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading work orders...</p>
+          </CardContent>
+        </AnimatedCard>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background relative">
       <div className="absolute inset-0 bg-grid-pattern opacity-5" />
@@ -898,10 +1078,20 @@ const WorkOrders: React.FC = () => {
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground animate-fade-in" style={{animationDelay: '0.4s'}}>
               <span className="inline-flex items-center gap-1">
-                <span className="number-display text-sm">{filteredWorkOrders.length}</span>
+                <span className="number-display text-sm">{viewMode === 'weekly' ? filteredWorkOrders.length : weekFilteredWorkOrders.length}</span>
                 <span>of</span>
                 <span className="number-display text-sm">{workOrders.length}</span>
                 <span>work orders</span>
+                {viewMode !== 'weekly' && !showAllJobs && (
+                  <span className="text-muted-foreground/70 ml-1">
+                    in {format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'MMM d')} - {format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'MMM d')}
+                  </span>
+                )}
+                {showAllJobs && viewMode !== 'weekly' && (
+                  <span className="text-muted-foreground/70 ml-1">
+                    (all weeks)
+                  </span>
+                )}
               </span>
               {workOrders.length > 0 && (
                 <span className="chip chip-primary">
@@ -912,7 +1102,7 @@ const WorkOrders: React.FC = () => {
           </div>
           
           <div className="flex gap-2 flex-wrap">
-            <DropdownMenu>
+            <DropdownMenu open={clearDataOpen} onOpenChange={setClearDataOpen}>
               <DropdownMenuTrigger asChild>
                 <AnimatedButton
                   disabled={clearAllMutation.isPending || workOrders.length === 0}
@@ -926,7 +1116,7 @@ const WorkOrders: React.FC = () => {
                   <ChevronDown className="w-4 h-4 ml-1" />
                 </AnimatedButton>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-48 z-50">
                 <DropdownMenuLabel>Clear Options</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
@@ -956,27 +1146,45 @@ const WorkOrders: React.FC = () => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <AnimatedButton
-              onClick={handleScrape}
-              disabled={scrapeMutation.isPending || scrapeStatus === 'scraping' || isAnyScraping}
-              size="lg"
-              animation="shimmer"
-              className="min-w-[180px]"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${scrapeStatus === 'scraping' ? 'animate-spin' : ''}`} />
-              {scrapeStatus === 'scraping' ? 'Scraping...' : 'Scrape Work Orders'}
-            </AnimatedButton>
-            <AnimatedButton
-              onClick={handleDispenserScrape}
-              disabled={dispenserScrapeMutation.isPending || dispenserScrapeStatus === 'scraping' || isAnyScraping}
-              size="lg"
-              variant="secondary"
-              animation="pulse"
-              className="min-w-[180px]"
-            >
-              <Fuel className={`w-4 h-4 mr-2 ${dispenserScrapeStatus === 'scraping' ? 'animate-spin' : ''}`} />
-              {dispenserScrapeStatus === 'scraping' ? 'Scraping Dispensers...' : 'Scrape Dispensers'}
-            </AnimatedButton>
+            <DropdownMenu open={scrapeDataOpen} onOpenChange={setScrapeDataOpen}>
+              <DropdownMenuTrigger asChild>
+                <AnimatedButton
+                  disabled={isAnyScraping}
+                  size="lg"
+                  variant="default"
+                  animation="shimmer"
+                  className="min-w-[180px]"
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isAnyScraping ? 'animate-spin' : ''}`} />
+                  {isAnyScraping ? 'Scraping...' : 'Scrape Data'}
+                  <ChevronDown className="w-4 h-4 ml-1" />
+                </AnimatedButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 z-50">
+                <DropdownMenuLabel>Scraping Options</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  onClick={handleScrape}
+                  disabled={scrapeMutation.isPending || scrapeStatus === 'scraping' || isAnyScraping}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Scrape Work Orders
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {workOrders.length} current
+                  </span>
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={handleDispenserScrape}
+                  disabled={dispenserScrapeMutation.isPending || dispenserScrapeStatus === 'scraping' || isAnyScraping}
+                >
+                  <Fuel className="w-4 h-4 mr-2" />
+                  Scrape All Dispensers
+                  <span className="ml-auto text-xs text-muted-foreground">
+                    {workOrders.filter(wo => !wo.dispensers || wo.dispensers.length === 0).length} pending
+                  </span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             
             {/* Batch Actions - hide in weekly view */}
             {selectedWorkOrders.size > 0 && viewMode !== 'weekly' && (
@@ -1409,7 +1617,7 @@ const WorkOrders: React.FC = () => {
         )}
 
         {/* Enhanced Filters */}
-        <GlowCard glowColor="rgba(59, 130, 246, 0.2)" className="animate-slide-in-from-left" style={{animationDelay: '0.2s'}}>
+        <GlowCard glowColor="rgba(59, 130, 246, 0.2)" className="animate-slide-in-from-left overflow-visible" style={{animationDelay: '0.2s'}}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Filter className="w-5 h-5 text-primary" />
@@ -1417,8 +1625,8 @@ const WorkOrders: React.FC = () => {
             </CardTitle>
             <CardDescription>Filter and search work orders by various criteria</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="overflow-visible">
+            <div className="space-y-4 overflow-visible">
               {/* Selection controls - hide in weekly view */}
               {filteredWorkOrders.length > 0 && viewMode !== 'weekly' && (
                 <div className="flex items-center gap-4 pb-2 border-b border-border/50">
@@ -1449,8 +1657,9 @@ const WorkOrders: React.FC = () => {
                 </div>
               )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="relative">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-visible">
+                {/* Search bar */}
+                <div className="relative md:col-span-2 lg:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input
                     type="text"
@@ -1460,67 +1669,326 @@ const WorkOrders: React.FC = () => {
                       setSearchTerm(e.target.value)
                       debouncedSearch(e.target.value)
                     }}
-                    className="pl-10 input-modern"
+                    className="pl-10 input-modern w-full"
                   />
                 </div>
 
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 input-modern"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="completed">Completed</option>
-                  <option value="failed">Failed</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
+                {/* Week Navigation - Show for all views */}
+                <div className="relative md:col-span-2 lg:col-span-1" ref={calendarRef}>
+                    <div className="flex items-center bg-background border border-input rounded-md h-10">
+                      <RippleButton
+                        onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
+                        size="sm"
+                        variant="ghost"
+                        className="h-full w-10 rounded-l-md rounded-r-none flex-shrink-0"
+                        disabled={showAllJobs && viewMode !== 'weekly'}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </RippleButton>
+                      
+                      <button
+                        onClick={() => setShowCalendar(!showCalendar)}
+                        className={cn(
+                          "flex items-center gap-2 px-3 h-full hover:bg-accent/50 transition-colors flex-1 min-w-0",
+                          showAllJobs && viewMode !== 'weekly' && "opacity-50 cursor-not-allowed hover:bg-transparent"
+                        )}
+                        disabled={showAllJobs && viewMode !== 'weekly'}
+                      >
+                        <Calendar className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm font-medium truncate">
+                          {showAllJobs && viewMode !== 'weekly' 
+                            ? 'All Weeks' 
+                            : `${format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'MMM d')} - ${format(endOfWeek(selectedWeek, { weekStartsOn: 1 }), 'MMM d')}`
+                          }
+                        </span>
+                      </button>
+                      
+                      <RippleButton
+                        onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
+                        size="sm"
+                        variant="ghost"
+                        className="h-full w-10 flex-shrink-0"
+                        disabled={showAllJobs && viewMode !== 'weekly'}
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </RippleButton>
+                      
+                      {!isThisWeek(selectedWeek) && !showAllJobs && (
+                        <RippleButton
+                          onClick={() => setSelectedWeek(new Date())}
+                          size="sm"
+                          variant="ghost"
+                          className="h-full px-3 rounded-l-none rounded-r-md border-l flex-shrink-0"
+                        >
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          <span className="hidden sm:inline">Today</span>
+                        </RippleButton>
+                      )}
+                    </div>
+                  </div>
 
-                <select
-                  value={brandFilter}
-                  onChange={(e) => setBrandFilter(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 input-modern"
-                >
-                  <option value="all">All Brands</option>
-                  {availableBrands.map(brand => (
-                    <option key={brand} value={brand}>{brand}</option>
-                  ))}
-                </select>
+                {/* Calendar Dropdown Portal */}
+                {showCalendar && calendarRef.current && createPortal(
+                  <div 
+                    className="fixed bg-background border border-border rounded-lg shadow-xl p-4 z-[9999] w-[400px] calendar-dropdown"
+                    style={{
+                      top: calendarRef.current.getBoundingClientRect().bottom + 8,
+                      left: calendarRef.current.getBoundingClientRect().left,
+                      pointerEvents: 'auto'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold text-sm">Select a date</h3>
+                        <button
+                          onClick={() => setShowCalendar(false)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      {/* Month/Year selector */}
+                      <div className="flex items-center justify-between mb-3">
+                        <button
+                          onClick={() => {
+                            const newDate = subWeeks(selectedWeek, 4)
+                            setSelectedWeek(newDate)
+                          }}
+                          className="p-2 hover:bg-accent rounded transition-colors"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        
+                        <span className="font-medium">
+                          {format(selectedWeek, 'MMMM yyyy')}
+                        </span>
+                        
+                        <button
+                          onClick={() => {
+                            const newDate = addWeeks(selectedWeek, 4)
+                            setSelectedWeek(newDate)
+                          }}
+                          className="p-2 hover:bg-accent rounded transition-colors"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                      
+                      {/* Work orders with dates */}
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground mb-2">Click a work order to jump to its week:</p>
+                        {workOrders
+                          .filter(wo => wo.scheduled_date)
+                          .sort((a, b) => new Date(a.scheduled_date!).getTime() - new Date(b.scheduled_date!).getTime())
+                          .map(wo => {
+                            const date = new Date(wo.scheduled_date!)
+                            const isInSelectedWeek = date >= startOfWeek(selectedWeek, { weekStartsOn: 1 }) && 
+                                                   date <= endOfWeek(selectedWeek, { weekStartsOn: 1 })
+                            
+                            // Get dispenser count from various sources
+                            const getDispenserCount = (): number | null => {
+                              // Direct dispenser array
+                              if (wo.dispensers && wo.dispensers.length > 0) {
+                                return wo.dispensers.length
+                              }
+                              
+                              // Extract from service items
+                              if (wo.service_items) {
+                                const items = Array.isArray(wo.service_items) 
+                                  ? wo.service_items 
+                                  : [wo.service_items]
+                                
+                                for (const item of items) {
+                                  const match = item.toString().match(/(\d+)\s*x\s*(All\s*)?Dispenser/i)
+                                  if (match) {
+                                    return parseInt(match[1], 10)
+                                  }
+                                }
+                              }
+                              
+                              return null
+                            }
+                            
+                            const dispenserCount = getDispenserCount()
+                            
+                            return (
+                              <button
+                                key={wo.id}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  // Prevent the calendar from closing before we process the click
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  
+                                  // Ensure we have a valid date object
+                                  const orderDate = new Date(wo.scheduled_date!)
+                                  // Set to the start of the week containing this date (Monday)
+                                  const weekStart = startOfWeek(orderDate, { weekStartsOn: 1 })
+                                  
+                                  // Update the selected week
+                                  setSelectedWeek(weekStart)
+                                  
+                                  // Close calendar after state update
+                                  setTimeout(() => {
+                                    setShowCalendar(false)
+                                  }, 50)
+                                  
+                                  // For weekly view, we need to ensure the week navigation happens first
+                                  if (viewMode === 'weekly') {
+                                    // Wait longer for weekly view to update
+                                    setTimeout(() => {
+                                      setHighlightedWorkOrderId(wo.id)
+                                      // Weekly view doesn't need scroll as cards are visible
+                                    }, 400)
+                                  } else {
+                                    // For grid/list views, highlight and scroll
+                                    setTimeout(() => {
+                                      setHighlightedWorkOrderId(wo.id)
+                                      
+                                      // Scroll to the highlighted work order after highlighting is set
+                                      setTimeout(() => {
+                                        const element = document.getElementById(`work-order-${wo.id}`)
+                                        if (element) {
+                                          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                        }
+                                      }, 100)
+                                    }, 300)
+                                  }
+                                  
+                                  // Clear highlight after 3 seconds
+                                  setTimeout(() => {
+                                    setHighlightedWorkOrderId(null)
+                                  }, 3500)
+                                }}
+                                className={cn(
+                                  "w-full text-left p-3 rounded hover:bg-accent/50 transition-colors",
+                                  isInSelectedWeek && "bg-accent/30",
+                                  highlightedWorkOrderId === wo.id && "ring-2 ring-primary"
+                                )}
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <div className="font-medium text-sm">{cleanSiteName(wo.site_name)}</div>
+                                    <div className="text-xs text-muted-foreground whitespace-nowrap">
+                                      {format(date, 'EEE, MMM d')}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {wo.store_number && (
+                                      <Badge 
+                                        variant="secondary" 
+                                        className={`text-xs px-2 py-0.5 ${getBrandBadgeStyle(wo.site_name)}`}
+                                      >
+                                        <Hash className="w-3 h-3 mr-1" />
+                                        {wo.store_number.replace(/^#/, '')}
+                                      </Badge>
+                                    )}
+                                    {wo.visit_number && (
+                                      <Badge 
+                                        variant="secondary" 
+                                        className={`text-xs px-2 py-0.5 ${getBrandBadgeStyle(wo.site_name)}`}
+                                      >
+                                        <Wrench className="w-3 h-3 mr-1" />
+                                        Visit {wo.visit_number}
+                                      </Badge>
+                                    )}
+                                    {dispenserCount && dispenserCount > 0 && (
+                                      <Badge 
+                                        variant="secondary" 
+                                        className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 font-medium"
+                                      >
+                                        <Fuel className="w-3 h-3 mr-1" />
+                                        {dispenserCount}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            )
+                          })}
+                      </div>
+                      
+                      <div className="pt-2 border-t">
+                        <Button
+                          onClick={() => {
+                            setSelectedWeek(new Date())
+                            setShowCalendar(false)
+                          }}
+                          size="sm"
+                          variant="outline"
+                          className="w-full"
+                        >
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          Go to Current Week
+                        </Button>
+                      </div>
+                    </div>
+                  </div>,
+                  document.body
+                )}
 
-                <div className="flex border border-border rounded-lg overflow-hidden glass">
-                  <MagneticButton
-                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('grid')}
-                    className="rounded-none flex-1"
-                    strength={0.1}
+                {/* Store Filter */}
+                <div className="md:col-span-1">
+                  <select
+                    value={brandFilter}
+                    onChange={(e) => setBrandFilter(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 input-modern"
                   >
-                    <LayoutGrid className="w-4 h-4 mr-1" />
-                    Grid
-                  </MagneticButton>
-                  <MagneticButton
-                    variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className="rounded-none flex-1"
-                    strength={0.1}
-                  >
-                    <List className="w-4 h-4 mr-1" />
-                    List
-                  </MagneticButton>
-                  <MagneticButton
-                    variant={viewMode === 'weekly' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('weekly')}
-                    className="rounded-none flex-1"
-                    strength={0.1}
-                  >
-                    <CalendarDays className="w-4 h-4 mr-1" />
-                    Week
-                  </MagneticButton>
+                    <option value="all">All Stores</option>
+                    {availableBrands.map(brand => (
+                      <option key={brand} value={brand}>{brand}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* View Mode Switcher */}
+                <div className="md:col-span-1">
+                  <div className="flex border border-border rounded-lg overflow-hidden glass h-10">
+                    <MagneticButton
+                      variant={viewMode === 'list' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('list')}
+                      className="rounded-none flex-1 h-full"
+                      strength={0.1}
+                    >
+                      <List className="w-4 h-4 mr-1" />
+                      <span className="hidden sm:inline">List</span>
+                    </MagneticButton>
+                    <MagneticButton
+                      variant={viewMode === 'weekly' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('weekly')}
+                      className="rounded-none flex-1 h-full"
+                      strength={0.1}
+                    >
+                      <CalendarDays className="w-4 h-4 mr-1" />
+                      <span className="hidden sm:inline">Week</span>
+                    </MagneticButton>
+                  </div>
                 </div>
               </div>
+              
+              {/* Show All Jobs Toggle */}
+              <div className="flex items-center gap-2 mt-4">
+                <button
+                  onClick={() => setShowAllJobs(!showAllJobs)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer rounded hover:bg-accent/50"
+                >
+                    {showAllJobs ? (
+                      <CheckSquare className="w-4 h-4 text-primary" />
+                    ) : (
+                      <Square className="w-4 h-4" />
+                    )}
+                    Show all jobs
+                  </button>
+                  {showAllJobs && (
+                    <span className="text-xs text-muted-foreground">
+                      (Week separators will be shown)
+                    </span>
+                  )}
+                </div>
             </div>
           </CardContent>
         </GlowCard>
@@ -1537,6 +2005,10 @@ const WorkOrders: React.FC = () => {
             <WorkOrderWeeklyView 
               workOrders={filteredWorkOrders}
               workDays={workDays}
+              selectedWeek={selectedWeek}
+              onWeekChange={setSelectedWeek}
+              highlightedWorkOrderId={highlightedWorkOrderId}
+              showAllJobs={showAllJobs}
               onWorkOrderClick={(workOrder) => {
                 console.log('Work order clicked:', workOrder)
                 // You can add additional click handling here if needed
@@ -1551,9 +2023,91 @@ const WorkOrders: React.FC = () => {
               }}
             />
           ) : (
-          <div className={viewMode === 'grid' ? 'work-orders-grid grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6' : 'work-orders-list space-y-4'}>
-            {filteredWorkOrders.map((workOrder, index) => (
-              <div key={workOrder.id} className="relative">
+          <div className="space-y-8">
+            {Object.entries(viewMode === 'list' ? groupedByDay : groupedByWeek).map(([groupLabel, groupOrders]) => (
+              <div key={groupLabel} className="space-y-4">
+                {/* Enhanced Group Header */}
+                <div className="relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent" />
+                  <div className="relative flex items-center gap-4 p-4 rounded-lg bg-card/50 backdrop-blur-sm border border-border/50">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <CalendarDays className="w-5 h-5 text-primary" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold">
+                        {groupLabel === 'Unscheduled' ? (
+                          <span className="text-muted-foreground">Unscheduled Orders</span>
+                        ) : (
+                          groupLabel
+                        )}
+                      </h3>
+                      {viewMode !== 'list' && groupLabel !== 'Unscheduled' && (
+                        <p className="text-sm text-muted-foreground">
+                          {groupOrders.filter(wo => wo.scheduled_date).length > 0 && 
+                            `${format(new Date(groupOrders[0].scheduled_date!), 'EEEE')} - ${format(new Date(groupOrders[groupOrders.length - 1].scheduled_date!), 'EEEE')}`
+                          }
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="bg-secondary/50">
+                        <Wrench className="w-3 h-3 mr-1" />
+                        {groupOrders.length} {groupOrders.length === 1 ? 'job' : 'jobs'}
+                      </Badge>
+                      {groupOrders.some(wo => wo.dispensers && wo.dispensers.length > 0) && (
+                        <Badge variant="outline" className="border-blue-500/50 text-blue-600 dark:text-blue-400">
+                          <Fuel className="w-3 h-3 mr-1" />
+                          {groupOrders.reduce((sum, wo) => sum + (wo.dispensers?.length || 0), 0)} dispensers
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Work Orders for this group */}
+                <div className={viewMode === 'list' ? "relative" : "space-y-4"}>
+                  {groupOrders.map((workOrder, index) => (
+              <div key={workOrder.id} id={`work-order-${workOrder.id}`} className={cn(
+                "relative",
+                viewMode === 'list' ? "ml-8" : "",
+                viewMode === 'list' && index < groupOrders.length - 1 && "mb-6"
+              )}>
+                {/* Same Day badge centered on the line in the gap */}
+                {viewMode === 'list' && groupOrders.length > 1 && index === 0 && (
+                  <div className="absolute -left-8 -bottom-3 translate-y-1/2 z-20 flex">
+                    <div className="relative left-[1px] -translate-x-1/2">
+                      <div className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                        Same Day
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Connection bracket for list view */}
+                {viewMode === 'list' && groupOrders.length > 1 && (
+                  <>
+                    <div className="absolute -left-8 top-0 bottom-0 w-8 flex items-center">
+                      {/* Top curve for first item */}
+                      {index === 0 && (
+                        <div className="absolute left-0 top-1/2 w-full h-1/2 border-l-2 border-t-2 border-primary/40 rounded-tl-xl" />
+                      )}
+                      {/* Middle connection */}
+                      {index > 0 && index < groupOrders.length - 1 && (
+                        <div className="absolute left-0 top-0 w-full h-full border-l-2 border-primary/40" />
+                      )}
+                      {/* Bottom curve for last item */}
+                      {index === groupOrders.length - 1 && (
+                        <div className="absolute left-0 top-0 w-full h-1/2 border-l-2 border-b-2 border-primary/40 rounded-bl-xl" />
+                      )}
+                      {/* Horizontal connector line */}
+                      <div className="absolute left-0 top-1/2 w-full h-0.5 bg-primary/40" />
+                      {/* Connection dot */}
+                      <div className="absolute right-0 top-1/2 w-2 h-2 bg-primary rounded-full -translate-y-1/2 translate-x-1/2" />
+                    </div>
+                    
+                  </>
+                )}
+                
                 {/* Selection Checkbox - Outside the card */}
                 <button
                   type="button"
@@ -1575,54 +2129,71 @@ const WorkOrders: React.FC = () => {
                 </button>
                 
                 <AnimatedCard 
-                  className={`${getBrandStyling(workOrder.site_name)} card-hover glass-dark`}
+                  className={cn(
+                    getBrandStyling(workOrder.site_name),
+                    "card-hover glass-dark transition-all duration-300 h-full flex flex-col",
+                    highlightedWorkOrderId === workOrder.id && "ring-4 ring-primary ring-opacity-60 shadow-lg shadow-primary/20 scale-[1.02]",
+                    viewMode === 'list' && groupOrders.length > 1 && "border-l-4 border-l-primary/50"
+                  )}
                   hover="lift"
                   animate="slide"
                   delay={index * 0.1}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
-                      <div className="flex items-start gap-3 pl-10">
-                        <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <CardTitle className="text-lg leading-none break-words min-w-0">
+                      <div className="flex items-start gap-3 pl-10 flex-1 min-w-0">
+                        <div className="flex-1 min-w-0">
+                          {viewMode === 'list' && groupOrders.length > 1 && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                                <CalendarDays className="w-3 h-3 mr-1" />
+                                {index + 1} of {groupOrders.length} on this day
+                              </Badge>
+                            </div>
+                          )}
+                          <CardTitle className="text-lg font-semibold leading-tight break-words mb-2">
                             <AnimatedText 
                               text={getCleanStoreName(workOrder.site_name)} 
                               animationType="fade"
                             />
                           </CardTitle>
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {(workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id) && (
-                            <Badge variant="default" className="text-xs bg-blue-600 text-white dark:bg-blue-500 shadow-sm">
-                              <span className="text-xs opacity-90">Visit:</span> {workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id}
-                            </Badge>
-                          )}
-                          {workOrder.store_number && (
-                            <Badge variant="secondary" className="text-xs bg-green-600 text-white dark:bg-green-500 shadow-sm">
-                              <span className="text-xs opacity-90">Store:</span> {workOrder.store_number}
-                            </Badge>
-                          )}
+                          <div className="flex flex-wrap gap-2">
+                            {(workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id) && (
+                              <Badge variant="default" className="text-xs px-2 py-0.5 bg-blue-600 text-white dark:bg-blue-500">
+                                Visit #{workOrder.visit_number || workOrder.visit_id || workOrder.scraped_data?.visit_info?.visit_id}
+                              </Badge>
+                            )}
+                            {workOrder.store_number && (
+                              <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-green-600 text-white dark:bg-green-500">
+                                Store #{workOrder.store_number.replace(/^#/, '')}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </CardHeader>
+                  </CardHeader>
 
-                <CardContent className="pt-0 space-y-4">
-                  {/* Scheduled Date and Dispensers */}
-                  <div className="flex flex-wrap items-center gap-4 animate-slide-in-from-left" style={{animationDelay: '0.4s'}}>
+                <CardContent className="pt-0 space-y-3">
+                  {/* Scheduled Date and Dispensers Row */}
+                  <div className="flex items-center justify-between gap-2">
                     {workOrder.scheduled_date && (
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-primary" />
-                        <p className="text-sm font-medium">
-                          Scheduled: {new Date(workOrder.scheduled_date).toLocaleDateString()}
-                        </p>
+                        <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-primary">
+                            {new Date(workOrder.scheduled_date).toLocaleDateString('en-US', { weekday: 'long' })}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(workOrder.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </div>
                       </div>
                     )}
                     {(() => {
-                      // Extract dispenser count from service items
                       let dispenserCount = 0;
+                      
+                      // First try to get from service_items
                       if (workOrder.service_items) {
                         const items = Array.isArray(workOrder.service_items) 
                           ? workOrder.service_items 
@@ -1637,22 +2208,28 @@ const WorkOrders: React.FC = () => {
                         }
                       }
                       
+                      // Fallback to dispensers array if available
+                      if (dispenserCount === 0 && workOrder.dispensers && workOrder.dispensers.length > 0) {
+                        dispenserCount = workOrder.dispensers.length;
+                      }
+                      
                       if (dispenserCount > 0) {
                         return (
-                          <div className="flex items-center gap-2">
-                            <Fuel className="w-4 h-4 text-muted-foreground" />
-                            <p className="text-sm">
-                              <span className="font-medium">Dispensers:</span> {dispenserCount}
-                            </p>
-                          </div>
+                          <Badge 
+                            variant="secondary" 
+                            className="text-xs px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700 font-medium"
+                          >
+                            <Fuel className="w-3 h-3 mr-1" />
+                            {dispenserCount}
+                          </Badge>
                         );
                       }
                       return null;
                     })()}
                   </div>
 
-                  {/* Enhanced Location */}
-                  <div className="space-y-2 animate-slide-in-from-left" style={{animationDelay: '0.5s'}}>
+                  {/* Location */}
+                  <div className="space-y-1">
                     <div className="flex items-start gap-2">
                       <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                       <a 
@@ -1728,63 +2305,34 @@ const WorkOrders: React.FC = () => {
                             window.open(`https://maps.google.com/maps?q=${address}`, '_blank');
                           }
                         }}
-                        className="text-sm text-muted-foreground space-y-1 hover:text-blue-600 dark:hover:text-blue-400 transition-colors block no-underline hover:underline"
+                        className="text-sm text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors block flex-1"
                         title="Click to open in maps"
                       >
                         {(() => {
-                          // Check multiple sources for address data
-                          const hasAddressComponents = workOrder.scraped_data?.address_components && 
-                            (workOrder.scraped_data.address_components.street || 
-                             workOrder.scraped_data.address_components.cityState);
-                          
-                          if (hasAddressComponents) {
+                          // Show full address with proper formatting
+                          if (workOrder.scraped_data?.address_components) {
+                            const { street, cityState, county } = workOrder.scraped_data.address_components;
                             return (
-                              <div className="space-y-1">
-                                {workOrder.scraped_data.address_components.street && (
-                                  <div className="font-medium leading-tight">{workOrder.scraped_data.address_components.street}</div>
-                                )}
-                                {workOrder.scraped_data.address_components.intersection && (
-                                  <div className="text-xs text-muted-foreground/70 leading-tight">
-                                    Near {workOrder.scraped_data.address_components.intersection}
-                                  </div>
-                                )}
-                                {workOrder.scraped_data.address_components.cityState && (
-                                  <div className="leading-tight">{workOrder.scraped_data.address_components.cityState}</div>
-                                )}
-                                {workOrder.scraped_data.address_components.county && (
-                                  <div className="text-xs text-muted-foreground/70 leading-tight">
-                                    {workOrder.scraped_data.address_components.county}
-                                  </div>
-                                )}
+                              <div className="space-y-0.5">
+                                {street && <div className="font-medium">{street}</div>}
+                                {cityState && <div>{cityState}</div>}
+                                {county && <div className="text-xs text-muted-foreground">{county}</div>}
                               </div>
                             );
                           }
                           
-                          // Fallback to formatted address with better line breaks
-                          if (workOrder.address) {
+                          if (workOrder.address && workOrder.address !== 'Address not available') {
+                            const parts = workOrder.address.split(',').map(p => p.trim());
                             return (
-                              <div className="space-y-1">
-                                {(() => {
-                                  // Split address by common delimiters and display as separate lines
-                                  const addressParts = workOrder.address.split(/,(?=\s)/).map(part => part.trim()).filter(Boolean);
-                                  
-                                  if (addressParts.length > 1) {
-                                    return addressParts.map((part, index) => (
-                                      <div key={index} className={`leading-tight ${index === 0 ? 'font-medium' : ''}`}>
-                                        {part}
-                                      </div>
-                                    ));
-                                  } else {
-                                    // Single line address
-                                    return <div className="leading-tight">{workOrder.address}</div>;
-                                  }
-                                })()}
+                              <div className="space-y-0.5">
+                                {parts.map((part, idx) => (
+                                  <div key={idx} className={idx === 0 ? "font-medium" : ""}>{part}</div>
+                                ))}
                               </div>
                             );
                           }
                           
-                          // Last resort - show placeholder
-                          return <div className="text-muted-foreground/50 italic">Address not available</div>;
+                          return <span className="italic text-muted-foreground">Address not available</span>;
                         })()}
                       </a>
                     </div>
@@ -1792,9 +2340,10 @@ const WorkOrders: React.FC = () => {
 
                   {/* Collapsible Instructions */}
                   {workOrder.instructions && (
-                    <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800 animate-slide-in-from-left" style={{animationDelay: '0.6s'}}>
+                    <div className="bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           const newExpanded = new Set(expandedInstructions)
                           if (newExpanded.has(workOrder.id)) {
                             newExpanded.delete(workOrder.id)
@@ -1809,7 +2358,7 @@ const WorkOrders: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
                             <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                              ⚠️ Instructions
+                              Instructions
                             </h4>
                           </div>
                           {expandedInstructions.has(workOrder.id) ? (
@@ -1820,8 +2369,8 @@ const WorkOrders: React.FC = () => {
                         </div>
                       </button>
                       {expandedInstructions.has(workOrder.id) && (
-                        <div className="px-3 pb-3">
-                          <p className="text-sm text-amber-700 dark:text-amber-300">
+                        <div className="px-3 pb-3 -mt-1">
+                          <p className="text-sm text-amber-700 dark:text-amber-300 whitespace-pre-wrap">
                             {workOrder.instructions}
                           </p>
                         </div>
@@ -1831,21 +2380,19 @@ const WorkOrders: React.FC = () => {
 
 
                   {/* Action Toolbar */}
-                  <div className="flex gap-2 flex-wrap animate-fade-in" style={{animationDelay: '0.8s'}}>
+                  <div className="flex gap-2 mt-auto pt-3 border-t">
                     {workOrder.visit_url && (
                       <RippleButton 
-                        variant="default" 
+                        variant="ghost" 
                         size="sm"
                         onClick={() => handleOpenVisit(workOrder)}
-                        className="btn-modern"
-                        title="Open Visit in Browser"
+                        title="Open Visit"
                       >
-                        <Eye className="w-4 h-4 mr-1" />
-                        Open Visit
+                        <Eye className="w-4 h-4" />
                       </RippleButton>
                     )}
                     <RippleButton
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => {
                         console.log('Opening dispenser modal for work order:', workOrder)
@@ -1853,50 +2400,39 @@ const WorkOrders: React.FC = () => {
                         setSelectedWorkOrderForModal(workOrder)
                         setShowDispenserModal(true)
                       }}
-                      className="btn-modern"
-                      title="View Dispenser Information"
+                      title="View Dispensers"
                     >
-                      <Fuel className="w-4 h-4 mr-1" />
-                      Dispensers
+                      <Fuel className="w-4 h-4" />
                     </RippleButton>
+                    {workOrder.customer_url && !workOrder.dispensers?.length && (
+                      <RippleButton
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleScrapeDispensers(workOrder, e)}
+                        title="Scrape Dispensers"
+                        disabled={isAnyScraping}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                      </RippleButton>
+                    )}
                     <RippleButton
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => handleScrapeDispensers(workOrder, e)}
-                      className="btn-modern border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950"
-                      title="Scrape Dispensers for This Work Order"
-                      disabled={dispenserScrapeStatus === 'scraping'}
-                    >
-                      <Download className="w-4 h-4 mr-1" />
-                      Scrape
-                    </RippleButton>
-                    <RippleButton
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleClearDispensers(workOrder)}
-                      className="btn-modern border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
-                      title="Clear Dispensers for This Work Order"
-                      disabled={dispenserScrapeStatus === 'scraping'}
-                    >
-                      <Eraser className="w-4 h-4 mr-1" />
-                      Clear
-                    </RippleButton>
-                    <RippleButton
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={() => {
                         setSelectedWorkOrderForDebug(workOrder)
                         setShowDebugModal(true)
                       }}
-                      className="btn-modern border-orange-200 text-orange-600 hover:bg-orange-50 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950"
-                      title="Debug: View All Scraped Data"
+                      className="ml-auto"
+                      title="Debug"
                     >
-                      <Bug className="w-4 h-4 mr-1" />
-                      Debug
+                      <Bug className="w-4 h-4" />
                     </RippleButton>
                   </div>
                 </CardContent>
               </AnimatedCard>
+              </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
