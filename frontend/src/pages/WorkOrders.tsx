@@ -36,7 +36,6 @@ import WorkOrderWeeklyView from '../components/WorkOrderWeeklyView'
 import InstructionSummary from '../components/InstructionSummary'
 import { hasImportantInfo } from '../utils/instructionParser'
 import BackToTop from '../components/BackToTop'
-import BackToTopVisible from '../components/BackToTopVisible'
 
 // Enhanced work order interface with V1 compatibility
 interface EnhancedWorkOrder {
@@ -2601,7 +2600,6 @@ const WorkOrders: React.FC = () => {
       
       {/* Back to Top Button - Moved outside container */}
       <BackToTop />
-      <BackToTopVisible />
     </div>
   )
 }

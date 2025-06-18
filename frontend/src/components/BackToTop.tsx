@@ -13,18 +13,46 @@ export const BackToTop: React.FC<BackToTopProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [scrollProgress, setScrollProgress] = useState(0)
+  const [scrollContainer, setScrollContainer] = useState<Element | null>(null)
 
   useEffect(() => {
-    const handleScroll = () => {
-      // Calculate scroll position - use multiple methods for compatibility
-      const scrollTop = window.pageYOffset || 
-                       document.documentElement.scrollTop || 
-                       document.body.scrollTop || 
-                       0
+    let container: Element | null = null
+    
+    const findScrollContainer = () => {
+      // Find the container that's actually scrolling
+      const containers = document.querySelectorAll('.overflow-y-auto, .overflow-y-scroll')
+      for (const el of containers) {
+        if (el.scrollHeight > el.clientHeight) {
+          container = el
+          setScrollContainer(el)
+          return el
+        }
+      }
+      return null
+    }
+    
+    const handleScroll = (event?: Event) => {
+      let scrollTop = 0
+      let scrollHeight = 0
+      let clientHeight = 0
       
-      const scrollHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight
-      const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0
-
+      if (container) {
+        // Container scrolling
+        scrollTop = container.scrollTop
+        scrollHeight = container.scrollHeight
+        clientHeight = container.clientHeight
+      } else {
+        // Window scrolling fallback
+        scrollTop = window.pageYOffset || 
+                   document.documentElement.scrollTop || 
+                   document.body.scrollTop || 
+                   0
+        scrollHeight = document.documentElement.scrollHeight
+        clientHeight = document.documentElement.clientHeight
+      }
+      
+      const maxScroll = scrollHeight - clientHeight
+      const progress = maxScroll > 0 ? (scrollTop / maxScroll) * 100 : 0
 
       // Update visibility
       setIsVisible(scrollTop > showAfter)
@@ -33,49 +61,102 @@ export const BackToTop: React.FC<BackToTopProps> = ({
       setScrollProgress(progress)
     }
 
-    // Add scroll listener to window and document for better compatibility
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    document.addEventListener('scroll', handleScroll, { passive: true })
+    // Find and attach to scroll container
+    container = findScrollContainer()
+    
+    if (container) {
+      container.addEventListener('scroll', handleScroll, { passive: true })
+    } else {
+      // Fallback to window scroll
+      window.addEventListener('scroll', handleScroll, { passive: true })
+      document.addEventListener('scroll', handleScroll, { passive: true })
+    }
     
     // Check initial state
     handleScroll()
+    
+    // Re-check for container after a delay
+    setTimeout(() => {
+      if (!container) {
+        container = findScrollContainer()
+        if (container) {
+          container.addEventListener('scroll', handleScroll, { passive: true })
+          handleScroll()
+        }
+      }
+    }, 500)
 
     return () => {
-      window.removeEventListener('scroll', handleScroll)
-      document.removeEventListener('scroll', handleScroll)
+      if (container) {
+        container.removeEventListener('scroll', handleScroll)
+      } else {
+        window.removeEventListener('scroll', handleScroll)
+        document.removeEventListener('scroll', handleScroll)
+      }
     }
   }, [showAfter])
 
   const scrollToTop = () => {
-    // Try multiple methods to ensure scrolling works
-    const scrollElement = document.documentElement || document.body
+    console.log('BackToTop clicked! Scroll container:', scrollContainer)
     
-    // Method 1: Standard window.scrollTo
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    })
-    
-    // Method 2: Fallback for older browsers or specific scroll containers
-    scrollElement.scrollTop = 0
+    if (scrollContainer) {
+      // Scroll the container
+      scrollContainer.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      })
+      
+      // Fallback for browsers that don't support smooth scrolling
+      setTimeout(() => {
+        if (scrollContainer.scrollTop > 0) {
+          scrollContainer.scrollTop = 0
+        }
+      }, 100)
+    } else {
+      // Fallback to window scrolling
+      try {
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth'
+        })
+        
+        setTimeout(() => {
+          if (window.scrollY > 0) {
+            window.scrollTo(0, 0)
+            document.documentElement.scrollTop = 0
+            document.body.scrollTop = 0
+          }
+        }, 100)
+      } catch (error) {
+        console.error('Error scrolling to top:', error)
+        document.documentElement.scrollTop = 0
+        document.body.scrollTop = 0
+      }
+    }
   }
 
   return (
     <button
       onClick={scrollToTop}
-      className={cn(
-        "fixed z-50 group",
-        // Responsive positioning - closer to edge on mobile
-        "bottom-4 right-4 md:bottom-8 md:right-8",
-        // Base styles
-        "p-3 md:p-4 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white",
-        "shadow-lg hover:shadow-2xl hover:scale-110 active:scale-95",
-        "transition-all duration-300 ease-in-out",
-        "backdrop-blur-sm border-2 border-white/20",
-        // Visibility transitions
-        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none",
-        className
-      )}
+      style={{
+        position: 'fixed',
+        bottom: '40px',
+        right: '40px',
+        zIndex: 99999,
+        padding: '16px',
+        borderRadius: '50%',
+        backgroundColor: isVisible ? '#3B82F6' : 'transparent',
+        color: 'white',
+        border: '2px solid rgba(255, 255, 255, 0.2)',
+        cursor: 'pointer',
+        boxShadow: isVisible ? '0 10px 15px -3px rgba(0, 0, 0, 0.1)' : 'none',
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translateY(0)' : 'translateY(10px)',
+        pointerEvents: isVisible ? 'auto' : 'none',
+        transition: 'all 0.3s ease-in-out',
+        backdropFilter: 'blur(8px)'
+      }}
+      className={className}
       aria-label="Back to top"
       title="Back to top"
     >
