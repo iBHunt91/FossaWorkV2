@@ -870,6 +870,7 @@ async def update_work_order_status(
 async def scrape_dispensers(
     work_order_id: str,
     user_id: str = Query(..., description="User ID to verify ownership"),
+    force_refresh: bool = Query(False, description="Force re-scrape even if dispensers exist"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_auth)
@@ -884,6 +885,22 @@ async def scrape_dispensers(
         
         if not work_order:
             raise HTTPException(status_code=404, detail="Work order not found")
+        
+        # Check if dispensers already exist (unless force_refresh is True)
+        if not force_refresh:
+            existing_dispensers = db.query(Dispenser).filter(
+                Dispenser.work_order_id == work_order_id
+            ).count()
+            
+            if existing_dispensers > 0:
+                logger.info(f"Skipping dispenser scrape for {work_order.external_id} - already has {existing_dispensers} dispensers")
+                return {
+                    "status": "skipped",
+                    "message": f"Work order {work_order.external_id} already has {existing_dispensers} dispensers. Use force_refresh=true to re-scrape.",
+                    "work_order_id": work_order_id,
+                    "dispenser_count": existing_dispensers,
+                    "timestamp": datetime.now().isoformat()
+                }
         
         # Get user credentials
         from ..models.user_models import UserCredential
@@ -1218,6 +1235,7 @@ async def get_single_dispenser_scraping_progress(
 async def scrape_dispensers_batch(
     user_id: str = Query(..., description="User ID to scrape dispensers for"),
     work_order_ids: List[str] = Query(None, description="Optional list of specific work order IDs to scrape"),
+    force_refresh: bool = Query(False, description="Force re-scrape even if dispensers exist"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db)
 ):
@@ -1281,13 +1299,41 @@ async def scrape_dispensers_batch(
                 "timestamp": datetime.now().isoformat()
             }
         
+        # Filter out work orders that already have dispensers (unless force_refresh is True)
+        work_orders_to_process = []
+        skipped_count = 0
+        
+        if not force_refresh:
+            for work_order in work_orders:
+                existing_dispensers = db.query(Dispenser).filter(
+                    Dispenser.work_order_id == work_order.id
+                ).count()
+                
+                if existing_dispensers > 0:
+                    logger.info(f"Skipping {work_order.external_id} - already has {existing_dispensers} dispensers")
+                    skipped_count += 1
+                else:
+                    work_orders_to_process.append(work_order)
+        else:
+            work_orders_to_process = work_orders
+        
+        if not work_orders_to_process:
+            return {
+                "status": "all_skipped",
+                "message": f"All {len(work_orders)} work orders already have dispensers. Use force_refresh=true to re-scrape.",
+                "total_work_orders": len(work_orders),
+                "skipped_count": skipped_count,
+                "timestamp": datetime.now().isoformat()
+            }
+        
         # Initialize progress tracking
         scraping_progress[f"dispensers_{user_id}"] = {
             "status": "in_progress",
             "phase": "initializing",
             "percentage": 0,
             "message": "Starting batch dispenser scraping...",
-            "total_work_orders": len(work_orders),
+            "total_work_orders": len(work_orders_to_process),
+            "skipped_work_orders": skipped_count,
             "processed": 0,
             "successful": 0,
             "failed": 0,
@@ -1299,7 +1345,7 @@ async def scrape_dispensers_batch(
         # Extract work order data before passing to background task
         # We can't pass ORM objects across sessions
         work_order_data = []
-        for wo in work_orders:
+        for wo in work_orders_to_process:
             work_order_data.append({
                 "id": wo.id,
                 "external_id": wo.external_id,
@@ -1318,8 +1364,9 @@ async def scrape_dispensers_batch(
         
         return {
             "status": "scraping_started",
-            "message": f"Batch dispenser scraping initiated for {len(work_orders)} work orders",
-            "work_order_count": len(work_orders),
+            "message": f"Batch dispenser scraping initiated for {len(work_orders_to_process)} work orders" + (f" ({skipped_count} skipped)" if skipped_count > 0 else ""),
+            "work_order_count": len(work_orders_to_process),
+            "skipped_count": skipped_count,
             "timestamp": datetime.now().isoformat()
         }
         

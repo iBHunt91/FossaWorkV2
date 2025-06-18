@@ -228,12 +228,15 @@ export const getScrapingProgress = async (userId: string): Promise<any> => {
   return response.data
 }
 
-export const triggerBatchDispenserScrape = async (userId: string, workOrderIds?: string[]): Promise<any> => {
+export const triggerBatchDispenserScrape = async (userId: string, workOrderIds?: string[], forceRefresh?: boolean): Promise<any> => {
   let url = `/api/v1/work-orders/scrape-dispensers-batch?user_id=${userId}`
   if (workOrderIds && workOrderIds.length > 0) {
     // Add work order IDs as query parameters
     const idsParams = workOrderIds.map(id => `work_order_ids=${encodeURIComponent(id)}`).join('&')
     url += `&${idsParams}`
+  }
+  if (forceRefresh) {
+    url += `&force_refresh=true`
   }
   const response = await apiClient.post(url)
   return response.data
@@ -250,8 +253,12 @@ export const deleteWorkOrder = async (workOrderId: string, userId: string): Prom
 }
 
 // Scrape dispensers for a specific work order
-export const scrapeDispensersForWorkOrder = async (workOrderId: string, userId: string): Promise<any> => {
-  const response = await apiClient.post(`/api/v1/work-orders/${workOrderId}/scrape-dispensers?user_id=${userId}`, {}, {
+export const scrapeDispensersForWorkOrder = async (workOrderId: string, userId: string, forceRefresh?: boolean): Promise<any> => {
+  let url = `/api/v1/work-orders/${workOrderId}/scrape-dispensers?user_id=${userId}`
+  if (forceRefresh) {
+    url += `&force_refresh=true`
+  }
+  const response = await apiClient.post(url, {}, {
     timeout: 60000 // 1 minute timeout
   })
   return response.data

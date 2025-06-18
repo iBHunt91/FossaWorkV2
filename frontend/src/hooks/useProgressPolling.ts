@@ -66,7 +66,9 @@ export const useProgressPolling = <T = any>(
       // Check if polling should stop based on result
       if (result && typeof result === 'object') {
         const status = (result as any).status
-        if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+        // Stop polling for terminal states or when progress is not found
+        if (status === 'completed' || status === 'failed' || status === 'cancelled' || 
+            status === 'not_found' || status === 'idle') {
           stopPolling()
           if (onCompleteRef.current) {
             onCompleteRef.current()
@@ -165,6 +167,10 @@ export const useDispenserScrapingProgress = (userId: string, isActive: boolean) 
     )
     
     if (!response.ok) {
+      // If 404, return a not_found status instead of throwing
+      if (response.status === 404) {
+        return { status: 'not_found', message: 'No active scraping session' }
+      }
       throw new Error(`Progress fetch failed: ${response.status}`)
     }
     
@@ -194,6 +200,10 @@ export const useSingleDispenserProgress = (userId: string, workOrderId: string |
     )
     
     if (!response.ok) {
+      // If 404, return a not_found status instead of throwing
+      if (response.status === 404) {
+        return { status: 'not_found', message: 'No active scraping session for this work order' }
+      }
       throw new Error(`Progress fetch failed: ${response.status}`)
     }
     

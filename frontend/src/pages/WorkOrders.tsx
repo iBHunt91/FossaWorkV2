@@ -98,6 +98,7 @@ const WorkOrders: React.FC = () => {
   const [highlightedWorkOrderId, setHighlightedWorkOrderId] = useState<string | null>(null)
   const [showCalendar, setShowCalendar] = useState(false)
   const [showAllJobs, setShowAllJobs] = useState(false)
+  const [forceRefreshDispensers, setForceRefreshDispensers] = useState(false)
   const calendarRef = useRef<HTMLDivElement>(null)
   const [scrapeStatus, setScrapeStatus] = useState<'idle' | 'scraping' | 'success' | 'error'>('idle')
   const [scrapeMessage, setScrapeMessage] = useState('')
@@ -244,23 +245,34 @@ const WorkOrders: React.FC = () => {
     if (dispenserProgress) {
       setDispenserScrapingProgress(dispenserProgress)
       
-      if (dispenserProgress.status === 'completed' || dispenserProgress.status === 'failed') {
+      if (dispenserProgress.status === 'completed' || dispenserProgress.status === 'failed' || 
+          dispenserProgress.status === 'not_found' || dispenserProgress.status === 'idle') {
         setIsPollingDispenserProgress(false)
-        setDispenserScrapeStatus(dispenserProgress.status === 'completed' ? 'success' : 'error')
-        setDispenserScrapeMessage(dispenserProgress.message)
-        localStorage.removeItem(`disp_scraping_${currentUserId}`)
         
-        if (dispenserProgress.status === 'completed') {
-          // Immediately refetch work orders
-          queryClient.invalidateQueries({ queryKey: ['work-orders'] })
-          refetchWorkOrders()
-        }
-        
-        setTimeout(() => {
+        // Handle not_found status (no active scraping session)
+        if (dispenserProgress.status === 'not_found' || dispenserProgress.status === 'idle') {
+          // Just stop polling, don't show error
           setDispenserScrapingProgress(null)
           setDispenserScrapeStatus('idle')
           setDispenserScrapeMessage('')
-        }, 5000)
+        } else {
+          setDispenserScrapeStatus(dispenserProgress.status === 'completed' ? 'success' : 'error')
+          setDispenserScrapeMessage(dispenserProgress.message)
+          
+          if (dispenserProgress.status === 'completed') {
+            // Immediately refetch work orders
+            queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+            refetchWorkOrders()
+          }
+          
+          setTimeout(() => {
+            setDispenserScrapingProgress(null)
+            setDispenserScrapeStatus('idle')
+            setDispenserScrapeMessage('')
+          }, 5000)
+        }
+        
+        localStorage.removeItem(`disp_scraping_${currentUserId}`)
       }
     }
   }, [dispenserProgress, currentUserId, queryClient, refetchWorkOrders])
@@ -293,6 +305,10 @@ const WorkOrders: React.FC = () => {
       } else if (singleDispenserProgressData.status === 'failed') {
         setDispenserScrapeStatus('error')
         setDispenserScrapeMessage(singleDispenserProgressData.error || 'Dispenser scraping failed')
+        setSingleDispenserProgress(null)
+        setActiveScrapeWorkOrderId(null)
+      } else if (singleDispenserProgressData.status === 'not_found' || singleDispenserProgressData.status === 'idle') {
+        // No active scraping session, just clear
         setSingleDispenserProgress(null)
         setActiveScrapeWorkOrderId(null)
         
@@ -442,7 +458,7 @@ const WorkOrders: React.FC = () => {
 
   // Batch dispenser scraping mutation
   const dispenserScrapeMutation = useMutation({
-    mutationFn: () => triggerBatchDispenserScrape(currentUserId),
+    mutationFn: (forceRefresh: boolean = false) => triggerBatchDispenserScrape(currentUserId, undefined, forceRefresh),
     onMutate: () => {
       setDispenserScrapeStatus('scraping')
       setDispenserScrapeMessage('Initializing batch dispenser scraping...')
@@ -457,7 +473,8 @@ const WorkOrders: React.FC = () => {
     },
     onSuccess: (data) => {
       console.log('Dispenser scrape initiated:', data)
-      if (data.status === 'no_work_orders') {
+      // Handle immediate completion cases
+      if (data.status === 'no_work_orders' || data.status === 'all_skipped') {
         setDispenserScrapeStatus('error')
         setDispenserScrapeMessage(data.message)
         setIsPollingDispenserProgress(false)
@@ -465,12 +482,21 @@ const WorkOrders: React.FC = () => {
         // Clear localStorage
         localStorage.removeItem(`disp_scraping_${currentUserId}`)
         
+        // Show appropriate status icon and message
+        if (data.status === 'all_skipped') {
+          setDispenserScrapeStatus('success')
+          setDispenserScrapeMessage(data.message || 'All work orders already have dispensers')
+        }
+        
         setTimeout(() => {
           setDispenserScrapeStatus('idle')
           setDispenserScrapeMessage('')
+          setDispenserScrapingProgress(null)
         }, 5000)
+      } else if (data.status === 'scraping_started') {
+        // Continue with polling - progress will be handled by the polling hook
+        console.log('Scraping started, polling for progress...')
       }
-      // Otherwise let the progress polling handle status updates
     },
     onError: (error: any) => {
       console.error('Dispenser scrape failed:', error)
@@ -847,8 +873,8 @@ const WorkOrders: React.FC = () => {
       alert('Another scraping operation is in progress. Please wait for it to complete.')
       return
     }
-    console.log('Starting batch dispenser scrape for user:', currentUserId)
-    dispenserScrapeMutation.mutate()
+    console.log('Starting batch dispenser scrape for user:', currentUserId, 'Force refresh:', forceRefreshDispensers)
+    dispenserScrapeMutation.mutate(forceRefreshDispensers)
   }
 
   const handleStatusUpdate = (workOrderId: string, status: string) => {
@@ -898,9 +924,9 @@ const WorkOrders: React.FC = () => {
     
     try {
       // Use mutation with selected work order IDs
-      const result = await triggerBatchDispenserScrape(currentUserId, selectedIds)
+      const result = await triggerBatchDispenserScrape(currentUserId, selectedIds, forceRefreshDispensers)
       
-      if (result.status === 'no_work_orders') {
+      if (result.status === 'no_work_orders' || result.status === 'all_skipped') {
         setDispenserScrapeStatus('error')
         setDispenserScrapeMessage(result.message)
         setIsPollingDispenserProgress(false)
@@ -965,12 +991,23 @@ const WorkOrders: React.FC = () => {
       })
       
       // Start the scraping
-      const result = await scrapeDispensersForWorkOrder(workOrder.id, currentUserId)
+      const result = await scrapeDispensersForWorkOrder(workOrder.id, currentUserId, forceRefreshDispensers)
       
       if (result.status === 'scraping_started') {
         // The polling hook will automatically handle progress updates
         console.log('Dispenser scraping started, polling will handle progress')
+      } else if (result.status === 'skipped') {
+        // Work order already has dispensers and force refresh is false
+        setDispenserScrapeMessage(result.message || `${workOrder.external_id} already has dispensers`)
+        setDispenserScrapeStatus('success')
+        setSingleDispenserProgress(null)
+        setActiveScrapeWorkOrderId(null)
+        setTimeout(() => {
+          setDispenserScrapeStatus('idle')
+          setDispenserScrapeMessage('')
+        }, 3000)
       } else {
+        // Other error cases
         setDispenserScrapeMessage(result.message || 'Failed to start dispenser scraping')
         setDispenserScrapeStatus('error')
         setSingleDispenserProgress(null)
@@ -1217,8 +1254,34 @@ const WorkOrders: React.FC = () => {
                       </div>
                     </div>
                     <Badge variant="secondary" className="ml-2">
-                      {workOrders.filter(wo => !wo.dispensers || wo.dispensers.length === 0).length}
+                      {forceRefreshDispensers 
+                        ? workOrders.length 
+                        : workOrders.filter(wo => !wo.dispensers || wo.dispensers.length === 0).length}
                     </Badge>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault() // Prevent dropdown from closing
+                  }}
+                  className="py-2"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setForceRefreshDispensers(!forceRefreshDispensers)
+                      }}
+                      className="flex items-center gap-2 text-sm w-full"
+                    >
+                      {forceRefreshDispensers ? (
+                        <CheckSquare className="w-4 h-4 text-primary" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                      <span>Force refresh existing dispensers</span>
+                    </button>
                   </div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
