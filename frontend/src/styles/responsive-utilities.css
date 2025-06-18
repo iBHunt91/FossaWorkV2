@@ -1,0 +1,291 @@
+/* Responsive Typography System */
+
+/* Fluid Typography Scale */
+.text-responsive-xs {
+  @apply text-xs sm:text-sm;
+}
+
+.text-responsive-sm {
+  @apply text-sm sm:text-base;
+}
+
+.text-responsive-base {
+  @apply text-base sm:text-lg;
+}
+
+.text-responsive-lg {
+  @apply text-lg sm:text-xl lg:text-2xl;
+}
+
+.text-responsive-xl {
+  @apply text-xl sm:text-2xl lg:text-3xl;
+}
+
+.text-responsive-2xl {
+  @apply text-2xl sm:text-3xl lg:text-4xl;
+}
+
+.text-responsive-3xl {
+  @apply text-3xl sm:text-4xl lg:text-5xl;
+}
+
+/* Responsive Spacing System */
+
+/* Padding */
+.p-responsive-xs {
+  @apply p-2 sm:p-3 lg:p-4;
+}
+
+.p-responsive-sm {
+  @apply p-3 sm:p-4 lg:p-5;
+}
+
+.p-responsive {
+  @apply p-4 sm:p-6 lg:p-8;
+}
+
+.p-responsive-lg {
+  @apply p-6 sm:p-8 lg:p-10;
+}
+
+.p-responsive-xl {
+  @apply p-8 sm:p-10 lg:p-12;
+}
+
+/* Horizontal Padding */
+.px-responsive-xs {
+  @apply px-2 sm:px-3 lg:px-4;
+}
+
+.px-responsive-sm {
+  @apply px-3 sm:px-4 lg:px-5;
+}
+
+.px-responsive {
+  @apply px-4 sm:px-6 lg:px-8;
+}
+
+.px-responsive-lg {
+  @apply px-6 sm:px-8 lg:px-10;
+}
+
+/* Vertical Padding */
+.py-responsive-xs {
+  @apply py-2 sm:py-3 lg:py-4;
+}
+
+.py-responsive-sm {
+  @apply py-3 sm:py-4 lg:py-5;
+}
+
+.py-responsive {
+  @apply py-4 sm:py-6 lg:py-8;
+}
+
+.py-responsive-lg {
+  @apply py-6 sm:py-8 lg:py-10;
+}
+
+/* Margin */
+.m-responsive-xs {
+  @apply m-2 sm:m-3 lg:m-4;
+}
+
+.m-responsive-sm {
+  @apply m-3 sm:m-4 lg:m-5;
+}
+
+.m-responsive {
+  @apply m-4 sm:m-6 lg:m-8;
+}
+
+.m-responsive-lg {
+  @apply m-6 sm:m-8 lg:m-10;
+}
+
+/* Gap */
+.gap-responsive-xs {
+  @apply gap-2 sm:gap-3 lg:gap-4;
+}
+
+.gap-responsive-sm {
+  @apply gap-3 sm:gap-4 lg:gap-5;
+}
+
+.gap-responsive {
+  @apply gap-4 sm:gap-6 lg:gap-8;
+}
+
+.gap-responsive-lg {
+  @apply gap-6 sm:gap-8 lg:gap-10;
+}
+
+/* Space Between (for space-y, space-x) */
+.space-responsive-xs {
+  @apply space-y-2 sm:space-y-3 lg:space-y-4;
+}
+
+.space-responsive-sm {
+  @apply space-y-3 sm:space-y-4 lg:space-y-5;
+}
+
+.space-responsive {
+  @apply space-y-4 sm:space-y-6 lg:space-y-8;
+}
+
+.space-responsive-lg {
+  @apply space-y-6 sm:space-y-8 lg:space-y-10;
+}
+
+/* Container Utilities */
+.container-responsive {
+  @apply container mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.container-responsive-tight {
+  @apply container mx-auto px-3 sm:px-4 lg:px-6;
+}
+
+.container-responsive-wide {
+  @apply container mx-auto px-6 sm:px-8 lg:px-12;
+}
+
+/* Max Width Utilities */
+.max-w-responsive-sm {
+  @apply max-w-sm sm:max-w-md lg:max-w-lg;
+}
+
+.max-w-responsive-md {
+  @apply max-w-md sm:max-w-lg lg:max-w-xl;
+}
+
+.max-w-responsive-lg {
+  @apply max-w-lg sm:max-w-xl lg:max-w-2xl;
+}
+
+.max-w-responsive-xl {
+  @apply max-w-xl sm:max-w-2xl lg:max-w-3xl;
+}
+
+/* Grid Utilities */
+.grid-responsive-1 {
+  @apply grid grid-cols-1;
+}
+
+.grid-responsive-2 {
+  @apply grid grid-cols-1 sm:grid-cols-2;
+}
+
+.grid-responsive-3 {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3;
+}
+
+.grid-responsive-4 {
+  @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+}
+
+.grid-responsive-5 {
+  @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5;
+}
+
+.grid-responsive-6 {
+  @apply grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6;
+}
+
+/* Touch Target Utilities */
+.touch-target {
+  @apply min-h-[44px] min-w-[44px];
+}
+
+.touch-target-sm {
+  @apply min-h-[36px] min-w-[36px];
+}
+
+.touch-target-lg {
+  @apply min-h-[52px] min-w-[52px];
+}
+
+/* Safe Area Utilities (for devices with notches) */
+.safe-area-inset {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-inset-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-inset-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Responsive Border Radius */
+.rounded-responsive-sm {
+  @apply rounded sm:rounded-md lg:rounded-lg;
+}
+
+.rounded-responsive {
+  @apply rounded-md sm:rounded-lg lg:rounded-xl;
+}
+
+.rounded-responsive-lg {
+  @apply rounded-lg sm:rounded-xl lg:rounded-2xl;
+}
+
+/* Responsive Shadow */
+.shadow-responsive-sm {
+  @apply shadow-sm sm:shadow;
+}
+
+.shadow-responsive {
+  @apply shadow sm:shadow-md lg:shadow-lg;
+}
+
+.shadow-responsive-lg {
+  @apply shadow-md sm:shadow-lg lg:shadow-xl;
+}
+
+/* Hide/Show Utilities */
+.mobile-only {
+  @apply block sm:hidden;
+}
+
+.tablet-only {
+  @apply hidden sm:block lg:hidden;
+}
+
+.desktop-only {
+  @apply hidden lg:block;
+}
+
+.mobile-hidden {
+  @apply hidden sm:block;
+}
+
+.tablet-hidden {
+  @apply block sm:hidden lg:block;
+}
+
+.desktop-hidden {
+  @apply block lg:hidden;
+}
+
+/* Responsive Line Height */
+.leading-responsive-tight {
+  @apply leading-tight sm:leading-snug;
+}
+
+.leading-responsive {
+  @apply leading-snug sm:leading-normal;
+}
+
+.leading-responsive-relaxed {
+  @apply leading-normal sm:leading-relaxed;
+}

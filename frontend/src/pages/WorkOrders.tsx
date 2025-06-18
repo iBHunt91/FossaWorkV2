@@ -1069,14 +1069,14 @@ const WorkOrders: React.FC = () => {
   return (
     <div className="min-h-screen bg-background relative">
       <div className="absolute inset-0 bg-grid-pattern opacity-5" />
-      <div className="container mx-auto p-6 space-y-8 relative z-10">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 lg:space-y-8 relative z-10">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-slide-in-from-top">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 animate-slide-in-from-top">
           <div>
-            <h1 className="text-4xl font-bold mb-2">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2">
               <GradientText text="Work Orders" gradient="from-blue-600 via-purple-600 to-pink-600" />
             </h1>
-            <p className="text-muted-foreground text-lg mb-2">
+            <p className="text-muted-foreground text-sm sm:text-base lg:text-lg mb-2">
               <AnimatedText text="Manage and monitor fuel dispenser automation tasks" animationType="split" delay={0.2} />
             </p>
             <div className="flex items-center gap-4 text-sm text-muted-foreground animate-fade-in" style={{animationDelay: '0.4s'}}>
@@ -1107,18 +1107,19 @@ const WorkOrders: React.FC = () => {
             </div>
           </div>
           
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap justify-start lg:justify-end">
             <DropdownMenu open={clearDataOpen} onOpenChange={setClearDataOpen}>
               <DropdownMenuTrigger asChild>
                 <AnimatedButton
                   disabled={clearAllMutation.isPending || workOrders.length === 0}
-                  size="lg"
+                  size="default"
                   variant="destructive"
                   animation="pulse"
-                  className="min-w-[140px]"
+                  className="w-full sm:w-auto min-w-[140px]"
                 >
                   <Database className="w-4 h-4 mr-2" />
-                  Clear Data
+                  <span className="hidden sm:inline">Clear Data</span>
+                  <span className="sm:hidden">Clear</span>
                   <ChevronDown className="w-4 h-4 ml-1" />
                 </AnimatedButton>
               </DropdownMenuTrigger>
@@ -1170,13 +1171,14 @@ const WorkOrders: React.FC = () => {
               <DropdownMenuTrigger asChild>
                 <AnimatedButton
                   disabled={isAnyScraping}
-                  size="lg"
+                  size="default"
                   variant="default"
                   animation="shimmer"
-                  className="min-w-[180px]"
+                  className="w-full sm:w-auto min-w-[140px] sm:min-w-[180px]"
                 >
                   <RefreshCw className={`w-4 h-4 mr-2 ${isAnyScraping ? 'animate-spin' : ''}`} />
-                  {isAnyScraping ? 'Scraping...' : 'Scrape Data'}
+                  <span className="hidden sm:inline">{isAnyScraping ? 'Scraping...' : 'Scrape Data'}</span>
+                  <span className="sm:hidden">{isAnyScraping ? 'Scraping' : 'Scrape'}</span>
                   <ChevronDown className="w-4 h-4 ml-1" />
                 </AnimatedButton>
               </DropdownMenuTrigger>
@@ -1225,26 +1227,29 @@ const WorkOrders: React.FC = () => {
             {/* Batch Actions - hide in weekly view */}
             {selectedWorkOrders.size > 0 && viewMode !== 'weekly' && (
               <>
-                <div className="h-10 w-px bg-border/50" />
+                <div className="hidden sm:block h-10 w-px bg-border/50" />
                 <AnimatedButton
                   onClick={handleBatchDispenserScrape}
                   disabled={selectedWorkOrders.size === 0 || isAnyScraping}
-                  size="lg"
+                  size="default"
                   variant="outline"
                   animation="scale"
-                  className="min-w-[200px] border-orange-500/50 hover:border-orange-500"
+                  className="w-full sm:w-auto min-w-[140px] sm:min-w-[200px] border-orange-500/50 hover:border-orange-500"
                 >
                   <Fuel className="w-4 h-4 mr-2 text-orange-500" />
-                  Scrape Selected ({selectedWorkOrders.size})
+                  <span className="hidden sm:inline">Scrape Selected ({selectedWorkOrders.size})</span>
+                  <span className="sm:hidden">Scrape ({selectedWorkOrders.size})</span>
                 </AnimatedButton>
                 <AnimatedButton
                   onClick={deselectAllWorkOrders}
-                  size="lg"
+                  size="default"
                   variant="ghost"
                   animation="fade"
+                  className="w-full sm:w-auto"
                 >
                   <XCircle className="w-4 h-4 mr-2" />
-                  Clear Selection
+                  <span className="hidden sm:inline">Clear Selection</span>
+                  <span className="sm:hidden">Clear</span>
                 </AnimatedButton>
               </>
             )}
@@ -1289,7 +1294,7 @@ const WorkOrders: React.FC = () => {
                       <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-blue-100/50 to-indigo-100/50 dark:from-blue-900/20 dark:to-indigo-900/20 p-4">
                         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 animate-pulse"></div>
                         
-                        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                        <div className="relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-center">
                           {/* Circular Progress */}
                           <div className="flex justify-center">
                             <div className="relative w-24 h-24">
@@ -1440,7 +1445,7 @@ const WorkOrders: React.FC = () => {
                       <div className="relative overflow-hidden rounded-lg bg-gradient-to-r from-orange-100/50 to-amber-100/50 dark:from-orange-900/20 dark:to-amber-900/20 p-4">
                         <div className="absolute inset-0 bg-gradient-to-r from-orange-500/5 to-amber-500/5 animate-pulse"></div>
                         
-                        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                        <div className="relative grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-center">
                           {/* Circular Progress */}
                           <div className="flex justify-center">
                             <div className="relative w-24 h-24">
@@ -1693,9 +1698,9 @@ const WorkOrders: React.FC = () => {
                 </div>
               )}
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-visible">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3 lg:gap-4 overflow-visible">
                 {/* Search bar */}
-                <div className="relative md:col-span-2 lg:col-span-1">
+                <div className="relative col-span-1 sm:col-span-2 lg:col-span-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                   <Input
                     type="text"
@@ -2194,9 +2199,9 @@ const WorkOrders: React.FC = () => {
                   animate="slide"
                   delay={index * 0.1}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex items-start gap-3 pl-10 flex-1 min-w-0">
+                  <CardHeader className="pb-3 px-4 sm:px-6">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-4">
+                      <div className="flex items-start gap-3 pl-8 sm:pl-10 flex-1 min-w-0">
                         <div className="flex-1 min-w-0">
                           {viewMode === 'list' && groupOrders.length > 1 && (
                             <div className="flex items-center gap-2 mb-2">
@@ -2239,7 +2244,7 @@ const WorkOrders: React.FC = () => {
                     </div>
                   </CardHeader>
 
-                <CardContent className="pt-0 space-y-3">
+                <CardContent className="pt-0 px-4 sm:px-6 space-y-3">
                   {/* Scheduled Date and Dispensers Row */}
                   <div className="flex items-center justify-between gap-2">
                     {workOrder.scheduled_date && (
@@ -2456,7 +2461,7 @@ const WorkOrders: React.FC = () => {
 
 
                   {/* Action Toolbar */}
-                  <div className="flex gap-2 mt-auto pt-3 border-t">
+                  <div className="flex flex-wrap gap-2 mt-auto pt-3 border-t">
                     {workOrder.visit_url && (
                       <RippleButton 
                         variant="ghost" 

@@ -6,6 +6,26 @@
   background-color: #f8fafc;
 }
 
+/* Safe area handling for mobile devices */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* Mobile-specific viewport handling */
+@supports (padding: max(0px)) {
+  .safe-area-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom, 0), 0px);
+  }
+  
+  .safe-area-top {
+    padding-top: max(env(safe-area-inset-top, 0), 0px);
+  }
+}
+
 /* Custom scrollbar for weekly view */
 .custom-scrollbar {
   scrollbar-width: thin;
