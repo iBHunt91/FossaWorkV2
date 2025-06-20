@@ -17,7 +17,6 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { logger } from './services/fileLoggingService'
 import chromeDevToolsLogger from './services/chromeDevToolsLogger'
 import LoadingSpinner from './components/LoadingSpinner'
-import { FloatingThemeToggle } from './components/ui/theme-toggle'
 import './App.css'
 
 function AppContent() {
@@ -94,10 +93,6 @@ function AppContent() {
         onClose={() => setIsMobileDrawerOpen(false)} 
       />
       
-      {/* Floating Theme Toggle - Hide on mobile since it conflicts with bottom nav */}
-      <div className="hidden sm:block">
-        <FloatingThemeToggle />
-      </div>
     </div>
   )
 }
