@@ -22,8 +22,33 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/work-orders", tags=["work-orders"])
 
-# Global dictionary to track scraping progress
+# Global dictionary to track scraping progress with TTL cleanup
+from threading import Timer
+
 scraping_progress = {}
+
+def cleanup_scraping_progress(progress_key: str):
+    """Remove scraping progress after completion"""
+    if progress_key in scraping_progress:
+        logger.info(f"[CLEANUP] Removing completed progress: {progress_key}")
+        del scraping_progress[progress_key]
+        
+def schedule_scraping_cleanup(progress_key: str, delay_minutes: int = 15):
+    """Schedule cleanup of scraping progress after delay"""
+    timer = Timer(delay_minutes * 60, cleanup_scraping_progress, args=[progress_key])
+    timer.start()
+    return timer
+
+def cleanup_user_progress(user_id: str):
+    """Clean up all progress entries for a specific user"""
+    keys_to_remove = []
+    for key in scraping_progress.keys():
+        if key == user_id or key.startswith(f"single_dispenser_{user_id}_") or key == f"dispensers_{user_id}":
+            keys_to_remove.append(key)
+    
+    for key in keys_to_remove:
+        logger.info(f"[CLEANUP] Removing user progress: {key}")
+        del scraping_progress[key]
 
 @router.get("/test")
 async def test_endpoint():
@@ -839,6 +864,8 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
             scraping_progress[user_id]["status"] = "completed"
             scraping_progress[user_id]["completed_at"] = datetime.now().isoformat()
             scraping_progress[user_id]["removed_count"] = removed_count
+            # Schedule cleanup of completed scraping progress
+            schedule_scraping_cleanup(user_id, delay_minutes=10)
         
     except Exception as e:
         logger.error(f"Scraping failed for user {user_id}: {e}", exc_info=True)
@@ -849,6 +876,8 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         if user_id in scraping_progress:
             scraping_progress[user_id]["status"] = "failed"
             scraping_progress[user_id]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of failed scraping progress
+            schedule_scraping_cleanup(user_id, delay_minutes=5)
         
         # Cleanup on error
         try:
@@ -1228,6 +1257,8 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "completed"
             scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of completed single dispenser progress
+            schedule_scraping_cleanup(progress_key, delay_minutes=10)
         
         # Cleanup
         await workfossa_automation.close_session(session_id)
@@ -1238,6 +1269,8 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "failed"
             scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of failed single dispenser progress
+            schedule_scraping_cleanup(progress_key, delay_minutes=5)
         db.rollback()
         # Try to cleanup session if it was created
         if session_id:
@@ -1745,6 +1778,8 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "completed"
             scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of completed batch dispenser progress
+            schedule_scraping_cleanup(progress_key, delay_minutes=10)
         
         # Cleanup
         await workfossa_automation.cleanup_session(session_id)
@@ -1755,6 +1790,8 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "failed"
             scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of failed batch dispenser progress
+            schedule_scraping_cleanup(progress_key, delay_minutes=5)
         db.rollback()
     finally:
         db.close()

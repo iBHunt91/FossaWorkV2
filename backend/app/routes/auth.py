@@ -24,8 +24,22 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
 
-# Store verification status for real-time updates
+# Store verification status for real-time updates with TTL cleanup
+from threading import Timer
+from datetime import datetime, timedelta
+
 verification_status = {}
+
+def cleanup_verification_status(verification_id: str):
+    """Remove verification status after completion"""
+    if verification_id in verification_status:
+        del verification_status[verification_id]
+        
+def schedule_verification_cleanup(verification_id: str, delay_minutes: int = 10):
+    """Schedule cleanup of verification status after delay"""
+    timer = Timer(delay_minutes * 60, cleanup_verification_status, args=[verification_id])
+    timer.start()
+    return timer
 
 class Token(BaseModel):
     access_token: str
@@ -107,6 +121,8 @@ async def login(
             "message": "Invalid WorkFossa credentials",
             "progress": 100
         }
+        # Schedule cleanup of failed verification
+        schedule_verification_cleanup(verification_id, delay_minutes=2)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid WorkFossa credentials",
@@ -121,6 +137,14 @@ async def login(
         data={"sub": user.id, "username": user.email},  # Using email as username
         expires_delta=access_token_expires
     )
+    
+    # Mark verification as successful and schedule cleanup
+    verification_status[verification_id] = {
+        "status": "success",
+        "message": "Authentication successful",
+        "progress": 100
+    }
+    schedule_verification_cleanup(verification_id, delay_minutes=1)
     
     return Token(
         access_token=access_token,
@@ -149,8 +173,8 @@ async def verify_credentials(
     auth_service = AuthenticationService(db)
     
     # Just verify credentials without creating user
-    from ..services.workfossa_automation import WorkFossaAutomation
-    workfossa = WorkFossaAutomation()
+    from ..services.workfossa_automation import WorkFossaAutomationService
+    workfossa = WorkFossaAutomationService()
     
     session_id = f"verify_{credentials.username}_{datetime.now().timestamp()}"
     result = await workfossa.verify_credentials(

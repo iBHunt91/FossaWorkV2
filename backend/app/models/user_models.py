@@ -410,16 +410,61 @@ class UserCredential(Base):
     @property
     def username(self) -> str:
         """Get decrypted username"""
-        # For now, we're storing in plain text
-        # TODO: Implement proper encryption
-        return self.encrypted_username
+        from ..services.encryption_service import decrypt_string
+        try:
+            return decrypt_string(self.encrypted_username)
+        except Exception as e:
+            # Log error but don't expose it - fallback to returning encrypted data
+            import logging
+            logging.error(f"Failed to decrypt username for user {self.user_id}: {e}")
+            return self.encrypted_username
     
     @property
     def password(self) -> str:
         """Get decrypted password"""
-        # For now, we're storing in plain text
-        # TODO: Implement proper encryption
-        return self.encrypted_password
+        from ..services.encryption_service import decrypt_string
+        try:
+            return decrypt_string(self.encrypted_password)
+        except Exception as e:
+            # Log error but don't expose it - fallback to returning encrypted data
+            import logging
+            logging.error(f"Failed to decrypt password for user {self.user_id}: {e}")
+            return self.encrypted_password
+    
+    def set_username(self, username: str) -> None:
+        """Set encrypted username"""
+        from ..services.encryption_service import encrypt_string
+        self.encrypted_username = encrypt_string(username)
+    
+    def set_password(self, password: str) -> None:
+        """Set encrypted password"""
+        from ..services.encryption_service import encrypt_string
+        self.encrypted_password = encrypt_string(password)
+    
+    def migrate_to_encrypted(self) -> bool:
+        """
+        Migrate existing plain text credentials to encrypted format
+        Returns True if migration was performed, False if already encrypted
+        """
+        from ..services.encryption_service import migrate_plain_text_password
+        
+        try:
+            # Migrate username
+            new_username = migrate_plain_text_password(self.encrypted_username)
+            username_migrated = new_username != self.encrypted_username
+            self.encrypted_username = new_username
+            
+            # Migrate password
+            new_password = migrate_plain_text_password(self.encrypted_password)
+            password_migrated = new_password != self.encrypted_password
+            self.encrypted_password = new_password
+            
+            return username_migrated or password_migrated
+            
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to migrate credentials for user {self.user_id}: {e}")
+            return False
 
 def test_user_id_generation():
     """Test function to verify MD5 generation matches V1 exactly"""
