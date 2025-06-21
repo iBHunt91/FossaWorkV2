@@ -16,8 +16,16 @@ from .filter_inventory_models import (
     FilterInventoryAlert
 )
 
+# Import scraping schedule models
+from .scraping_models import (
+    ScrapingSchedule,
+    ScrapingHistory,
+    ScrapingStatistics
+)
+
 __all__ = [
     "Base", "User", "WorkOrder", "Dispenser", "AutomationJob", "UserPreference", "UserCredential",
     "FilterInventory", "FilterInventoryTransaction", "FilterAllocation",
-    "FilterReorderHistory", "FilterUsagePattern", "FilterInventoryAlert"
+    "FilterReorderHistory", "FilterUsagePattern", "FilterInventoryAlert",
+    "ScrapingSchedule", "ScrapingHistory", "ScrapingStatistics"
 ]

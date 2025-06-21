@@ -24,6 +24,9 @@ cryptography>=41.0.0  # For secure credential encryption
 # HTTP client for notifications
 aiohttp>=3.9.0  # For async HTTP client (Pushover notifications)
 
+# Task scheduling
+apscheduler>=3.10.0  # For background task scheduling and automation
+
 # Optional dependencies (can be installed later)
 # psycopg2-binary>=2.9.0  # For PostgreSQL
 # alembic>=1.12.0  # For database migrations
