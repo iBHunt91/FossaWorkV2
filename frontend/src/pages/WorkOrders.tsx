@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square, CalendarDays, Database, ChevronLeft, ChevronRight, Hash, ArrowRight } from 'lucide-react'
@@ -8,7 +8,7 @@ import { useDebouncedCallback } from 'use-debounce'
 import { useWorkOrderScrapingProgress, useDispenserScrapingProgress, useSingleDispenserProgress } from '../hooks/useProgressPolling'
 import { getBrandStyle, getBrandCardStyle, getBrandBadgeStyle, cleanSiteName } from '@/utils/storeColors'
 import { cn } from '@/lib/utils'
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isThisWeek, getDay, getHours, isAfter, isBefore, isSameWeek } from 'date-fns'
+import { format, startOfWeek, endOfWeek, addWeeks, subWeeks, isThisWeek, getDay, isBefore, isSameWeek } from 'date-fns'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +37,8 @@ import InstructionSummary from '../components/InstructionSummary'
 import { hasImportantInfo } from '../utils/instructionParser'
 import BackToTop from '../components/BackToTop'
 import ScrapingStatus from '../components/ScrapingStatus'
+import { useWeekendMode } from '../hooks/useWeekendMode'
+import { WorkOrdersErrorBoundary } from '../components/ErrorBoundary'
 
 // Enhanced work order interface with V1 compatibility
 interface EnhancedWorkOrder {
@@ -128,10 +130,6 @@ const WorkOrders: React.FC = () => {
   // Dropdown states
   const [clearDataOpen, setClearDataOpen] = useState(false)
   const [scrapeDataOpen, setScrapeDataOpen] = useState(false)
-  
-  // Weekend mode state
-  const [weekendModeEnabled, setWeekendModeEnabled] = useState(false)
-  const [weekendModeDismissed, setWeekendModeDismissed] = useState(false)
   
   const queryClient = useQueryClient()
   const { user } = useAuth()
@@ -556,7 +554,7 @@ const WorkOrders: React.FC = () => {
   }, [rawWorkOrders])
 
   // Extract clean store name from full site name
-  const getCleanStoreName = (siteName: string) => {
+  const getCleanStoreName = useCallback((siteName: string) => {
     if (!siteName) return ''
     
     // First clean the site name to remove time suffixes
@@ -621,12 +619,12 @@ const WorkOrders: React.FC = () => {
     
     // Fallback: return cleaned name if no brand detected
     return cleanedName
-  }
+  }, [])
 
   // Clean site name to remove time suffixes (like "1956am" from "Circle K 1956am")
 
   // Brand detection from site name - improved parsing
-  const getBrand = (siteName: string) => {
+  const getBrand = useCallback((siteName: string) => {
     const cleanedName = cleanSiteName(siteName)
     const lower = cleanedName.toLowerCase()
     // Handle variations and common misspellings
@@ -642,15 +640,15 @@ const WorkOrders: React.FC = () => {
     if (lower.includes('chevron')) return 'Chevron'
     if (lower.includes('texaco')) return 'Texaco'
     return 'Other'
-  }
+  }, [])
 
   // Use the new brand styling system
-  const getBrandStyling = (siteName: string) => {
+  const getBrandStyling = useCallback((siteName: string) => {
     return getBrandCardStyle(siteName)
-  }
+  }, [])
 
   // Status icon mapping with animations
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = useCallback((status: string) => {
     switch (status.toLowerCase()) {
       case 'completed':
         return <CheckCircle className="w-5 h-5 text-green-500 animate-pulse" />
@@ -663,10 +661,37 @@ const WorkOrders: React.FC = () => {
       default:
         return <AlertTriangle className="w-5 h-5 text-yellow-500 animate-bounce" />
     }
-  }
+  }, [])
+
+  // Helper function to calculate dispenser count for a work order
+  const getDispenserCount = useCallback((workOrder: EnhancedWorkOrder) => {
+    let dispenserCount = 0;
+    
+    // First try to get from service_items
+    if (workOrder.service_items) {
+      const items = Array.isArray(workOrder.service_items) 
+        ? workOrder.service_items 
+        : [workOrder.service_items];
+      
+      for (const item of items) {
+        const match = item.toString().match(/(\d+)\s*x\s*(All\s*)?Dispenser/i);
+        if (match) {
+          dispenserCount = parseInt(match[1], 10);
+          break;
+        }
+      }
+    }
+    
+    // Fallback to dispensers array if available
+    if (dispenserCount === 0 && workOrder.dispensers && workOrder.dispensers.length > 0) {
+      dispenserCount = workOrder.dispensers.length;
+    }
+    
+    return dispenserCount;
+  }, []);
 
   // Enhanced address formatting with better handling of incomplete addresses
-  const formatAddress = (address: string) => {
+  const formatAddress = useCallback((address: string) => {
     if (!address || address.trim() === '') return 'Address not available'
     
     // Split by newlines first, then by commas for better parsing
@@ -711,16 +736,16 @@ const WorkOrders: React.FC = () => {
     
     // Single part - just return it cleaned up
     return address.replace(/\n\s*/g, ', ').replace(/\s{2,}/g, ' ').trim()
-  }
+  }, [])
 
   // Extract unique brands for filter
   const availableBrands = useMemo(() => {
     const brands = workOrders.map(wo => getBrand(wo.site_name))
     return Array.from(new Set(brands)).sort()
-  }, [workOrders])
+  }, [workOrders, getBrand])
 
   // Handle opening visit URL with proper format
-  const handleOpenVisit = async (workOrder: EnhancedWorkOrder) => {
+  const handleOpenVisit = useCallback(async (workOrder: EnhancedWorkOrder) => {
     try {
       // Priority 1: Use the scraped visit URL if available
       if (workOrder.visit_url) {
@@ -751,7 +776,7 @@ const WorkOrders: React.FC = () => {
     } catch (error) {
       console.error('Failed to open visit URL:', error)
     }
-  }
+  }, [currentUserId])
 
   // Filter work orders using debounced search term
   const filteredWorkOrders = useMemo(() => {
@@ -773,6 +798,28 @@ const WorkOrders: React.FC = () => {
     })
   }, [workOrders, debouncedSearchTerm, brandFilter])
 
+  // Memoize work orders with dispensers count
+  const workOrdersWithDispensersCount = useMemo(() => {
+    return workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0).length
+  }, [workOrders])
+
+  // Memoize work orders without dispensers count
+  const workOrdersWithoutDispensersCount = useMemo(() => {
+    return workOrders.filter(wo => !wo.dispensers || wo.dispensers.length === 0).length
+  }, [workOrders])
+
+  // Use Weekend Mode hook
+  const {
+    isWeekendMode,
+    weekendModeEnabled,
+    setWeekendModeEnabled,
+    setWeekendModeDismissed
+  } = useWeekendMode({
+    workDays,
+    filteredWorkOrders,
+    showAllJobs
+  })
+
   // Filter work orders by selected week (or show all if toggle is on)
   const weekFilteredWorkOrders = useMemo(() => {
     if (showAllJobs) {
@@ -789,72 +836,6 @@ const WorkOrders: React.FC = () => {
     })
   }, [filteredWorkOrders, selectedWeek, showAllJobs])
 
-  // Weekend mode detection logic
-  const isWeekendMode = useMemo(() => {
-    if (weekendModeDismissed || showAllJobs) {
-      return false
-    }
-    
-    // Only check weekend mode for current week
-    if (!isThisWeek(new Date())) {
-      return false
-    }
-
-    const now = new Date()
-    const currentDayName = format(now, 'EEEE') // Get day name (e.g., "Monday", "Tuesday")
-    const hour = getHours(now)
-    
-    // Check if current day is a work day based on user preferences
-    const isWorkDay = workDays.includes(currentDayName)
-    
-    // Determine if it's "weekend time" based on user's work week
-    let isWeekendTime = false
-    
-    if (!isWorkDay) {
-      // It's not a work day, so it's weekend time
-      isWeekendTime = true
-    } else {
-      // It's a work day - check if it's the last work day of the week after 5 PM (end of workday)
-      const lastWorkDay = workDays[workDays.length - 1]
-      if (currentDayName === lastWorkDay && hour >= 17) {
-        isWeekendTime = true
-      }
-    }
-    
-    // Check if current week has any remaining work orders (not completed)
-    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 })
-    const currentWeekEnd = endOfWeek(now, { weekStartsOn: 1 })
-    
-    const currentWeekWorkOrders = filteredWorkOrders.filter(wo => {
-      if (!wo.scheduled_date) return false
-      const date = new Date(wo.scheduled_date)
-      return date >= currentWeekStart && date <= currentWeekEnd
-    })
-    
-    const hasRemainingWork = currentWeekWorkOrders.some(wo => {
-      const woDate = new Date(wo.scheduled_date!)
-      // Check if work order is in the future or today and not completed
-      return (isAfter(woDate, now) || 
-              (woDate.toDateString() === now.toDateString())) && 
-              wo.status !== 'completed'
-    })
-    
-    // Check if next week has work orders
-    const nextWeek = addWeeks(now, 1)
-    const nextWeekStart = startOfWeek(nextWeek, { weekStartsOn: 1 })
-    const nextWeekEnd = endOfWeek(nextWeek, { weekStartsOn: 1 })
-    
-    const nextWeekWorkOrders = filteredWorkOrders.filter(wo => {
-      if (!wo.scheduled_date) return false
-      const date = new Date(wo.scheduled_date)
-      return date >= nextWeekStart && date <= nextWeekEnd
-    })
-    
-    const hasNextWeekWork = nextWeekWorkOrders.length > 0
-    
-    // Enable weekend mode if it's weekend time, no remaining work, and next week has work
-    return isWeekendTime && !hasRemainingWork && hasNextWeekWork
-  }, [showAllJobs, filteredWorkOrders, weekendModeDismissed, workDays])
 
   // Auto-enable weekend mode
   useEffect(() => {
@@ -865,34 +846,16 @@ const WorkOrders: React.FC = () => {
     }
   }, [isWeekendMode, weekendModeEnabled])
 
-  // Reset weekend mode dismissed on new day
-  useEffect(() => {
-    const checkNewDay = () => {
-      const lastCheck = localStorage.getItem('weekendModeLastCheck')
-      const today = new Date().toDateString()
-      
-      if (lastCheck !== today) {
-        setWeekendModeDismissed(false)
-        localStorage.setItem('weekendModeLastCheck', today)
-      }
-    }
-    
-    checkNewDay()
-    // Check every minute
-    const interval = setInterval(checkNewDay, 60000)
-    
-    return () => clearInterval(interval)
-  }, [])
 
   // Reset weekend mode on manual navigation
-  const handleWeekChange = (newWeek: Date) => {
+  const handleWeekChange = useCallback((newWeek: Date) => {
     setSelectedWeek(newWeek)
     // Reset weekend mode if user manually navigates
     if (weekendModeEnabled) {
       setWeekendModeEnabled(false)
       setWeekendModeDismissed(true)
     }
-  }
+  }, [weekendModeEnabled, setWeekendModeEnabled, setWeekendModeDismissed])
 
   // Group work orders by week or day
   const groupedByWeek = useMemo(() => {
@@ -990,47 +953,49 @@ const WorkOrders: React.FC = () => {
     return groups
   }, [filteredWorkOrders, weekFilteredWorkOrders, viewMode, showAllJobs])
 
-  const handleScrape = () => {
+  const handleScrape = useCallback(() => {
     if (isAnyScraping) {
       alert('Another scraping operation is in progress. Please wait for it to complete.')
       return
     }
     console.log('Starting work order scrape for user:', currentUserId)
     scrapeMutation.mutate()
-  }
+  }, [isAnyScraping, currentUserId, scrapeMutation])
 
-  const handleDispenserScrape = () => {
+  const handleDispenserScrape = useCallback(() => {
     if (isAnyScraping) {
       alert('Another scraping operation is in progress. Please wait for it to complete.')
       return
     }
     console.log('Starting batch dispenser scrape for user:', currentUserId, 'Force refresh:', forceRefreshDispensers)
     dispenserScrapeMutation.mutate(forceRefreshDispensers)
-  }
+  }, [isAnyScraping, currentUserId, forceRefreshDispensers, dispenserScrapeMutation])
 
-  const handleStatusUpdate = (workOrderId: string, status: string) => {
+  const handleStatusUpdate = useCallback((workOrderId: string, status: string) => {
     statusUpdateMutation.mutate({ workOrderId, status })
-  }
+  }, [statusUpdateMutation])
 
   // Handle work order selection
-  const toggleWorkOrderSelection = (workOrderId: string) => {
-    const newSelection = new Set(selectedWorkOrders)
-    if (newSelection.has(workOrderId)) {
-      newSelection.delete(workOrderId)
-    } else {
-      newSelection.add(workOrderId)
-    }
-    setSelectedWorkOrders(newSelection)
-  }
+  const toggleWorkOrderSelection = useCallback((workOrderId: string) => {
+    setSelectedWorkOrders(prev => {
+      const newSelection = new Set(prev)
+      if (newSelection.has(workOrderId)) {
+        newSelection.delete(workOrderId)
+      } else {
+        newSelection.add(workOrderId)
+      }
+      return newSelection
+    })
+  }, [])
 
-  const selectAllWorkOrders = () => {
+  const selectAllWorkOrders = useCallback(() => {
     const allIds = new Set(filteredWorkOrders.map(wo => wo.id))
     setSelectedWorkOrders(allIds)
-  }
+  }, [filteredWorkOrders])
 
-  const deselectAllWorkOrders = () => {
+  const deselectAllWorkOrders = useCallback(() => {
     setSelectedWorkOrders(new Set())
-  }
+  }, [])
 
   // Check if any scraping is in progress
   const isAnyScraping = scrapeStatus === 'scraping' || 
@@ -1038,7 +1003,7 @@ const WorkOrders: React.FC = () => {
                        singleDispenserProgress !== null
 
   // Handle batch operations
-  const handleBatchDispenserScrape = async () => {
+  const handleBatchDispenserScrape = useCallback(async () => {
     if (selectedWorkOrders.size === 0) return
     
     // Prevent concurrent scraping
@@ -1107,10 +1072,10 @@ const WorkOrders: React.FC = () => {
         setDispenserScrapeMessage('')
       }, 5000)
     }
-  }
+  }, [selectedWorkOrders, isAnyScraping, currentUserId, forceRefreshDispensers, deselectAllWorkOrders])
 
   // Handler for scraping dispensers for a specific work order
-  const handleScrapeDispensers = async (workOrder: EnhancedWorkOrder, event?: React.MouseEvent) => {
+  const handleScrapeDispensers = useCallback(async (workOrder: EnhancedWorkOrder, event?: React.MouseEvent) => {
     // Prevent any default behavior
     if (event) {
       event.preventDefault()
@@ -1170,10 +1135,10 @@ const WorkOrders: React.FC = () => {
         setDispenserScrapeMessage('')
       }, 5000)
     }
-  }
+  }, [currentUserId, forceRefreshDispensers])
 
   // Handler for clearing dispensers for a specific work order
-  const handleClearDispensers = async (workOrder: EnhancedWorkOrder) => {
+  const handleClearDispensers = useCallback(async (workOrder: EnhancedWorkOrder) => {
     // Skip confirmation dialog
     
     try {
@@ -1202,7 +1167,7 @@ const WorkOrders: React.FC = () => {
         setDispenserScrapeStatus('idle')
       }, 3000)
     }
-  }
+  }, [currentUserId, queryClient])
 
   if (error) {
     return (
@@ -1246,7 +1211,8 @@ const WorkOrders: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background relative">
+    <WorkOrdersErrorBoundary>
+      <div className="min-h-screen bg-background relative">
       <div className="absolute inset-0 bg-grid-pattern opacity-5" />
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 lg:space-y-8 relative z-10">
         {/* Header */}
@@ -1306,7 +1272,7 @@ const WorkOrders: React.FC = () => {
                 <DropdownMenuLabel className="text-base font-semibold">Clear Options</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
-                  onClick={() => clearAllMutation.mutate()}
+                  onClick={useCallback(() => clearAllMutation.mutate(), [clearAllMutation])}
                   disabled={clearAllMutation.isPending || workOrders.length === 0}
                   className="text-destructive focus:text-destructive py-3 cursor-pointer"
                 >
@@ -1321,17 +1287,17 @@ const WorkOrders: React.FC = () => {
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  onClick={() => {
+                  onClick={useCallback(() => {
                     // Clear all dispensers logic
                     const workOrdersWithDispensers = workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0)
-                    if (workOrdersWithDispensers.length > 0 && confirm(`Clear dispensers from ${workOrdersWithDispensers.length} work orders?`)) {
+                    if (workOrdersWithDispensersCount > 0 && confirm(`Clear dispensers from ${workOrdersWithDispensersCount} work orders?`)) {
                       workOrdersWithDispensers.forEach(wo => {
                         clearDispensersForWorkOrder(wo.id, user?.id || '')
                       })
                       queryClient.invalidateQueries({ queryKey: ['work-orders'] })
                     }
-                  }}
-                  disabled={workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0).length === 0}
+                  }, [workOrders, workOrdersWithDispensersCount, user?.id, queryClient])}
+                  disabled={workOrdersWithDispensersCount === 0}
                   className="text-destructive focus:text-destructive py-3 cursor-pointer"
                 >
                   <div className="flex items-center justify-between w-full">
@@ -1340,7 +1306,7 @@ const WorkOrders: React.FC = () => {
                       <span className="font-medium">Clear All Dispensers</span>
                     </div>
                     <span className="text-xs text-muted-foreground ml-2">
-                      {workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0).length} orders
+                      {workOrdersWithDispensersCount} orders
                     </span>
                   </div>
                 </DropdownMenuItem>
@@ -1398,7 +1364,7 @@ const WorkOrders: React.FC = () => {
                     <Badge variant="secondary" className="ml-2">
                       {forceRefreshDispensers 
                         ? workOrders.length 
-                        : workOrders.filter(wo => !wo.dispensers || wo.dispensers.length === 0).length}
+                        : workOrdersWithoutDispensersCount}
                     </Badge>
                   </div>
                 </DropdownMenuItem>
@@ -1498,11 +1464,11 @@ const WorkOrders: React.FC = () => {
                   
                   {/* Button Section */}
                   <Button
-                    onClick={() => {
+                    onClick={useCallback(() => {
                       setWeekendModeEnabled(false)
                       setWeekendModeDismissed(true)
                       handleWeekChange(new Date())
-                    }}
+                    }, [setWeekendModeEnabled, setWeekendModeDismissed, handleWeekChange])}
                     size="sm"
                     variant="ghost"
                     className="w-full md:w-auto border border-blue-500/30 hover:border-blue-500 hover:bg-blue-500/10 transition-all duration-200"
@@ -2252,7 +2218,7 @@ const WorkOrders: React.FC = () => {
                     <MagneticButton
                       variant={viewMode === 'list' ? 'default' : 'ghost'}
                       size="sm"
-                      onClick={() => setViewMode('list')}
+                      onClick={useCallback(() => setViewMode('list'), [])}
                       className="rounded-none flex-1 h-full"
                       strength={0.1}
                     >
@@ -2262,7 +2228,7 @@ const WorkOrders: React.FC = () => {
                     <MagneticButton
                       variant={viewMode === 'weekly' ? 'default' : 'ghost'}
                       size="sm"
-                      onClick={() => setViewMode('weekly')}
+                      onClick={useCallback(() => setViewMode('weekly'), [])}
                       className="rounded-none flex-1 h-full"
                       strength={0.1}
                     >
@@ -2276,7 +2242,7 @@ const WorkOrders: React.FC = () => {
               {/* Show All Jobs Toggle */}
               <div className="flex items-center gap-2 mt-4">
                 <button
-                  onClick={() => setShowAllJobs(!showAllJobs)}
+                  onClick={useCallback(() => setShowAllJobs(prev => !prev), [])}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer rounded hover:bg-accent/50"
                 >
                     {showAllJobs ? (
@@ -2312,22 +2278,27 @@ const WorkOrders: React.FC = () => {
               onWeekChange={handleWeekChange}
               highlightedWorkOrderId={highlightedWorkOrderId}
               showAllJobs={showAllJobs}
-              onWorkOrderClick={(workOrder) => {
+              onWorkOrderClick={useCallback((workOrder) => {
                 console.log('Work order clicked:', workOrder)
                 // You can add additional click handling here if needed
-              }}
-              onViewDispensers={(workOrder) => {
+              }, [])}
+              onViewDispensers={useCallback((workOrder) => {
                 console.log('Opening dispenser modal for work order:', workOrder)
                 setSelectedWorkOrderForModal(workOrder)
                 setShowDispenserModal(true)
-              }}
-              onOpenVisit={(workOrder) => {
-                handleOpenVisit(workOrder)
-              }}
+              }, [])}
+              onOpenVisit={handleOpenVisit}
             />
           ) : (
           <div className="space-y-8">
-            {Object.entries(viewMode === 'list' ? groupedByDay : groupedByWeek).map(([groupLabel, groupOrders]) => (
+            {Object.entries(viewMode === 'list' ? groupedByDay : groupedByWeek).map(([groupLabel, groupOrders]) => {
+              // Memoize group statistics for better performance
+              const groupStats = useMemo(() => ({
+                totalDispensers: groupOrders.reduce((sum, wo) => sum + (wo.dispensers?.length || 0), 0),
+                hasDispensers: groupOrders.some(wo => wo.dispensers && wo.dispensers.length > 0)
+              }), [groupOrders])
+              
+              return (
               <div key={groupLabel} className="space-y-4">
                 {/* Enhanced Group Header */}
                 <div className="relative overflow-hidden">
@@ -2368,14 +2339,14 @@ const WorkOrders: React.FC = () => {
                       </Badge>
                       
                       {/* Dispensers Count Badge - Enhanced Styling */}
-                      {groupOrders.some(wo => wo.dispensers && wo.dispensers.length > 0) && (
+                      {groupStats.hasDispensers && (
                         <Badge 
                           variant="outline" 
                           className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-3 py-1.5 font-medium shadow-sm hover:shadow-md hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 transition-all duration-200"
                         >
                           <Fuel className="w-3.5 h-3.5 mr-2 text-blue-600 dark:text-blue-400" />
                           <span className="font-semibold text-sm">
-                            {groupOrders.reduce((sum, wo) => sum + (wo.dispensers?.length || 0), 0)}
+                            {groupStats.totalDispensers}
                           </span>
                           <span className="ml-1 text-xs">
                             dispensers
@@ -2529,28 +2500,8 @@ const WorkOrders: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {(() => {
-                      let dispenserCount = 0;
-                      
-                      // First try to get from service_items
-                      if (workOrder.service_items) {
-                        const items = Array.isArray(workOrder.service_items) 
-                          ? workOrder.service_items 
-                          : [workOrder.service_items];
-                        
-                        for (const item of items) {
-                          const match = item.toString().match(/(\d+)\s*x\s*(All\s*)?Dispenser/i);
-                          if (match) {
-                            dispenserCount = parseInt(match[1], 10);
-                            break;
-                          }
-                        }
-                      }
-                      
-                      // Fallback to dispensers array if available
-                      if (dispenserCount === 0 && workOrder.dispensers && workOrder.dispensers.length > 0) {
-                        dispenserCount = workOrder.dispensers.length;
-                      }
+                    {useMemo(() => {
+                      const dispenserCount = getDispenserCount(workOrder);
                       
                       if (dispenserCount > 0) {
                         return (
@@ -2575,7 +2526,7 @@ const WorkOrders: React.FC = () => {
                         );
                       }
                       return null;
-                    })()}
+                    }, [workOrder, getDispenserCount])}
                   </div>
 
                   {/* Location */}
@@ -2784,7 +2735,8 @@ const WorkOrders: React.FC = () => {
                   ))}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
           )
         ) : (
@@ -3159,6 +3111,7 @@ const WorkOrders: React.FC = () => {
       {/* Back to Top Button - Moved outside container */}
       <BackToTop />
     </div>
+    </WorkOrdersErrorBoundary>
   )
 }
 
