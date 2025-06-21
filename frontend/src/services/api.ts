@@ -548,7 +548,7 @@ export interface TestNotificationRequest {
 }
 
 export const getNotificationPreferences = async (userId: string): Promise<any> => {
-  const response = await apiClient.get(`/api/notifications/preferences/${userId}`)
+  const response = await apiClient.get(`/api/notifications/preferences`)
   return response.data
 }
 
@@ -556,7 +556,7 @@ export const updateNotificationPreferences = async (
   userId: string, 
   preferences: Partial<NotificationPreferences>
 ): Promise<any> => {
-  const response = await apiClient.put(`/api/notifications/preferences/${userId}`, preferences)
+  const response = await apiClient.put(`/api/notifications/preferences`, preferences)
   return response.data
 }
 
@@ -564,7 +564,7 @@ export const sendTestNotification = async (
   userId: string, 
   testRequest: TestNotificationRequest
 ): Promise<any> => {
-  const response = await apiClient.post(`/api/notifications/test/${userId}`, testRequest)
+  const response = await apiClient.post(`/api/notifications/test`, testRequest)
   return response.data
 }
 

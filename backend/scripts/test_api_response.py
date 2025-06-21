@@ -1,74 +1,65 @@
 #!/usr/bin/env python3
 """
-Test API response for work orders
+Test API response directly
 """
 
 import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pathlib import Path
+from datetime import datetime
 
-import json
+# Add backend directory to path
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir))
+
 from app.database import SessionLocal
-from app.models import WorkOrder, Dispenser
-from app.routes.work_orders import get_scraped_dispenser_details, convert_fuel_grades_to_list
+from app.models.scraping_models import ScrapingSchedule
+from app.models.user_models import User
 
 def test_api_response():
-    """Test what the API would return"""
-    
-    print("🔍 Testing API Response")
-    print("=" * 80)
+    print("🔍 Testing API Response Logic")
+    print("=" * 50)
     
     db = SessionLocal()
-    
-    # Get a work order with dispensers
-    work_order = db.query(WorkOrder).filter(WorkOrder.id == "31b14e5f-d29e-4513-8d9d-ed5baa3576f3").first()
-    
-    if not work_order:
-        print("❌ Work order not found")
-        return
-    
-    print(f"Work Order: {work_order.external_id} ({work_order.site_name})")
-    
-    # Get dispensers
-    dispensers = db.query(Dispenser).filter(Dispenser.work_order_id == work_order.id).all()
-    
-    print(f"\n📋 Found {len(dispensers)} dispensers")
-    
-    # Simulate API response
-    for i, d in enumerate(dispensers):
-        print(f"\n🔧 Dispenser {i+1}:")
-        print(f"  Number: {d.dispenser_number}")
-        print(f"  Type: {d.dispenser_type}")
-        print(f"  Fuel Grades (raw): {d.fuel_grades}")
+    try:
+        # Get the schedule directly from DB
+        schedule = db.query(ScrapingSchedule).filter(
+            ScrapingSchedule.user_id == "7bea3bdb7e8e303eacaba442bd824004",
+            ScrapingSchedule.schedule_type == "work_orders"
+        ).first()
         
-        # Convert fuel grades
-        fuel_grades_list = convert_fuel_grades_to_list(d.fuel_grades)
-        print(f"  Fuel Grades List: {fuel_grades_list}")
-        
-        # Get scraped details
-        scraped_details = get_scraped_dispenser_details(work_order, d.dispenser_number)
-        print(f"  Scraped Details: {json.dumps(scraped_details, indent=4)}")
-        
-        # Full API response for this dispenser
-        api_response = {
-            "id": d.id,
-            "dispenser_number": d.dispenser_number,
-            "dispenser_type": d.dispenser_type,
-            "fuel_grades": d.fuel_grades,
-            "status": d.status,
-            "progress_percentage": d.progress_percentage,
-            "automation_completed": d.automation_completed,
-            **scraped_details,
-            "fuel_grades_list": fuel_grades_list
-        }
-        
-        print(f"\n  Full API Response:")
-        print(json.dumps(api_response, indent=4))
-        
-        if i >= 1:  # Just show first 2
-            break
-    
-    db.close()
+        if schedule:
+            print(f"Database values:")
+            print(f"  ID: {schedule.id}")
+            print(f"  Interval: {schedule.interval_hours}")
+            print(f"  Active Hours: {schedule.active_hours}")
+            print(f"  Active Hours Type: {type(schedule.active_hours)}")
+            print(f"  Active Hours is None: {schedule.active_hours is None}")
+            print(f"  Enabled: {schedule.enabled}")
+            print()
+            
+            # Check what the API would return
+            job_id = f"{schedule.schedule_type}_scrape_{schedule.user_id}"
+            api_response = {
+                "job_id": job_id,
+                "user_id": schedule.user_id,
+                "type": schedule.schedule_type,
+                "enabled": schedule.enabled,
+                "next_run": schedule.next_run.isoformat() if schedule.next_run else None,
+                "pending": False,
+                "interval_hours": schedule.interval_hours,
+                "active_hours": schedule.active_hours
+            }
+            
+            print(f"API would return:")
+            print(f"  active_hours: {api_response['active_hours']}")
+            print(f"  active_hours type: {type(api_response['active_hours'])}")
+            
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        db.close()
 
 if __name__ == "__main__":
     test_api_response()

@@ -13,7 +13,7 @@ load_dotenv()
 from .database import get_db, create_tables
 from .models.user_models import User
 from .core_models import WorkOrder, Dispenser
-from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications
+from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules
 # Temporarily disabled due to FastAPI validation errors: filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
 from .services.logging_service import get_logger, log_api_request
 from .utils.memory_monitor import setup_memory_monitoring, start_memory_monitoring
@@ -22,8 +22,22 @@ from .middleware.request_id import RequestIDMiddleware, configure_request_id_log
 from .middleware.database_monitoring import db_monitoring
 from .services.metrics_service import metrics_service
 
-# Initialize logger
+# Initialize logger first
 logger = get_logger("fossawork.main")
+
+# Try to import scheduler service, fall back to simple implementation
+scheduler_service = None
+try:
+    from .services.scheduler_service import scheduler_service
+    logger.info("[SCHEDULER] Using full APScheduler-based scheduler service")
+except ImportError as e:
+    logger.warning(f"[SCHEDULER] APScheduler not available: {e}")
+    try:
+        from .services.simple_scheduler_service import simple_scheduler_service as scheduler_service
+        logger.info("[SCHEDULER] Using simple scheduler service (database-only)")
+    except ImportError as e2:
+        logger.error(f"[SCHEDULER] Failed to import any scheduler service: {e2}")
+        scheduler_service = None
 
 # Create FastAPI app
 app = FastAPI(
@@ -46,6 +60,10 @@ app.add_middleware(RequestIDMiddleware)
 
 # Authentication middleware (must be added AFTER CORS)
 app.add_middleware(AuthenticationMiddleware)
+
+# Add schedule debug middleware
+from .middleware.schedule_debug import ScheduleDebugMiddleware
+app.add_middleware(ScheduleDebugMiddleware)
 
 # Logging middleware with metrics integration
 @app.middleware("http")
@@ -115,6 +133,7 @@ app.include_router(user_preferences.router)
 app.include_router(settings.router)
 app.include_router(metrics.router)
 app.include_router(notifications.router)
+app.include_router(scraping_schedules.router)
 # Temporarily disabled routes due to FastAPI validation errors:
 # app.include_router(filter_calculation.router, prefix="/api/filters", tags=["filters"])
 # app.include_router(filter_inventory.router, prefix="/api/inventory", tags=["inventory"])
@@ -149,6 +168,25 @@ async def startup_event():
     asyncio.create_task(start_memory_monitoring())
     logger.info("[MEMORY] Memory monitoring started (6GB limit)")
     
+    # Initialize scheduler service
+    if scheduler_service:
+        try:
+            database_url = os.getenv("DATABASE_URL", "sqlite:///./fossawork_v2.db")
+            logger.info(f"[SCHEDULER] Initializing scheduler with database: {database_url}")
+            await scheduler_service.initialize(database_url)
+            logger.info("[SCHEDULER] Background task scheduler initialized successfully")
+            
+            # Log scheduler type and capabilities
+            if hasattr(scheduler_service, 'scheduler') and scheduler_service.scheduler:
+                logger.info("[SCHEDULER] Full APScheduler service active with automated job execution")
+            else:
+                logger.info("[SCHEDULER] Simple scheduler service active (manual execution only)")
+        except Exception as e:
+            logger.error(f"[SCHEDULER] Failed to initialize scheduler: {e}", exc_info=True)
+            logger.warning("[SCHEDULER] Continuing without scheduler - schedules will be database-only")
+    else:
+        logger.error("[SCHEDULER] No scheduler service available - scheduling features disabled")
+    
     logger.info("[OK] FossaWork V2 API startup completed successfully")
 
 @app.on_event("shutdown")
@@ -159,6 +197,16 @@ async def shutdown_event():
     # Stop metrics background tasks
     await metrics_service.stop_background_tasks()
     logger.info("[METRICS] Metrics collection stopped")
+    
+    # Shutdown scheduler service
+    if scheduler_service:
+        try:
+            await scheduler_service.shutdown()
+            logger.info("[SCHEDULER] Scheduler service stopped successfully")
+        except Exception as e:
+            logger.error(f"[SCHEDULER] Error during scheduler shutdown: {e}", exc_info=True)
+    else:
+        logger.debug("[SCHEDULER] No scheduler service to shutdown")
     
     logger.info("[SHUTDOWN] Cleanup completed")
 

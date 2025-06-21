@@ -90,7 +90,7 @@ async def initialize_inventory(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Inventory initialization failed: {str(e)}"
         )
         raise HTTPException(
@@ -132,7 +132,7 @@ async def get_inventory_status(
         return inventory_status
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to get inventory status: {str(e)}"
         )
         raise HTTPException(
@@ -178,7 +178,7 @@ async def add_stock(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to add stock: {str(e)}"
         )
         raise HTTPException(
@@ -220,7 +220,7 @@ async def record_usage(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to record usage: {str(e)}"
         )
         raise HTTPException(
@@ -266,7 +266,7 @@ async def allocate_filters(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to allocate filters: {str(e)}"
         )
         raise HTTPException(
@@ -300,7 +300,7 @@ async def get_usage_analytics(
         return analytics
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to get analytics: {str(e)}"
         )
         raise HTTPException(
@@ -376,7 +376,7 @@ async def get_reorder_suggestions(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to get reorder suggestions: {str(e)}"
         )
         raise HTTPException(
@@ -429,7 +429,7 @@ async def get_transaction_history(
         ]
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to get transaction history: {str(e)}"
         )
         raise HTTPException(

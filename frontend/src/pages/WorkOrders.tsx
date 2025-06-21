@@ -139,21 +139,7 @@ const WorkOrders: React.FC = () => {
                        dispenserScrapeStatus === 'scraping' || 
                        singleDispenserProgress !== null
 
-  // Close calendar when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (calendarRef.current && !calendarRef.current.contains(event.target as Node)) {
-        setShowCalendar(false)
-      }
-    }
-
-    if (showCalendar) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
-      }
-    }
-  }, [showCalendar])
+  // Removed duplicate useEffect - using the more robust implementation below
 
   // Debounced search implementation
   const debouncedSearch = useDebouncedCallback(
@@ -849,7 +835,7 @@ const WorkOrders: React.FC = () => {
       // Auto-advance to next week
       setSelectedWeek(addWeeks(new Date(), 1))
     }
-  }, [isWeekendMode, weekendModeEnabled])
+  }, [isWeekendMode, weekendModeEnabled, setWeekendModeEnabled, setSelectedWeek])
 
 
   // Reset weekend mode on manual navigation
@@ -1203,6 +1189,33 @@ const WorkOrders: React.FC = () => {
     setWeekendModeDismissed(true)
     handleWeekChange(new Date())
   }, [handleWeekChange])
+
+  // Callbacks for WorkOrderWeeklyView - moved outside conditional rendering
+  const handleWorkOrderClick = useCallback((workOrder: EnhancedWorkOrder) => {
+    console.log('Work order clicked:', workOrder)
+    // You can add additional click handling here if needed
+  }, [])
+
+  const handleViewDispensers = useCallback((workOrder: EnhancedWorkOrder) => {
+    console.log('Opening dispenser modal for work order:', workOrder)
+    setSelectedWorkOrderForModal(workOrder)
+    setShowDispenserModal(true)
+  }, [])
+
+  // Calculate group statistics for all groups at once to avoid hooks in loops
+  const groupStats = useMemo(() => {
+    const stats: Record<string, { totalDispensers: number; hasDispensers: boolean }> = {}
+    const groups = viewMode === 'list' ? groupedByDay : groupedByWeek
+    
+    Object.entries(groups).forEach(([groupLabel, groupOrders]) => {
+      stats[groupLabel] = {
+        totalDispensers: groupOrders.reduce((sum, wo) => sum + (wo.dispensers?.length || 0), 0),
+        hasDispensers: groupOrders.some(wo => wo.dispensers && wo.dispensers.length > 0)
+      }
+    })
+    
+    return stats
+  }, [viewMode, groupedByDay, groupedByWeek])
 
   if (error) {
     return (
@@ -2300,25 +2313,15 @@ const WorkOrders: React.FC = () => {
               onWeekChange={handleWeekChange}
               highlightedWorkOrderId={highlightedWorkOrderId}
               showAllJobs={showAllJobs}
-              onWorkOrderClick={useCallback((workOrder) => {
-                console.log('Work order clicked:', workOrder)
-                // You can add additional click handling here if needed
-              }, [])}
-              onViewDispensers={useCallback((workOrder) => {
-                console.log('Opening dispenser modal for work order:', workOrder)
-                setSelectedWorkOrderForModal(workOrder)
-                setShowDispenserModal(true)
-              }, [])}
+              onWorkOrderClick={handleWorkOrderClick}
+              onViewDispensers={handleViewDispensers}
               onOpenVisit={handleOpenVisit}
             />
           ) : (
           <div className="space-y-8">
             {Object.entries(viewMode === 'list' ? groupedByDay : groupedByWeek).map(([groupLabel, groupOrders]) => {
-              // Memoize group statistics for better performance
-              const groupStats = useMemo(() => ({
-                totalDispensers: groupOrders.reduce((sum, wo) => sum + (wo.dispensers?.length || 0), 0),
-                hasDispensers: groupOrders.some(wo => wo.dispensers && wo.dispensers.length > 0)
-              }), [groupOrders])
+              // Get pre-calculated group statistics
+              const currentGroupStats = groupStats[groupLabel] || { totalDispensers: 0, hasDispensers: false }
               
               return (
               <div key={groupLabel} className="space-y-4">
@@ -2361,14 +2364,14 @@ const WorkOrders: React.FC = () => {
                       </Badge>
                       
                       {/* Dispensers Count Badge - Enhanced Styling */}
-                      {groupStats.hasDispensers && (
+                      {currentGroupStats.hasDispensers && (
                         <Badge 
                           variant="outline" 
                           className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-3 py-1.5 font-medium shadow-sm hover:shadow-md hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 transition-all duration-200"
                         >
                           <Fuel className="w-3.5 h-3.5 mr-2 text-blue-600 dark:text-blue-400" />
                           <span className="font-semibold text-sm">
-                            {groupStats.totalDispensers}
+                            {currentGroupStats.totalDispensers}
                           </span>
                           <span className="ml-1 text-xs">
                             dispensers
@@ -2522,7 +2525,7 @@ const WorkOrders: React.FC = () => {
                         </div>
                       </div>
                     )}
-                    {useMemo(() => {
+                    {(() => {
                       const dispenserCount = getDispenserCount(workOrder);
                       
                       if (dispenserCount > 0) {
@@ -2548,7 +2551,7 @@ const WorkOrders: React.FC = () => {
                         );
                       }
                       return null;
-                    }, [workOrder, getDispenserCount])}
+                    })()}
                   </div>
 
                   {/* Location */}

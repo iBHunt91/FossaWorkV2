@@ -94,8 +94,8 @@ class NotificationManager:
     
     def __init__(self, db: Session, email_settings: EmailSettings, pushover_settings: PushoverSettings):
         self.db = db
-        self.logging_service = LoggingService(db)
-        self.user_service = UserManagementService(db)
+        self.logging_service = LoggingService()
+        self.user_service = UserManagementService()
         
         # Initialize notification services
         self.email_service = EmailNotificationService(db, email_settings)

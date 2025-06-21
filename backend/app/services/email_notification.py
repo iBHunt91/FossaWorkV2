@@ -317,8 +317,8 @@ class EmailNotificationService:
     def __init__(self, db: Session, email_settings: EmailSettings):
         self.db = db
         self.email_settings = email_settings
-        self.logging_service = LoggingService(db)
-        self.user_service = UserManagementService(db)
+        self.logging_service = LoggingService()
+        self.user_service = UserManagementService()
         self.pending_notifications: List[EmailNotification] = []
         
     async def send_automation_notification(

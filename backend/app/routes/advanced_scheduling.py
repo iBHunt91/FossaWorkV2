@@ -153,7 +153,7 @@ async def get_calendar_view(
     except HTTPException:
         raise
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to get calendar view: {str(e)}"
         )
         raise HTTPException(
@@ -192,7 +192,7 @@ async def schedule_work_order(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to schedule work order: {str(e)}"
         )
         raise HTTPException(
@@ -228,7 +228,7 @@ async def reschedule_event(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to reschedule event: {str(e)}"
         )
         raise HTTPException(
@@ -262,7 +262,7 @@ async def optimize_daily_schedule(
         return result
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to optimize schedule: {str(e)}"
         )
         raise HTTPException(
@@ -308,7 +308,7 @@ async def find_availability(
         return formatted_slots
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to find availability: {str(e)}"
         )
         raise HTTPException(
@@ -353,7 +353,7 @@ async def bulk_schedule_events(
     except HTTPException:
         raise
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to bulk schedule: {str(e)}"
         )
         raise HTTPException(
@@ -389,7 +389,7 @@ async def analyze_workload(
         return analysis
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to analyze workload: {str(e)}"
         )
         raise HTTPException(
@@ -460,7 +460,7 @@ async def get_upcoming_events(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to get upcoming events: {str(e)}"
         )
         raise HTTPException(
@@ -523,7 +523,7 @@ async def check_conflicts(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to check conflicts: {str(e)}"
         )
         raise HTTPException(

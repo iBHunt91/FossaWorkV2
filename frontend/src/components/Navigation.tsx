@@ -7,6 +7,7 @@ import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animate
 import { MagneticButton, RippleButton } from '@/components/ui/animated-button'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
+import ScrapingStatus from './ScrapingStatus'
 
 const Navigation: React.FC = () => {
   const location = useLocation()
@@ -50,8 +51,13 @@ const Navigation: React.FC = () => {
         </div>
       </div>
 
+      {/* Scraping Status - Prominent Position */}
+      <div className="px-4 pt-4 animate-slide-in-from-left" style={{animationDelay: '0.2s'}}>
+        <ScrapingStatus compact={true} />
+      </div>
+
       {/* Navigation Menu */}
-      <div className="flex-1 px-4 py-6">
+      <div className="flex-1 px-4 py-4">
         <nav className="space-y-2">
           {navItems.map((item, index) => {
             const Icon = item.icon
@@ -101,27 +107,31 @@ const Navigation: React.FC = () => {
             )
           })}
         </nav>
-        
+      </div>
+
+      {/* Footer */}
+      <div className="p-4 border-t border-border/50 space-y-3">
         {/* Theme Toggle */}
-        <div className="mt-6 px-2">
-          <div className="p-3 rounded-lg bg-accent/50 glass animate-slide-in-from-left" style={{animationDelay: '0.5s'}}>
-            <p className="text-xs font-medium mb-2">Theme</p>
+        <div className="px-2">
+          <div className="p-3 rounded-lg bg-accent/50 glass animate-slide-in-from-left" style={{animationDelay: '0.7s'}}>
+            <p className="text-xs font-medium mb-2 text-center">Theme</p>
             <div className="flex gap-1">
               {[
-                { value: 'light' as const, icon: Sun },
-                { value: 'dark' as const, icon: Moon },
-                { value: 'system' as const, icon: Activity }
+                { value: 'light' as const, icon: Sun, label: 'Light' },
+                { value: 'dark' as const, icon: Moon, label: 'Dark' },
+                { value: 'system' as const, icon: Activity, label: 'Auto' }
               ].map((option) => {
                 const Icon = option.icon
                 return (
                   <button
                     key={option.value}
                     onClick={() => setTheme(option.value)}
-                    className={`flex-1 p-2 rounded-md transition-all ${
+                    className={`flex-1 p-2 rounded-md transition-all group relative ${
                       theme === option.value 
-                        ? 'bg-primary text-primary-foreground' 
+                        ? 'bg-primary text-primary-foreground shadow-md' 
                         : 'hover:bg-accent'
                     }`}
+                    title={option.label}
                   >
                     <Icon className="w-4 h-4 mx-auto" />
                   </button>
@@ -130,13 +140,10 @@ const Navigation: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Footer */}
-      <div className="p-4 border-t border-border/50 space-y-3">
+        
         {/* User Info */}
         {user && (
-          <div className="px-3 py-2 rounded-lg bg-accent/50 glass animate-slide-in-from-left">
+          <div className="px-3 py-2 rounded-lg bg-accent/50 glass animate-slide-in-from-left" style={{animationDelay: '0.8s'}}>
             <p className="text-sm font-medium truncate">{user.username}</p>
             <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           </div>
@@ -146,17 +153,18 @@ const Navigation: React.FC = () => {
         <RippleButton
           onClick={logout}
           variant="ghost"
-          className="w-full justify-start text-destructive hover:text-destructive"
+          className="w-full justify-start text-destructive hover:text-destructive animate-slide-in-from-left"
           size="sm"
+          style={{animationDelay: '0.9s'}}
         >
           <LogOut className="w-4 h-4 mr-2" />
           Logout
         </RippleButton>
         
-        <div className="text-center pt-2">
-          <p className="text-xs text-muted-foreground animate-fade-in">Version 2.0.0</p>
+        <div className="text-center pt-2 animate-fade-in" style={{animationDelay: '1s'}}>
+          <p className="text-xs text-muted-foreground">Version 2.0.0</p>
           <p className="text-xs text-muted-foreground mt-1">
-            <AnimatedText text="Fuel Dispenser Automation" animationType="fade" delay={0.2} className="text-xs" />
+            <AnimatedText text="Fuel Dispenser Automation" animationType="fade" delay={1.1} className="text-xs" />
           </p>
         </div>
       </div>

@@ -31,10 +31,10 @@ def get_form_automation_v1_service():
     return FormAutomationService(browser_automation)
 
 def get_user_service(db: Session = Depends(get_db)):
-    return UserManagementService(db)
+    return UserManagementService()
 
 def get_logging_service(db: Session = Depends(get_db)):
-    return LoggingService(db)
+    return LoggingService()
 
 
 @router.post("/analyze-work-order", response_model=None)

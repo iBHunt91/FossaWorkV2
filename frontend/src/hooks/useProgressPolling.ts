@@ -85,12 +85,16 @@ export const useProgressPolling = <T = any>(
   }, [pollFunction, stopPolling])
 
   useEffect(() => {
+    let initialPollTimer: NodeJS.Timeout | null = null
+    
     if (shouldPoll) {
       setIsPolling(true)
       startTimeRef.current = Date.now()
       
-      // Initial poll
-      poll()
+      // Initial poll with a small delay to ensure backend is ready
+      initialPollTimer = setTimeout(() => {
+        poll()
+      }, 500) // 500ms delay for initial poll
 
       // Set up interval
       intervalRef.current = setInterval(poll, interval)
@@ -107,6 +111,9 @@ export const useProgressPolling = <T = any>(
     }
 
     return () => {
+      if (initialPollTimer) {
+        clearTimeout(initialPollTimer)
+      }
       stopPolling()
     }
   }, [shouldPoll, poll, interval, timeout, stopPolling])

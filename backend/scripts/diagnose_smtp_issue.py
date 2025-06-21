@@ -84,7 +84,9 @@ def test_endpoint():
                 timeout=5
             )
             print(f"Response status: {response.status_code}")
-            print(f"Response body: {json.dumps(response.json(), indent=2)}")
+            print(f"Response text: {response.text}")
+            if response.status_code == 200:
+                print(f"Response body: {json.dumps(response.json(), indent=2)}")
         else:
             print(f"❌ Login failed: {response.text}")
     except Exception as e:

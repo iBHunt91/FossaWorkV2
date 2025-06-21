@@ -1,5 +1,6 @@
 /* Leaflet Map Styles - must come before Tailwind */
 @import 'leaflet/dist/leaflet.css';
+@import './styles/responsive-utilities.css';
 
 @tailwind base;
 @tailwind components;
@@ -1059,5 +1060,3 @@ input[type="radio"]:checked {
   @apply space-y-1 p-3 rounded-md bg-background/30 flex-1 min-w-0;
 }
 
-/* Import responsive utilities - must be after Tailwind utilities */
-@import './styles/responsive-utilities.css';

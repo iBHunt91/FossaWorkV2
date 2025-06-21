@@ -22,10 +22,10 @@ from ..models import User
 router = APIRouter(prefix="/api/schedule", tags=["schedule_detection"])
 
 def get_user_service(db: Session = Depends(get_db)) -> UserManagementService:
-    return UserManagementService(db)
+    return UserManagementService()
 
 def get_logging_service(db: Session = Depends(get_db)) -> LoggingService:
-    return LoggingService(db)
+    return LoggingService()
 
 
 @router.post("/analyze", response_model=None)

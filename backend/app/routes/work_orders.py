@@ -685,6 +685,38 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         logger.info(f"[SCRAPE] Scraped {len(work_orders)} work orders")
         update_progress("storing", 90, f"Storing {len(work_orders)} work orders in database...", len(work_orders))
         
+        # Get all current work order external IDs from the scrape
+        current_external_ids = {wo_data.external_id for wo_data in work_orders}
+        logger.info(f"[SCRAPE] Current scrape found {len(current_external_ids)} work orders")
+        
+        # Get all existing work orders for this user
+        existing_work_orders = db.query(WorkOrder).filter(
+            WorkOrder.user_id == user_id
+        ).all()
+        logger.info(f"[SCRAPE] Database has {len(existing_work_orders)} work orders for user")
+        
+        # Find and remove work orders that are no longer present (completed/removed)
+        removed_count = 0
+        for existing_wo in existing_work_orders:
+            if existing_wo.external_id not in current_external_ids:
+                logger.info(f"[SCRAPE] Removing completed work order: {existing_wo.external_id} - {existing_wo.site_name}")
+                
+                # First, delete associated dispensers to avoid foreign key constraint violations
+                dispensers_to_delete = db.query(Dispenser).filter(
+                    Dispenser.work_order_id == existing_wo.id
+                ).all()
+                
+                for dispenser in dispensers_to_delete:
+                    logger.debug(f"[SCRAPE] Deleting dispenser {dispenser.dispenser_number} for work order {existing_wo.external_id}")
+                    db.delete(dispenser)
+                
+                # Then delete the work order
+                db.delete(existing_wo)
+                removed_count += 1
+        
+        if removed_count > 0:
+            logger.info(f"[SCRAPE] Removed {removed_count} completed work orders")
+        
         # Store in database
         for wo_data in work_orders:
             # Check if work order already exists
@@ -798,10 +830,15 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         logger.info(f"Successfully stored {len(work_orders)} work orders in database")
         
         # Update progress to complete
-        update_progress("completed", 100, f"Successfully scraped {len(work_orders)} work orders", len(work_orders))
+        completion_message = f"Successfully scraped {len(work_orders)} work orders"
+        if removed_count > 0:
+            completion_message += f" (removed {removed_count} completed)"
+        
+        update_progress("completed", 100, completion_message, len(work_orders))
         if user_id in scraping_progress:
             scraping_progress[user_id]["status"] = "completed"
             scraping_progress[user_id]["completed_at"] = datetime.now().isoformat()
+            scraping_progress[user_id]["removed_count"] = removed_count
         
     except Exception as e:
         logger.error(f"Scraping failed for user {user_id}: {e}", exc_info=True)

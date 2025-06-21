@@ -120,7 +120,7 @@ async def generate_schedule(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Schedule generation failed: {str(e)}"
         )
         raise HTTPException(
@@ -197,7 +197,7 @@ async def optimize_routes(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Route optimization failed: {str(e)}"
         )
         raise HTTPException(
@@ -278,7 +278,7 @@ async def suggest_bulk_changes(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Bulk change suggestions failed: {str(e)}"
         )
         raise HTTPException(
@@ -342,7 +342,7 @@ async def get_calendar_view(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Calendar view failed: {str(e)}"
         )
         raise HTTPException(
@@ -374,7 +374,7 @@ async def get_station_history(
         return history
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to get station history: {str(e)}"
         )
         raise HTTPException(
@@ -399,7 +399,7 @@ async def update_schedule(
         # This would update the schedule in the database
         # For now, return success response
         
-        await LoggingService(db).log_info(
+        await LoggingService().log_info(
             f"Schedule updated for station {request.station_id}: "
             f"moved to {request.new_date} - {request.reason}"
         )
@@ -414,7 +414,7 @@ async def update_schedule(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Schedule update failed: {str(e)}"
         )
         raise HTTPException(

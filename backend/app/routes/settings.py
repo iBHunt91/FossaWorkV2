@@ -20,7 +20,7 @@ import logging
 from ..database import get_db
 from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
-from ..auth.security import get_current_user
+from ..auth.dependencies import get_current_user
 from ..models.user_models import User
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -115,11 +115,11 @@ class ScheduleSettings(BaseModel):
 
 
 def get_user_service(db: Session = Depends(get_db)) -> UserManagementService:
-    return UserManagementService(db)
+    return UserManagementService()
 
 
 def get_logging_service(db: Session = Depends(get_db)) -> LoggingService:
-    return LoggingService(db)
+    return LoggingService()
 
 
 def get_settings_path(user_id: str, setting_type: str) -> Path:
