@@ -22,8 +22,33 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/work-orders", tags=["work-orders"])
 
-# Global dictionary to track scraping progress
+# Global dictionary to track scraping progress with TTL cleanup
+from threading import Timer
+
 scraping_progress = {}
+
+def cleanup_scraping_progress(progress_key: str):
+    """Remove scraping progress after completion"""
+    if progress_key in scraping_progress:
+        logger.info(f"[CLEANUP] Removing completed progress: {progress_key}")
+        del scraping_progress[progress_key]
+        
+def schedule_scraping_cleanup(progress_key: str, delay_minutes: int = 15):
+    """Schedule cleanup of scraping progress after delay"""
+    timer = Timer(delay_minutes * 60, cleanup_scraping_progress, args=[progress_key])
+    timer.start()
+    return timer
+
+def cleanup_user_progress(user_id: str):
+    """Clean up all progress entries for a specific user"""
+    keys_to_remove = []
+    for key in scraping_progress.keys():
+        if key == user_id or key.startswith(f"single_dispenser_{user_id}_") or key == f"dispensers_{user_id}":
+            keys_to_remove.append(key)
+    
+    for key in keys_to_remove:
+        logger.info(f"[CLEANUP] Removing user progress: {key}")
+        del scraping_progress[key]
 
 @router.get("/test")
 async def test_endpoint():
@@ -685,6 +710,38 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         logger.info(f"[SCRAPE] Scraped {len(work_orders)} work orders")
         update_progress("storing", 90, f"Storing {len(work_orders)} work orders in database...", len(work_orders))
         
+        # Get all current work order external IDs from the scrape
+        current_external_ids = {wo_data.external_id for wo_data in work_orders}
+        logger.info(f"[SCRAPE] Current scrape found {len(current_external_ids)} work orders")
+        
+        # Get all existing work orders for this user
+        existing_work_orders = db.query(WorkOrder).filter(
+            WorkOrder.user_id == user_id
+        ).all()
+        logger.info(f"[SCRAPE] Database has {len(existing_work_orders)} work orders for user")
+        
+        # Find and remove work orders that are no longer present (completed/removed)
+        removed_count = 0
+        for existing_wo in existing_work_orders:
+            if existing_wo.external_id not in current_external_ids:
+                logger.info(f"[SCRAPE] Removing completed work order: {existing_wo.external_id} - {existing_wo.site_name}")
+                
+                # First, delete associated dispensers to avoid foreign key constraint violations
+                dispensers_to_delete = db.query(Dispenser).filter(
+                    Dispenser.work_order_id == existing_wo.id
+                ).all()
+                
+                for dispenser in dispensers_to_delete:
+                    logger.debug(f"[SCRAPE] Deleting dispenser {dispenser.dispenser_number} for work order {existing_wo.external_id}")
+                    db.delete(dispenser)
+                
+                # Then delete the work order
+                db.delete(existing_wo)
+                removed_count += 1
+        
+        if removed_count > 0:
+            logger.info(f"[SCRAPE] Removed {removed_count} completed work orders")
+        
         # Store in database
         for wo_data in work_orders:
             # Check if work order already exists
@@ -798,10 +855,17 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         logger.info(f"Successfully stored {len(work_orders)} work orders in database")
         
         # Update progress to complete
-        update_progress("completed", 100, f"Successfully scraped {len(work_orders)} work orders", len(work_orders))
+        completion_message = f"Successfully scraped {len(work_orders)} work orders"
+        if removed_count > 0:
+            completion_message += f" (removed {removed_count} completed)"
+        
+        update_progress("completed", 100, completion_message, len(work_orders))
         if user_id in scraping_progress:
             scraping_progress[user_id]["status"] = "completed"
             scraping_progress[user_id]["completed_at"] = datetime.now().isoformat()
+            scraping_progress[user_id]["removed_count"] = removed_count
+            # Schedule cleanup of completed scraping progress
+            schedule_scraping_cleanup(user_id, delay_minutes=10)
         
     except Exception as e:
         logger.error(f"Scraping failed for user {user_id}: {e}", exc_info=True)
@@ -812,6 +876,8 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         if user_id in scraping_progress:
             scraping_progress[user_id]["status"] = "failed"
             scraping_progress[user_id]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of failed scraping progress
+            schedule_scraping_cleanup(user_id, delay_minutes=5)
         
         # Cleanup on error
         try:
@@ -1191,6 +1257,8 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "completed"
             scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of completed single dispenser progress
+            schedule_scraping_cleanup(progress_key, delay_minutes=10)
         
         # Cleanup
         await workfossa_automation.close_session(session_id)
@@ -1201,6 +1269,8 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "failed"
             scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of failed single dispenser progress
+            schedule_scraping_cleanup(progress_key, delay_minutes=5)
         db.rollback()
         # Try to cleanup session if it was created
         if session_id:
@@ -1708,6 +1778,8 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "completed"
             scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of completed batch dispenser progress
+            schedule_scraping_cleanup(progress_key, delay_minutes=10)
         
         # Cleanup
         await workfossa_automation.cleanup_session(session_id)
@@ -1718,6 +1790,8 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "failed"
             scraping_progress[progress_key]["completed_at"] = datetime.now().isoformat()
+            # Schedule cleanup of failed batch dispenser progress
+            schedule_scraping_cleanup(progress_key, delay_minutes=5)
         db.rollback()
     finally:
         db.close()

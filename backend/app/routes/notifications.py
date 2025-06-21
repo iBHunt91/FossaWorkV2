@@ -24,17 +24,17 @@ from ..services.pushover_notification import PushoverSettings, PushoverPriority
 from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
 from ..auth.dependencies import require_auth
-from ..models import User
+from ..models.user_models import User
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 def get_user_service(db: Session = Depends(get_db)):
     """Get user management service instance"""
-    return UserManagementService(db)
+    return UserManagementService()
 
 def get_logging_service(db: Session = Depends(get_db)):
     """Get logging service instance"""
-    return LoggingService(db)
+    return LoggingService()
 
 def get_notification_manager_dependency():
     """Get notification manager instance without exposing Session type"""
@@ -80,18 +80,18 @@ class EmergencyAlertRequest(BaseModel):
     force_all_channels: bool = True
 
 
-def get_user_service(db: Session = Depends(get_db)) -> UserManagementService:
-    return UserManagementService(db)
+# Duplicate function removed - already defined above
 
 
 def get_logging_service(db: Session = Depends(get_db)) -> LoggingService:
-    return LoggingService(db)
+    return LoggingService()
 
 
 @router.get("/preferences")
 async def get_user_notification_preferences(
     user_service: UserManagementService = Depends(get_user_service),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
 ):
     user_id = current_user.id
     """Get user notification preferences"""
@@ -100,7 +100,7 @@ async def get_user_notification_preferences(
         user = current_user
         
         # Get preferences
-        preferences = user_service.get_user_preference(user_id, "notification_preferences")
+        preferences = await user_service.get_user_preferences(user_id, "notification_preferences", db)
         
         if not preferences:
             # Return default preferences
@@ -143,7 +143,8 @@ async def get_user_notification_preferences(
 async def get_notification_preferences_by_user_id(
     user_id: str,
     user_service: UserManagementService = Depends(get_user_service),
-    current_user: User = Depends(require_auth)
+    current_user: User = Depends(require_auth),
+    db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """Get notification preferences for a specific user"""
     try:
@@ -155,16 +156,11 @@ async def get_notification_preferences_by_user_id(
                 detail="Access denied: Cannot access another user's preferences"
             )
         
-        # Get user from database
-        user = user_service.get_user_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User not found: {user_id}"
-            )
+        # User is already verified through current_user
+        user = current_user
         
         # Get preferences
-        preferences = user_service.get_user_preference(user_id, "notification_preferences")
+        preferences = await user_service.get_user_preferences(user_id, "notification_preferences", db)
         
         if not preferences:
             # Return default preferences
@@ -223,13 +219,8 @@ async def update_notification_preferences_by_user_id(
                 detail="Access denied: Cannot update another user's preferences"
             )
         
-        # Get user from database
-        user = user_service.get_user_by_id(user_id)
-        if not user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User not found: {user_id}"
-            )
+        # User is already verified through current_user
+        user = current_user
         
         # Convert request to dict
         preferences_dict = preferences.dict()

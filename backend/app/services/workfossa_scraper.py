@@ -209,9 +209,10 @@ class WorkFossaScraper:
                 message="Navigating to work orders page..."
             ))
             
-            # Navigate to work orders with filter for no visits completed
+            # Navigate to work orders page (all work orders, not just incomplete)
+            # This allows the cleanup logic to properly identify completed work orders
             work_orders_url = "https://app.workfossa.com/app/work/list?work_visit_completion=none%7C%7CNo%20visits%20completed%7C%7CWork%20Visits%20Completed&order_direction=asc"
-            logger.info(f"Navigating to work orders URL (filtered for no visits completed): {work_orders_url}")
+            logger.info(f"Navigating to work orders URL (all work orders): {work_orders_url}")
             
             # Optimized page loading with smart content detection
             logger.info(f"🔄 [DEBUG] Starting page navigation with optimized loading...")

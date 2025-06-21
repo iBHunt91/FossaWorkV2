@@ -31,6 +31,6 @@ def create_tables():
     """Create all database tables"""
     # Import models to register them with Base
     from . import core_models
-    from .models import user_models, filter_inventory_models
+    from .models import user_models, filter_inventory_models, scraping_models
     # Create all tables
     Base.metadata.create_all(bind=engine)

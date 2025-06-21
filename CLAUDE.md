@@ -1,5 +1,44 @@
 # CLAUDE.md - Project Guide for Claude Code
 
+
+.. _conversation-guidelines:
+
+Conversation Guidelines
+======================
+
+**Primary Objective:**  
+Engage in honest, insight-driven dialogue that advances understanding.
+
+Core Principles
+---------------
+
+- **Intellectual honesty:**  
+  Share genuine insights without unnecessary flattery or dismissiveness.
+
+- **Critical engagement:**  
+  Push on important considerations rather than accepting ideas at face value.
+
+- **Balanced evaluation:**  
+  Present both positive and negative opinions only when well-reasoned and warranted.
+
+- **Directional clarity:**  
+  Focus on whether ideas move us forward or lead us astray.
+
+What to Avoid
+-------------
+
+- Sycophantic responses or unwarranted positivity
+- Dismissing ideas without proper consideration
+- Superficial agreement or disagreement
+- Flattery that doesn't serve the conversation
+
+Success Metric
+--------------
+
+The only currency that matters: **Does this advance or halt productive thinking?**  
+If we're heading down an unproductive path, point it out directly.
+
+
 ## Documentation System
 
 **Two Documentation Systems:**
@@ -109,6 +148,7 @@ DELETE /api/v1/resources/{id}     # Delete
 - `/api/automation/*` - Form automation tasks
 - `/api/settings/*` - User preferences and config
 - `/api/notifications/*` - Notification management
+- `/api/v1/logs/*` - Logging endpoints (write, stats, download)
 
 **Response Format:**
 ```json
@@ -480,9 +520,58 @@ try {
 }
 ```
 
+**Comprehensive Logging System:**
+
+The application includes a sophisticated logging system that captures ALL browser console output and server logs to organized files in `/logs/`.
+
+**Logging Architecture:**
+- **Backend Service:** `backend/app/services/logging_service.py` - Centralized logging configuration
+- **Frontend Service:** `frontend/src/services/fileLoggingService.ts` - Browser console interception
+- **API Endpoint:** `/api/v1/logs/write` - Receives frontend logs and writes to files
+- **File Format:** JSONL (JSON Lines) with date-based rotation
+
+**Log Directory Structure:**
+```
+/logs/
+├── automation/          # Automation task logs
+├── backend/             # Backend server logs
+│   ├── backend-general-{date}.jsonl
+│   ├── backend-api-{date}.jsonl
+│   └── backend-errors-{date}.jsonl
+├── errors/              # All error logs (frontend + backend)
+├── frontend/            # Frontend browser logs
+│   ├── frontend-general-{date}.jsonl    # ALL console output
+│   ├── frontend-api-{date}.jsonl        # API calls
+│   ├── frontend-components-{date}.jsonl # React component logs
+│   └── frontend-errors-{date}.jsonl     # JavaScript errors
+├── performance/         # Performance metrics
+└── sessions/           # Individual user session logs
+    └── frontend-{timestamp}-{sessionId}.jsonl
+```
+
+**Frontend Console Capture:**
+- Automatically intercepts: `console.log`, `console.info`, `console.warn`, `console.error`, `console.debug`
+- Captures unhandled errors and promise rejections
+- Buffers logs and sends to backend every 5 seconds
+- Falls back to localStorage if backend unavailable
+- Each session gets unique ID for tracking
+
+**Backend Logging Configuration:**
+- Structured JSON logging with timestamps
+- Automatic categorization by log content
+- Request ID tracking for correlation
+- API request/response logging with timing
+- Database query monitoring
+
+**Accessing Logs:**
+- **View Logs:** Check `/logs/` directory for all captured output
+- **Download:** API endpoints available for log retrieval
+- **Stats:** `/api/v1/logs/stats` provides log file statistics
+- **Real-time:** Logs written within seconds of generation
+
 **Logging Guidelines:**
 - **Backend:** Use Python's `logging` module with structured logs
-- **Frontend:** Console for dev, error reporting service for production
+- **Frontend:** All console output automatically captured to files
 - **Never Log:** Passwords, tokens, sensitive user data
 - **Always Log:** API errors, authentication failures, critical operations
 - **Log Levels:** DEBUG (dev only), INFO (general), WARNING (issues), ERROR (failures)

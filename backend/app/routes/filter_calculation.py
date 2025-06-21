@@ -73,7 +73,7 @@ async def calculate_single_work_order(
         service = FilterCalculationService(db)
         
         # Log the calculation request
-        await LoggingService(db).log_info(
+        await LoggingService().log_info(
             f"Filter calculation requested for work order {request.work_order_id}"
         )
         
@@ -115,7 +115,7 @@ async def calculate_single_work_order(
         return response
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Filter calculation failed for {request.work_order_id}: {str(e)}"
         )
         raise HTTPException(
@@ -148,7 +148,7 @@ async def calculate_weekly_filters(
         return result
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Weekly filter calculation failed: {str(e)}"
         )
         raise HTTPException(
@@ -170,7 +170,7 @@ async def get_filter_summary(
     """
     try:
         service = FilterCalculationService(db)
-        user_service = UserManagementService(db)
+        user_service = UserManagementService()
         
         # Get user work week preferences
         work_week_prefs = user_service.get_user_preference(user_id, "work_week")
@@ -211,7 +211,7 @@ async def get_filter_summary(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Filter summary failed: {str(e)}"
         )
         raise HTTPException(
@@ -255,7 +255,7 @@ async def export_filter_data(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Filter export failed: {str(e)}"
         )
         raise HTTPException(
@@ -325,7 +325,7 @@ async def get_part_numbers(
         return response
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Part number retrieval failed: {str(e)}"
         )
         raise HTTPException(
@@ -359,7 +359,7 @@ async def get_filter_warnings(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Warning retrieval failed: {str(e)}"
         )
         raise HTTPException(

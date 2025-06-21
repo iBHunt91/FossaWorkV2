@@ -30,10 +30,10 @@ from ..models.user_models import User, generate_user_id
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 def get_user_service(db: Session = Depends(get_db)) -> UserManagementService:
-    return UserManagementService(db)
+    return UserManagementService()
 
 def get_logging_service(db: Session = Depends(get_db)) -> LoggingService:
-    return LoggingService(db)
+    return LoggingService()
 
 # ===== CORE USER MANAGEMENT =====
 

@@ -105,23 +105,26 @@ class AuthenticationService:
                 ).first()
                 
                 if credential:
-                    # Update existing credentials
-                    credential.encrypted_username = username
-                    credential.encrypted_password = password
+                    # Update existing credentials using secure methods
+                    credential.set_username(username)
+                    credential.set_password(password)
                     credential.is_verified = True
                     credential.last_verified = datetime.utcnow()
                     logger.info(f"Updated WorkFossa credentials for user: {user_id}")
                 else:
-                    # Create new credentials
+                    # Create new credentials using secure methods
                     credential = UserCredential(
                         user_id=user_id,
                         service_name="workfossa",
-                        encrypted_username=username,
-                        encrypted_password=password,
+                        encrypted_username="",  # Will be set securely below
+                        encrypted_password="",  # Will be set securely below
                         is_active=True,
                         is_verified=True,
                         last_verified=datetime.utcnow()
                     )
+                    # Use secure methods to set credentials
+                    credential.set_username(username)
+                    credential.set_password(password)
                     self.db.add(credential)
                     logger.info(f"Created WorkFossa credentials for user: {user_id}")
                 
@@ -174,17 +177,20 @@ class AuthenticationService:
             # Store in credential manager's secure storage
             self.credential_manager.store_credentials(workfossa_creds)
             
-            # Also store in database for backward compatibility
+            # Also store in database for backward compatibility using secure methods
             from ..models.user_models import UserCredential
             credential = UserCredential(
                 user_id=user_id,
                 service_name="workfossa",
-                encrypted_username=username,  # Will be encrypted by DB model
-                encrypted_password=password,  # Will be encrypted by DB model
+                encrypted_username="",  # Will be set securely below
+                encrypted_password="",  # Will be set securely below
                 is_active=True,
                 is_verified=True,
                 last_verified=datetime.utcnow()
             )
+            # Use secure methods to set credentials
+            credential.set_username(username)
+            credential.set_password(password)
             
             self.db.add(credential)
             

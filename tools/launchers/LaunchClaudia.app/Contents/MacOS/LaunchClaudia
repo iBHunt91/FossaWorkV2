@@ -1,0 +1,6 @@
+#!/bin/bash
+# Set up PATH to include claude
+export PATH="/Users/ibhunt/.npm-global/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+# Launch Claudia
+exec open -a Claudia

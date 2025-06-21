@@ -110,7 +110,7 @@ async def calculate_work_order_cost(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Work order cost calculation failed: {str(e)}"
         )
         raise HTTPException(
@@ -153,7 +153,7 @@ async def get_filter_cost(
     except HTTPException:
         raise
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to get filter cost: {str(e)}"
         )
         raise HTTPException(
@@ -195,7 +195,7 @@ async def update_filter_cost(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Failed to update filter cost: {str(e)}"
         )
         raise HTTPException(
@@ -270,7 +270,7 @@ async def analyze_cost_trends(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Cost trend analysis failed: {str(e)}"
         )
         raise HTTPException(
@@ -305,7 +305,7 @@ async def generate_budget_report(
         return report
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Budget report generation failed: {str(e)}"
         )
         raise HTTPException(
@@ -338,7 +338,7 @@ async def compare_supplier_prices(
         return comparison
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Supplier comparison failed: {str(e)}"
         )
         raise HTTPException(
@@ -370,7 +370,7 @@ async def calculate_roi_metrics(
         return metrics
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"ROI calculation failed: {str(e)}"
         )
         raise HTTPException(
@@ -456,7 +456,7 @@ async def get_monthly_cost_summary(
         }
         
     except Exception as e:
-        await LoggingService(db).log_error(
+        await LoggingService().log_error(
             f"Monthly summary failed: {str(e)}"
         )
         raise HTTPException(

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { Calendar, CalendarDays, MapPin, Clock, Fuel, Wrench, AlertCircle, CheckCircle, XCircle, ExternalLink, Eye, Hash, Sparkles } from 'lucide-react'
-import { format, startOfWeek, endOfWeek, addDays, isSameDay, isWithinInterval, parseISO } from 'date-fns'
+import { format, startOfWeek, endOfWeek, addDays, isSameDay, isWithinInterval, parseISO, startOfDay } from 'date-fns'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -270,7 +270,14 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
               </div>
             </div>
             
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {/* Week completion indicator for past weeks */}
+              {weekEnd < new Date() && totalWeekOrders === 0 && (
+                <Badge variant="default" className="px-3 py-1.5 bg-green-500 text-white border-green-600">
+                  <CheckCircle className="w-3 h-3 mr-1.5" />
+                  Week Complete
+                </Badge>
+              )}
               <Badge variant="secondary" className="px-3 py-1.5 bg-primary/10 border-primary/20">
                 <Wrench className="w-3 h-3 mr-1.5" />
                 <span className="font-semibold">{totalWeekOrders}</span> work orders
@@ -548,9 +555,28 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                   <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
                     {dayOrders.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <Calendar className="w-8 h-8 mb-2 opacity-50" />
-                        <p className="text-sm font-medium">No work orders</p>
-                        <p className="text-xs mt-1">Enjoy your day!</p>
+                        {/* Check if this is a past day with no work */}
+                        {day.date < startOfDay(new Date()) && !isSameDay(day.date, new Date()) ? (
+                          <>
+                            <CheckCircle className="w-8 h-8 mb-2 text-green-500 opacity-70" />
+                            <p className="text-sm font-medium text-green-600 dark:text-green-400">Day Complete</p>
+                            <p className="text-xs mt-1">No work was scheduled</p>
+                          </>
+                        ) : isSameDay(day.date, new Date()) ? (
+                          // Today with no work
+                          <>
+                            <Sparkles className="w-8 h-8 mb-2 text-primary opacity-70" />
+                            <p className="text-sm font-medium text-primary">Free Day!</p>
+                            <p className="text-xs mt-1">No work scheduled today</p>
+                          </>
+                        ) : (
+                          // Future day or weekend
+                          <>
+                            <Calendar className="w-8 h-8 mb-2 opacity-50" />
+                            <p className="text-sm font-medium">No work orders</p>
+                            <p className="text-xs mt-1">Enjoy your day!</p>
+                          </>
+                        )}
                       </div>
                     ) : (
                       dayOrders.map((order) => {

@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, User, Bell, Shield, Database, TestTube, Trash2, Moon, Sun, Monitor, Palette, Calendar, Mail, Send, Key, CheckCircle, XCircle, AlertCircle, Settings2, Server, Filter, Clock, Gauge, Eye } from 'lucide-react'
+import { Save, User, Bell, Shield, Database, TestTube, Trash2, Moon, Sun, Monitor, Palette, Calendar, Mail, Send, Key, CheckCircle, XCircle, AlertCircle, Settings2, Server, Filter, Clock, Gauge, Eye, ChevronDown, ChevronRight, Zap, Globe } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 import { 
   getUserPreferences, 
   setUserPreference,
@@ -40,6 +41,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import LoadingSpinner from '../components/LoadingSpinner'
 import CredentialManager from '../components/CredentialManager'
+import ScrapingSchedule from '../components/ScrapingSchedule'
 import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text'
 import { AnimatedCard, GlowCard } from '@/components/ui/animated-card'
 import { AnimatedButton, RippleButton, MagneticButton } from '@/components/ui/animated-button'
@@ -47,9 +49,12 @@ import { DotsLoader } from '@/components/ui/animated-loader'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
+import CollapsibleSection from '../components/CollapsibleSection'
 
 const Settings: React.FC = () => {
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('profile')
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [workfossaCredentials, setWorkfossaCredentials] = useState({
     username: '',
     password: ''
@@ -68,6 +73,38 @@ const Settings: React.FC = () => {
   // Debug logging
   console.log('Settings page - Current user:', user)
   console.log('Settings page - Current user ID:', currentUserId)
+
+  // Handle URL parameters
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    const sectionParam = searchParams.get('section')
+    
+    if (tabParam) {
+      setActiveTab(tabParam)
+      
+      // If a specific section is requested, expand it
+      if (sectionParam) {
+        setExpandedSections(new Set([sectionParam]))
+      } else {
+        // For direct tab navigation (like scraping), expand the main section
+        if (tabParam === 'scraping') {
+          setExpandedSections(new Set(['scraping-schedule']))
+        }
+      }
+    }
+  }, [searchParams])
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId)
+      } else {
+        newSet.add(sectionId)
+      }
+      return newSet
+    })
+  }
 
   const { data: preferences, isLoading, refetch } = useQuery({
     queryKey: ['user-preferences', currentUserId],
@@ -362,6 +399,7 @@ const Settings: React.FC = () => {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'system', label: 'System', icon: Database },
+    { id: 'scraping', label: 'Scraping', icon: Clock },
     { id: 'advanced', label: 'Advanced', icon: Settings2 },
   ]
 
@@ -413,16 +451,15 @@ const Settings: React.FC = () => {
           {/* Tab Content */}
           <div className="min-h-[600px]">
             {activeTab === 'profile' && (
-              <AnimatedCard animate="fade" hover="lift">
-                <CardHeader>
-                  <CardTitle>
-                    <ShimmerText text="Profile Settings" />
-                  </CardTitle>
-                  <CardDescription>
-                    Manage your account information
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <CollapsibleSection
+                  id="profile-info"
+                  title="Profile Information"
+                  description="Manage your account information"
+                  icon={User}
+                  isExpanded={expandedSections.has('profile-info')}
+                  onToggle={() => toggleSection('profile-info')}
+                >
                   <div className="grid gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="username">Username</Label>
@@ -458,21 +495,20 @@ const Settings: React.FC = () => {
                     <Save className="w-4 h-4 mr-2" />
                     Save Profile
                   </RippleButton>
-                </CardContent>
-              </AnimatedCard>
+                </CollapsibleSection>
+              </div>
             )}
 
             {activeTab === 'appearance' && (
-              <AnimatedCard animate="fade" hover="lift">
-                <CardHeader>
-                  <CardTitle>
-                    <ShimmerText text="Appearance Settings" />
-                  </CardTitle>
-                  <CardDescription>
-                    Customize how FossaWork looks
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <CollapsibleSection
+                  id="theme-settings"
+                  title="Theme Settings"
+                  description="Customize how FossaWork looks"
+                  icon={Palette}
+                  isExpanded={expandedSections.has('theme-settings')}
+                  onToggle={() => toggleSection('theme-settings')}
+                >
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-medium mb-4">Theme Mode</h3>
@@ -516,24 +552,21 @@ const Settings: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </CardContent>
-              </AnimatedCard>
+                </CollapsibleSection>
+              </div>
             )}
 
             {activeTab === 'notifications' && (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {/* Email Configuration */}
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Mail className="w-5 h-5" />
-                      <ShimmerText text="Email Notifications" />
-                    </CardTitle>
-                    <CardDescription>
-                      Configure email notification preferences and recipient settings
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                <CollapsibleSection
+                  id="email-notifications"
+                  title="Email Notifications"
+                  description="Configure email notification preferences and recipient settings"
+                  icon={Mail}
+                  isExpanded={expandedSections.has('email-notifications')}
+                  onToggle={() => toggleSection('email-notifications')}
+                >
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">Enable Email Notifications</Label>
@@ -612,21 +645,17 @@ const Settings: React.FC = () => {
                         Test Email
                       </AnimatedButton>
                     </div>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
 
                 {/* Pushover Configuration */}
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Send className="w-5 h-5" />
-                      <ShimmerText text="Pushover Notifications" />
-                    </CardTitle>
-                    <CardDescription>
-                      Configure Pushover real-time push notifications for instant alerts
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                <CollapsibleSection
+                  id="pushover-notifications"
+                  title="Pushover Notifications"
+                  description="Configure Pushover real-time push notifications for instant alerts"
+                  icon={Send}
+                  isExpanded={expandedSections.has('pushover-notifications')}
+                  onToggle={() => toggleSection('pushover-notifications')}
+                >
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">Enable Pushover Notifications</Label>
@@ -735,21 +764,17 @@ const Settings: React.FC = () => {
                         Test Pushover
                       </AnimatedButton>
                     </div>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
 
                 {/* Notification Type Configuration */}
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Bell className="w-5 h-5" />
-                      <ShimmerText text="Notification Preferences" />
-                    </CardTitle>
-                    <CardDescription>
-                      Choose which notifications to receive and through which channels
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                <CollapsibleSection
+                  id="notification-preferences"
+                  title="Notification Preferences"
+                  description="Choose which notifications to receive and through which channels"
+                  icon={Bell}
+                  isExpanded={expandedSections.has('notification-preferences')}
+                  onToggle={() => toggleSection('notification-preferences')}
+                >
                     <div className="space-y-4">
                       {[
                         { key: 'automation_started', label: 'Automation Started', description: 'When a new automation job begins' },
@@ -803,23 +828,20 @@ const Settings: React.FC = () => {
                         Test Both Channels
                       </AnimatedButton>
                     </div>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
               </div>
             )}
 
             {activeTab === 'security' && (
-              <div className="space-y-6">
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle>
-                      <ShimmerText text="Security Settings" />
-                    </CardTitle>
-                    <CardDescription>
-                      Manage your account security
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <CollapsibleSection
+                  id="password-settings"
+                  title="Password Settings"
+                  description="Manage your account security"
+                  icon={Shield}
+                  isExpanded={expandedSections.has('password-settings')}
+                  onToggle={() => toggleSection('password-settings')}
+                >
                     <div className="space-y-4">
                       <h3 className="text-sm font-medium">Password</h3>
                       <div className="grid gap-4">
@@ -852,31 +874,36 @@ const Settings: React.FC = () => {
                         Update Password
                       </AnimatedButton>
                     </div>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
 
-                <div className="animate-slide-in-from-bottom" style={{ animationDelay: '0.2s' }}>
+                <CollapsibleSection
+                  id="workfossa-credentials"
+                  title="WorkFossa Credentials"
+                  description="Manage your WorkFossa login credentials"
+                  icon={Key}
+                  isExpanded={expandedSections.has('workfossa-credentials')}
+                  onToggle={() => toggleSection('workfossa-credentials')}
+                >
                   <CredentialManager 
                     userId={currentUserId}
                     onCredentialsUpdated={() => {
                       queryClient.invalidateQueries({ queryKey: ['workfossa-credentials'] })
                     }}
                   />
-                </div>
+                </CollapsibleSection>
               </div>
             )}
 
             {activeTab === 'system' && (
-              <AnimatedCard animate="fade" hover="lift">
-                <CardHeader>
-                  <CardTitle>
-                    <ShimmerText text="System Settings" />
-                  </CardTitle>
-                  <CardDescription>
-                    Configure system behavior
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <CollapsibleSection
+                  id="automation-settings"
+                  title="Automation Settings"
+                  description="Configure automated behaviors"
+                  icon={Zap}
+                  isExpanded={expandedSections.has('automation-settings')}
+                  onToggle={() => toggleSection('automation-settings')}
+                >
                   <div className="space-y-6">
                     <div>
                       <h3 className="text-sm font-medium mb-4">Automation</h3>
@@ -901,12 +928,18 @@ const Settings: React.FC = () => {
                         ))}
                       </div>
                     </div>
+                  </div>
+                </CollapsibleSection>
                     
-                    <Separator />
-                    
-                    <div>
-                      <h3 className="text-sm font-medium mb-4">Data Management</h3>
-                      <div className="space-y-4">
+                <CollapsibleSection
+                  id="data-management"
+                  title="Data Management"
+                  description="Control data retention and cleanup"
+                  icon={Database}
+                  isExpanded={expandedSections.has('data-management')}
+                  onToggle={() => toggleSection('data-management')}
+                >
+                  <div className="space-y-4">
                         <div className="space-y-2">
                           <Label htmlFor="cleanup">Auto-cleanup completed jobs after</Label>
                           <select 
@@ -923,13 +956,17 @@ const Settings: React.FC = () => {
                           <Trash2 className="w-4 h-4 mr-2" />
                           Clear All Data
                         </AnimatedButton>
-                      </div>
-                    </div>
+                  </div>
+                </CollapsibleSection>
                     
-                    <Separator />
-                    
-                    <div>
-                      <h3 className="text-sm font-medium mb-4">Work Week Configuration</h3>
+                <CollapsibleSection
+                  id="work-week"
+                  title="Work Week Configuration"
+                  description="Set your working days and schedule preferences"
+                  icon={Calendar}
+                  isExpanded={expandedSections.has('work-week')}
+                  onToggle={() => toggleSection('work-week')}
+                >
                       <div className="space-y-4">
                         <div className="space-y-3">
                           <Label>Select Your Work Days</Label>
@@ -1010,65 +1047,80 @@ const Settings: React.FC = () => {
                           Select which days constitute your work week. This determines which days are included when calculating "current week" and "next week" on the dashboard.
                         </p>
                       </div>
-                    </div>
+                </CollapsibleSection>
                     
-                    <Separator />
-                    
-                    <div>
-                      <h3 className="text-sm font-medium mb-4">API Configuration</h3>
-                      <div className="grid gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="api-url">API Base URL</Label>
-                          <Input 
-                            id="api-url" 
-                            value="http://localhost:8000" 
-                            className="input-modern" 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="timeout">Request Timeout (seconds)</Label>
-                          <Input 
-                            id="timeout" 
-                            type="number" 
-                            value="10" 
-                            className="input-modern" 
-                          />
-                        </div>
+                <CollapsibleSection
+                  id="api-config"
+                  title="API Configuration"
+                  description="Configure API settings and timeouts"
+                  icon={Globe}
+                  isExpanded={expandedSections.has('api-config')}
+                  onToggle={() => toggleSection('api-config')}
+                >
+                  <div className="space-y-4">
+                    <div className="grid gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="api-url">API Base URL</Label>
+                        <Input 
+                          id="api-url" 
+                          value="http://localhost:8000" 
+                          className="input-modern" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="timeout">Request Timeout (seconds)</Label>
+                        <Input 
+                          id="timeout" 
+                          type="number" 
+                          value="10" 
+                          className="input-modern" 
+                        />
                       </div>
                     </div>
+                    <AnimatedButton
+                      onClick={() => handlePreferenceUpdate('system', {
+                        auto_scrape: true,
+                        auto_start: true,
+                        cleanup_days: 30
+                      })}
+                      disabled={updatePreferenceMutation.isPending}
+                      animation="shimmer"
+                      className="w-full sm:w-auto"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      Save System Settings
+                    </AnimatedButton>
                   </div>
+                </CollapsibleSection>
+              </div>
+            )}
 
-                  <AnimatedButton
-                    onClick={() => handlePreferenceUpdate('system', {
-                      auto_scrape: true,
-                      auto_start: true,
-                      cleanup_days: 30
-                    })}
-                    disabled={updatePreferenceMutation.isPending}
-                    animation="shimmer"
-                    className="w-full sm:w-auto"
-                  >
-                    <Save className="w-4 h-4 mr-2" />
-                    Save System Settings
-                  </AnimatedButton>
-                </CardContent>
-              </AnimatedCard>
+            {activeTab === 'scraping' && (
+              <div className="space-y-4">
+                <CollapsibleSection
+                  id="scraping-schedule"
+                  title="Work Order Sync Schedule"
+                  description="Configure automatic work order synchronization"
+                  icon={Clock}
+                  isExpanded={expandedSections.has('scraping-schedule')}
+                  onToggle={() => toggleSection('scraping-schedule')}
+                >
+                  <ScrapingSchedule />
+                </CollapsibleSection>
+              </div>
             )}
 
             {activeTab === 'advanced' && (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {/* SMTP Email Server Configuration */}
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Server className="w-5 h-5" />
-                      <ShimmerText text="SMTP Email Server" />
-                    </CardTitle>
-                    <CardDescription>
-                      Configure custom SMTP server for sending email notifications
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                <CollapsibleSection
+                  id="smtp-settings"
+                  title="SMTP Email Server"
+                  description="Configure custom SMTP server for sending email notifications"
+                  icon={Server}
+                  isExpanded={expandedSections.has('smtp-settings')}
+                  onToggle={() => toggleSection('smtp-settings')}
+                >
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -1243,21 +1295,17 @@ const Settings: React.FC = () => {
                         Save SMTP Settings
                       </AnimatedButton>
                     </div>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
 
                 {/* Work Order Filter Settings */}
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Filter className="w-5 h-5" />
-                      <ShimmerText text="Work Order Filters" />
-                    </CardTitle>
-                    <CardDescription>
-                      Configure filters to automatically include or exclude specific work orders
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                <CollapsibleSection
+                  id="filter-settings"
+                  title="Work Order Filters"
+                  description="Configure filters to automatically include or exclude specific work orders"
+                  icon={Filter}
+                  isExpanded={expandedSections.has('filter-settings')}
+                  onToggle={() => toggleSection('filter-settings')}
+                >
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-medium">Enable Filtering</Label>
@@ -1374,21 +1422,17 @@ const Settings: React.FC = () => {
                       <Save className="w-4 h-4 mr-2" />
                       Save Filter Settings
                     </AnimatedButton>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
 
                 {/* Automation Delay Settings */}
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="w-5 h-5" />
-                      <ShimmerText text="Automation Delays" />
-                    </CardTitle>
-                    <CardDescription>
-                      Fine-tune automation speed and timing for optimal performance
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                <CollapsibleSection
+                  id="automation-delays"
+                  title="Automation Delays"
+                  description="Fine-tune automation speed and timing for optimal performance"
+                  icon={Clock}
+                  isExpanded={expandedSections.has('automation-delays')}
+                  onToggle={() => toggleSection('automation-delays')}
+                >
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -1538,21 +1582,17 @@ const Settings: React.FC = () => {
                       <Save className="w-4 h-4 mr-2" />
                       Save Delay Settings
                     </AnimatedButton>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
 
                 {/* Browser Settings */}
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Monitor className="w-5 h-5" />
-                      <ShimmerText text="Browser Settings" />
-                    </CardTitle>
-                    <CardDescription>
-                      Configure browser behavior for web scraping and automation
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                <CollapsibleSection
+                  id="browser-settings"
+                  title="Browser Settings"
+                  description="Configure browser behavior for web scraping and automation"
+                  icon={Monitor}
+                  isExpanded={expandedSections.has('browser-settings')}
+                  onToggle={() => toggleSection('browser-settings')}
+                >
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1">
@@ -1696,21 +1736,17 @@ const Settings: React.FC = () => {
                       <Save className="w-4 h-4 mr-2" />
                       Save Browser Settings
                     </AnimatedButton>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
 
                 {/* Notification Display Settings */}
-                <AnimatedCard animate="fade" hover="lift">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Eye className="w-5 h-5" />
-                      <ShimmerText text="Notification Display" />
-                    </CardTitle>
-                    <CardDescription>
-                      Choose what information appears in your notifications
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                <CollapsibleSection
+                  id="notification-display"
+                  title="Notification Display"
+                  description="Choose what information appears in your notifications"
+                  icon={Eye}
+                  isExpanded={expandedSections.has('notification-display')}
+                  onToggle={() => toggleSection('notification-display')}
+                >
                     <div className="space-y-4">
                       <h4 className="text-sm font-medium">Show in Notifications</h4>
                       <div className="grid grid-cols-2 gap-3">
@@ -1810,8 +1846,7 @@ const Settings: React.FC = () => {
                       <Save className="w-4 h-4 mr-2" />
                       Save Display Settings
                     </AnimatedButton>
-                  </CardContent>
-                </AnimatedCard>
+                </CollapsibleSection>
               </div>
             )}
           </div>

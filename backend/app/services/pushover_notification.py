@@ -146,8 +146,8 @@ class PushoverNotificationService:
     def __init__(self, db: Session, pushover_settings: PushoverSettings):
         self.db = db
         self.pushover_settings = pushover_settings
-        self.logging_service = LoggingService(db)
-        self.user_service = UserManagementService(db)
+        self.logging_service = LoggingService()
+        self.user_service = UserManagementService()
         self.pending_messages: List[PushoverMessage] = []
         self.session: Optional[aiohttp.ClientSession] = None
     
