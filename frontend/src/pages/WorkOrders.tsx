@@ -134,6 +134,11 @@ const WorkOrders: React.FC = () => {
   const queryClient = useQueryClient()
   const { user } = useAuth()
 
+  // Check if any scraping is in progress
+  const isAnyScraping = scrapeStatus === 'scraping' || 
+                       dispenserScrapeStatus === 'scraping' || 
+                       singleDispenserProgress !== null
+
   // Close calendar when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -997,10 +1002,6 @@ const WorkOrders: React.FC = () => {
     setSelectedWorkOrders(new Set())
   }, [])
 
-  // Check if any scraping is in progress
-  const isAnyScraping = scrapeStatus === 'scraping' || 
-                       dispenserScrapeStatus === 'scraping' || 
-                       singleDispenserProgress !== null
 
   // Handle batch operations
   const handleBatchDispenserScrape = useCallback(async () => {
