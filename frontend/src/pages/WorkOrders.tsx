@@ -1170,6 +1170,40 @@ const WorkOrders: React.FC = () => {
     }
   }, [currentUserId, queryClient])
 
+  // Handler for clearing all work orders
+  const handleClearAllWorkOrders = useCallback(() => {
+    clearAllMutation.mutate()
+  }, [clearAllMutation])
+
+  // Handler for clearing all dispensers
+  const handleClearAllDispensers = useCallback(() => {
+    const workOrdersWithDispensers = workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0)
+    if (workOrdersWithDispensersCount > 0 && confirm(`Clear dispensers from ${workOrdersWithDispensersCount} work orders?`)) {
+      workOrdersWithDispensers.forEach(wo => {
+        clearDispensersForWorkOrder(wo.id, user?.id || '')
+      })
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] })
+    }
+  }, [workOrders, workOrdersWithDispensersCount, user?.id, queryClient])
+
+  // Handler for clearing a single work order
+  const handleClearSingleWorkOrder = useCallback((workOrderId: string) => {
+    console.log('Clear single work order:', workOrderId)
+    // Implement single work order clear logic if needed
+  }, [])
+
+  // Handler for view mode changes
+  const handleSetListView = useCallback(() => setViewMode('list'), [])
+  const handleSetWeeklyView = useCallback(() => setViewMode('weekly'), [])
+  const handleToggleShowAllJobs = useCallback(() => setShowAllJobs(prev => !prev), [])
+
+  // Handler for exiting weekend mode
+  const handleExitWeekendMode = useCallback(() => {
+    setWeekendModeEnabled(false)
+    setWeekendModeDismissed(true)
+    handleWeekChange(new Date())
+  }, [handleWeekChange])
+
   if (error) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -1273,7 +1307,7 @@ const WorkOrders: React.FC = () => {
                 <DropdownMenuLabel className="text-base font-semibold">Clear Options</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem 
-                  onClick={useCallback(() => clearAllMutation.mutate(), [clearAllMutation])}
+                  onClick={handleClearAllWorkOrders}
                   disabled={clearAllMutation.isPending || workOrders.length === 0}
                   className="text-destructive focus:text-destructive py-3 cursor-pointer"
                 >
@@ -1288,16 +1322,7 @@ const WorkOrders: React.FC = () => {
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  onClick={useCallback(() => {
-                    // Clear all dispensers logic
-                    const workOrdersWithDispensers = workOrders.filter(wo => wo.dispensers && wo.dispensers.length > 0)
-                    if (workOrdersWithDispensersCount > 0 && confirm(`Clear dispensers from ${workOrdersWithDispensersCount} work orders?`)) {
-                      workOrdersWithDispensers.forEach(wo => {
-                        clearDispensersForWorkOrder(wo.id, user?.id || '')
-                      })
-                      queryClient.invalidateQueries({ queryKey: ['work-orders'] })
-                    }
-                  }, [workOrders, workOrdersWithDispensersCount, user?.id, queryClient])}
+                  onClick={handleClearAllDispensers}
                   disabled={workOrdersWithDispensersCount === 0}
                   className="text-destructive focus:text-destructive py-3 cursor-pointer"
                 >
@@ -1465,11 +1490,7 @@ const WorkOrders: React.FC = () => {
                   
                   {/* Button Section */}
                   <Button
-                    onClick={useCallback(() => {
-                      setWeekendModeEnabled(false)
-                      setWeekendModeDismissed(true)
-                      handleWeekChange(new Date())
-                    }, [setWeekendModeEnabled, setWeekendModeDismissed, handleWeekChange])}
+                    onClick={handleExitWeekendMode}
                     size="sm"
                     variant="ghost"
                     className="w-full md:w-auto border border-blue-500/30 hover:border-blue-500 hover:bg-blue-500/10 transition-all duration-200"
@@ -2219,7 +2240,7 @@ const WorkOrders: React.FC = () => {
                     <MagneticButton
                       variant={viewMode === 'list' ? 'default' : 'ghost'}
                       size="sm"
-                      onClick={useCallback(() => setViewMode('list'), [])}
+                      onClick={handleSetListView}
                       className="rounded-none flex-1 h-full"
                       strength={0.1}
                     >
@@ -2229,7 +2250,7 @@ const WorkOrders: React.FC = () => {
                     <MagneticButton
                       variant={viewMode === 'weekly' ? 'default' : 'ghost'}
                       size="sm"
-                      onClick={useCallback(() => setViewMode('weekly'), [])}
+                      onClick={handleSetWeeklyView}
                       className="rounded-none flex-1 h-full"
                       strength={0.1}
                     >
@@ -2243,7 +2264,7 @@ const WorkOrders: React.FC = () => {
               {/* Show All Jobs Toggle */}
               <div className="flex items-center gap-2 mt-4">
                 <button
-                  onClick={useCallback(() => setShowAllJobs(prev => !prev), [])}
+                  onClick={handleToggleShowAllJobs}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer rounded hover:bg-accent/50"
                 >
                     {showAllJobs ? (
