@@ -91,6 +91,369 @@ interface EnhancedWorkOrder {
   }>
 }
 
+// Empty State Component - handles all empty state scenarios reliably
+interface EmptyStateProps {
+  workOrders: EnhancedWorkOrder[]
+  filteredWorkOrders: EnhancedWorkOrder[]
+  weekFilteredWorkOrders: EnhancedWorkOrder[]
+  viewMode: 'list' | 'weekly'
+  selectedWeek: Date
+  showAllJobs: boolean
+  weekendModeEnabled: boolean
+  setWeekendModeEnabled: (enabled: boolean) => void
+  setShowAllJobs: (show: boolean) => void
+  handleScrape: () => void
+  handleWeekChange: (date: Date) => void
+}
+
+const EmptyStateComponent: React.FC<EmptyStateProps> = ({
+  workOrders,
+  filteredWorkOrders,
+  weekFilteredWorkOrders,
+  viewMode,
+  selectedWeek,
+  showAllJobs,
+  weekendModeEnabled,
+  setWeekendModeEnabled,
+  setShowAllJobs,
+  handleScrape,
+  handleWeekChange
+}) => {
+  // Determine if current view is empty
+  const currentViewEmpty = viewMode === 'weekly' 
+    ? filteredWorkOrders.length === 0
+    : weekFilteredWorkOrders.length === 0
+
+  // Check if we have any work orders at all
+  const hasAnyWorkOrders = workOrders.length > 0
+
+  // Calculate next week info
+  const nextWeek = addWeeks(new Date(), 1)
+  const nextWeekStart = startOfWeek(nextWeek, { weekStartsOn: 1 })
+  const nextWeekEnd = endOfWeek(nextWeek, { weekStartsOn: 1 })
+  
+  const nextWeekWorkOrders = workOrders.filter(wo => {
+    if (!wo.scheduled_date) return false
+    const date = new Date(wo.scheduled_date)
+    return date >= nextWeekStart && date <= nextWeekEnd
+  })
+
+  // Determine week type for list view
+  const today = new Date()
+  const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 })
+  const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 })
+  const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 })
+  const currentWeekEnd = endOfWeek(today, { weekStartsOn: 1 })
+  
+  const isPastWeek = viewMode === 'list' && weekEnd < currentWeekStart
+  const isFutureWeek = viewMode === 'list' && weekStart > currentWeekEnd
+  const isCurrentWeek = viewMode === 'weekly' || isThisWeek(selectedWeek)
+
+  // Find next week with work
+  const findNextWeekWithWork = () => {
+    let checkWeek = addWeeks(selectedWeek, 1)
+    for (let i = 0; i < 8; i++) {
+      const weekStart = startOfWeek(checkWeek, { weekStartsOn: 1 })
+      const weekEnd = endOfWeek(checkWeek, { weekStartsOn: 1 })
+      const hasWork = workOrders.some(wo => {
+        if (!wo.scheduled_date) return false
+        const date = new Date(wo.scheduled_date)
+        return date >= weekStart && date <= weekEnd
+      })
+      if (hasWork) return checkWeek
+      checkWeek = addWeeks(checkWeek, 1)
+    }
+    return null
+  }
+
+  // No work orders at all - first time user or need to scrape
+  if (!hasAnyWorkOrders) {
+    return (
+      <>
+        <Fuel className="w-16 h-16 text-muted-foreground mx-auto mb-4 animate-bounce" />
+        <CardTitle className="text-xl mb-2">
+          <AnimatedText text="No Work Orders Available" animationType="reveal" />
+        </CardTitle>
+        <CardDescription className="mb-6 max-w-md mx-auto">
+          <AnimatedText 
+            text="You don't have any work orders yet. Click 'Scrape Work Orders' below to fetch your latest assignments from WorkFossa."
+            animationType="fade"
+            delay={0.2}
+          />
+        </CardDescription>
+        <div className="space-y-4">
+          <RippleButton onClick={handleScrape} size="lg">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Scrape Work Orders
+          </RippleButton>
+          <div className="text-xs text-muted-foreground max-w-sm mx-auto">
+            💡 Make sure your WorkFossa credentials are configured in Settings and you have assigned work orders on the WorkFossa platform.
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // Weekly view with no work orders
+  if (currentViewEmpty && viewMode === 'weekly') {
+    return (
+      <>
+        <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+        <CardTitle className="text-xl mb-2">
+          <AnimatedText text="No Work Orders Available" animationType="reveal" />
+        </CardTitle>
+        <CardDescription className="mb-6 max-w-md mx-auto">
+          <AnimatedText 
+            text={showAllJobs 
+              ? "No work orders found in your current view. Try adjusting your filters or scraping for updates."
+              : "No work orders found for your selected work days. Try expanding your view or checking your preferences."
+            }
+            animationType="fade"
+            delay={0.2}
+          />
+        </CardDescription>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <RippleButton onClick={handleScrape} size="lg" variant="outline">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Check for Updates
+            </RippleButton>
+            {!showAllJobs && (
+              <RippleButton 
+                onClick={() => setShowAllJobs(true)} 
+                size="lg"
+                variant="default"
+              >
+                <CalendarDays className="w-4 h-4 mr-2" />
+                Show All Jobs
+              </RippleButton>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground max-w-sm mx-auto">
+            {showAllJobs 
+              ? "💡 Weekly view shows all work across your schedule"
+              : "💡 Enable 'Show All Jobs' to see work scheduled for all days"
+            }
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // Past week with no work orders
+  if (currentViewEmpty && isPastWeek) {
+    const nextWeekWithWork = findNextWeekWithWork()
+    return (
+      <>
+        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 animate-pulse" />
+        <CardTitle className="text-xl mb-2">
+          <AnimatedText text="✓ Week Complete" animationType="reveal" />
+        </CardTitle>
+        <CardDescription className="mb-6 max-w-md mx-auto">
+          <AnimatedText 
+            text={`No work was scheduled for the week of ${format(weekStart, 'MMM d')}. This week is complete!`}
+            animationType="fade"
+            delay={0.2}
+          />
+        </CardDescription>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <RippleButton 
+              onClick={() => handleWeekChange(new Date())} 
+              size="lg"
+              variant="outline"
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Return to Current Week
+            </RippleButton>
+            {nextWeekWithWork && (
+              <RippleButton 
+                onClick={() => handleWeekChange(nextWeekWithWork)} 
+                size="lg"
+                variant="default"
+                className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
+              >
+                <ArrowRight className="w-4 h-4 mr-2" />
+                View Next Work
+              </RippleButton>
+            )}
+          </div>
+          {!weekendModeEnabled && nextWeekWithWork && (
+            <div className="text-xs text-muted-foreground max-w-sm mx-auto">
+              💡 Enable weekend mode to automatically jump to weeks with scheduled work
+            </div>
+          )}
+        </div>
+      </>
+    )
+  }
+
+  // Current week complete with next week work
+  if (currentViewEmpty && nextWeekWorkOrders.length > 0 && isCurrentWeek) {
+    return (
+      <>
+        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 animate-bounce" />
+        <CardTitle className="text-xl mb-2">
+          <AnimatedText text="✓ Current Week Complete" animationType="reveal" />
+        </CardTitle>
+        <CardDescription className="mb-6 max-w-md mx-auto">
+          <AnimatedText 
+            text={`Excellent! You've completed all work for this week. ${nextWeekWorkOrders.length} work ${nextWeekWorkOrders.length === 1 ? 'order' : 'orders'} scheduled for next week.`}
+            animationType="fade"
+            delay={0.2}
+          />
+        </CardDescription>
+        <div className="space-y-4">
+          <RippleButton 
+            onClick={() => {
+              setWeekendModeEnabled(true)
+              handleWeekChange(nextWeek)
+            }} 
+            size="lg"
+            variant="default"
+            className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
+          >
+            <CalendarDays className="w-4 h-4 mr-2" />
+            View Next Week's Work
+          </RippleButton>
+          <div className="text-xs text-muted-foreground max-w-sm mx-auto">
+            🏁 Weekend mode automatically activates on Thursday afternoons or weekends when the current week is complete.
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // Future week with no work
+  if (currentViewEmpty && isFutureWeek) {
+    const nextWeekWithWork = findNextWeekWithWork()
+    const weekDesc = format(weekStart, 'MMM d, yyyy')
+    
+    return (
+      <>
+        <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+        <CardTitle className="text-xl mb-2">
+          <AnimatedText text="No Work Scheduled" animationType="reveal" />
+        </CardTitle>
+        <CardDescription className="mb-6 max-w-md mx-auto">
+          <AnimatedText 
+            text={`No work orders are scheduled for the week of ${weekDesc}. Check back closer to the date or run a fresh scrape.`}
+            animationType="fade"
+            delay={0.2}
+          />
+        </CardDescription>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <RippleButton 
+              onClick={() => handleWeekChange(new Date())} 
+              size="lg"
+              variant="outline"
+            >
+              <Calendar className="w-4 h-4 mr-2" />
+              Return to Current Week
+            </RippleButton>
+            {nextWeekWithWork && (
+              <RippleButton 
+                onClick={() => handleWeekChange(nextWeekWithWork)} 
+                size="lg"
+                variant="default"
+              >
+                <ArrowRight className="w-4 h-4 mr-2" />
+                Find Next Work
+              </RippleButton>
+            )}
+          </div>
+          <RippleButton 
+            onClick={handleScrape} 
+            size="sm"
+            variant="ghost"
+            className="text-xs"
+          >
+            <RefreshCw className="w-3 h-3 mr-1" />
+            Check for Updates
+          </RippleButton>
+        </div>
+      </>
+    )
+  }
+
+  // All caught up - current week complete and no immediate future work
+  if (currentViewEmpty && nextWeekWorkOrders.length === 0 && isCurrentWeek) {
+    const hasFutureWork = workOrders.some(wo => {
+      if (!wo.scheduled_date) return false
+      const date = new Date(wo.scheduled_date)
+      return date > currentWeekEnd
+    })
+    
+    return (
+      <>
+        <Sparkles className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
+        <CardTitle className="text-xl mb-2">
+          <AnimatedText text="✓ All Caught Up!" animationType="reveal" />
+        </CardTitle>
+        <CardDescription className="mb-6 max-w-md mx-auto">
+          <AnimatedText 
+            text={hasFutureWork 
+              ? "Amazing! You've completed all work for this week. Future work is scheduled, but nothing immediate."
+              : "Amazing! You've completed all your work and have no upcoming orders scheduled. Time to relax!"
+            }
+            animationType="fade"
+            delay={0.2}
+          />
+        </CardDescription>
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <RippleButton onClick={handleScrape} size="lg" variant="outline">
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Check for New Work
+            </RippleButton>
+            {hasFutureWork && !weekendModeEnabled && (
+              <RippleButton 
+                onClick={() => setWeekendModeEnabled(true)} 
+                size="lg"
+                variant="default"
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+              >
+                <CalendarDays className="w-4 h-4 mr-2" />
+                Enable Weekend Mode
+              </RippleButton>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground max-w-sm mx-auto">
+            {hasFutureWork 
+              ? "💪 Great work! Enable weekend mode to jump ahead to future work weeks."
+              : "🎉 Enjoy your well-deserved break! Check back later for new assignments."
+            }
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // Default fallback - should handle any remaining edge cases
+  return (
+    <>
+      <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+      <CardTitle className="text-xl mb-2">
+        <AnimatedText text="No Work Orders Found" animationType="reveal" />
+      </CardTitle>
+      <CardDescription className="mb-6 max-w-md mx-auto">
+        <AnimatedText 
+          text="No work orders match your current criteria. Try adjusting your filters or refreshing your data."
+          animationType="fade"
+          delay={0.2}
+        />
+      </CardDescription>
+      <div className="space-y-4">
+        <RippleButton onClick={handleScrape} size="lg" variant="outline">
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh Data
+        </RippleButton>
+      </div>
+    </>
+  )
+}
+
 const WorkOrders: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
@@ -98,6 +461,7 @@ const WorkOrders: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'weekly'>('list')
   const [selectedWorkOrders, setSelectedWorkOrders] = useState<Set<string>>(new Set())
   const [selectedWeek, setSelectedWeek] = useState(new Date())
+  const [hasPerformedSmartWeekDetection, setHasPerformedSmartWeekDetection] = useState(false)
   const [highlightedWorkOrderId, setHighlightedWorkOrderId] = useState<string | null>(null)
   const [showCalendar, setShowCalendar] = useState(false)
   const [showAllJobs, setShowAllJobs] = useState(false)
@@ -827,6 +1191,65 @@ const WorkOrders: React.FC = () => {
     })
   }, [filteredWorkOrders, selectedWeek, showAllJobs])
 
+  // Smart Week Detection - automatically select a week with actual work orders
+  useEffect(() => {
+    if (!hasPerformedSmartWeekDetection && workOrders.length > 0 && !isLoading) {
+      console.log('🧠 Performing smart week detection...')
+      
+      // Find the best week to display
+      const findBestWeek = () => {
+        const today = new Date()
+        const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 })
+        const currentWeekEnd = endOfWeek(today, { weekStartsOn: 1 })
+        
+        // First, check if current week has work orders
+        const currentWeekOrders = workOrders.filter(wo => {
+          if (!wo.scheduled_date) return false
+          const date = new Date(wo.scheduled_date)
+          return date >= currentWeekStart && date <= currentWeekEnd
+        })
+        
+        if (currentWeekOrders.length > 0) {
+          console.log('📅 Current week has work orders, staying here')
+          return today
+        }
+        
+        // If current week is empty, find the nearest week with work orders
+        const scheduledWorkOrders = workOrders.filter(wo => wo.scheduled_date)
+        
+        if (scheduledWorkOrders.length === 0) {
+          console.log('📅 No scheduled work orders found, staying on current week')
+          return today
+        }
+        
+        // Sort work orders by date
+        const sortedOrders = scheduledWorkOrders.sort((a, b) => 
+          new Date(a.scheduled_date!).getTime() - new Date(b.scheduled_date!).getTime()
+        )
+        
+        // Find the closest week to today that has work orders
+        let bestWeek = new Date(sortedOrders[0].scheduled_date!)
+        let minDistance = Math.abs(new Date(sortedOrders[0].scheduled_date!).getTime() - today.getTime())
+        
+        for (const order of sortedOrders) {
+          const orderDate = new Date(order.scheduled_date!)
+          const distance = Math.abs(orderDate.getTime() - today.getTime())
+          
+          if (distance < minDistance) {
+            minDistance = distance
+            bestWeek = orderDate
+          }
+        }
+        
+        console.log('📅 Found best week with work orders:', format(bestWeek, 'MMM d, yyyy'))
+        return bestWeek
+      }
+      
+      const bestWeek = findBestWeek()
+      setSelectedWeek(bestWeek)
+      setHasPerformedSmartWeekDetection(true)
+    }
+  }, [workOrders, hasPerformedSmartWeekDetection, isLoading])
 
   // Auto-enable weekend mode
   useEffect(() => {
@@ -2795,313 +3218,19 @@ const WorkOrders: React.FC = () => {
                   </div>
                 </>
               ) : (
-                // No work orders at all - but check for next week
-                (() => {
-                  // Enhanced empty state logic with week completion detection
-                  const currentWeekEmpty = viewMode === 'weekly' 
-                    ? filteredWorkOrders.length === 0
-                    : weekFilteredWorkOrders.length === 0
-                  const nextWeek = addWeeks(new Date(), 1)
-                  const nextWeekStart = startOfWeek(nextWeek, { weekStartsOn: 1 })
-                  const nextWeekEnd = endOfWeek(nextWeek, { weekStartsOn: 1 })
-                  
-                  const nextWeekWorkOrders = workOrders.filter(wo => {
-                    if (!wo.scheduled_date) return false
-                    const date = new Date(wo.scheduled_date)
-                    return date >= nextWeekStart && date <= nextWeekEnd
-                  })
-                  
-                  // Check if this is a past week
-                  const isPastWeek = viewMode === 'weekly' 
-                    ? false // Weekly view shows all weeks, so no "past week" concept
-                    : endOfWeek(selectedWeek, { weekStartsOn: 1 }) < startOfWeek(new Date(), { weekStartsOn: 1 })
-                  const isFutureWeek = viewMode === 'weekly'
-                    ? false // Weekly view shows all weeks, so no "future week" concept  
-                    : startOfWeek(selectedWeek, { weekStartsOn: 1 }) > endOfWeek(new Date(), { weekStartsOn: 1 })
-                  const isCurrentWeek = viewMode === 'weekly' 
-                    ? true // Weekly view is always "current" in the sense that it shows your current work scope
-                    : isThisWeek(selectedWeek)
-                  
-                  // Find the next week with work orders
-                  const findNextWeekWithWork = () => {
-                    let checkWeek = addWeeks(selectedWeek, 1)
-                    for (let i = 0; i < 8; i++) { // Check up to 8 weeks ahead
-                      const weekStart = startOfWeek(checkWeek, { weekStartsOn: 1 })
-                      const weekEnd = endOfWeek(checkWeek, { weekStartsOn: 1 })
-                      const hasWork = workOrders.some(wo => {
-                        if (!wo.scheduled_date) return false
-                        const date = new Date(wo.scheduled_date)
-                        return date >= weekStart && date <= weekEnd
-                      })
-                      if (hasWork) return checkWeek
-                      checkWeek = addWeeks(checkWeek, 1)
-                    }
-                    return null
-                  }
-                  
-                  // Weekly view with no work orders
-                  if (currentWeekEmpty && viewMode === 'weekly') {
-                    return (
-                      <>
-                        <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                        <CardTitle className="text-xl mb-2">
-                          <AnimatedText text="No Work Orders Available" animationType="reveal" />
-                        </CardTitle>
-                        <CardDescription className="mb-6 max-w-md mx-auto">
-                          <AnimatedText 
-                            text={showAllJobs 
-                              ? "No work orders found in your current view. Try adjusting your filters or scraping for updates."
-                              : "No work orders found for your selected work days. Try expanding your view or checking your preferences."
-                            }
-                            animationType="fade"
-                            delay={0.2}
-                          />
-                        </CardDescription>
-                        <div className="space-y-4">
-                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                            <RippleButton onClick={handleScrape} size="lg" variant="outline">
-                              <RefreshCw className="w-4 h-4 mr-2" />
-                              Check for Updates
-                            </RippleButton>
-                            {!showAllJobs && (
-                              <RippleButton 
-                                onClick={() => setShowAllJobs(true)} 
-                                size="lg"
-                                variant="default"
-                              >
-                                <CalendarDays className="w-4 h-4 mr-2" />
-                                Show All Jobs
-                              </RippleButton>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground max-w-sm mx-auto">
-                            {showAllJobs 
-                              ? "💡 Weekly view shows all work across your schedule"
-                              : "💡 Enable 'Show All Jobs' to see work scheduled for all days"
-                            }
-                          </div>
-                        </div>
-                      </>
-                    )
-                  }
-                  
-                  // Past week with no work orders - show completion
-                  if (currentWeekEmpty && isPastWeek) {
-                    const nextWeekWithWork = findNextWeekWithWork()
-                    return (
-                      <>
-                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 animate-pulse" />
-                        <CardTitle className="text-xl mb-2">
-                          <AnimatedText text="✓ Week Complete" animationType="reveal" />
-                        </CardTitle>
-                        <CardDescription className="mb-6 max-w-md mx-auto">
-                          <AnimatedText 
-                            text={`No work was scheduled for the week of ${format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'MMM d')}. This week is complete!`}
-                            animationType="fade"
-                            delay={0.2}
-                          />
-                        </CardDescription>
-                        <div className="space-y-4">
-                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                            <RippleButton 
-                              onClick={() => handleWeekChange(new Date())} 
-                              size="lg"
-                              variant="outline"
-                            >
-                              <Calendar className="w-4 h-4 mr-2" />
-                              Return to Current Week
-                            </RippleButton>
-                            {nextWeekWithWork && (
-                              <RippleButton 
-                                onClick={() => handleWeekChange(nextWeekWithWork)} 
-                                size="lg"
-                                variant="default"
-                                className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
-                              >
-                                <ArrowRight className="w-4 h-4 mr-2" />
-                                View Next Work
-                              </RippleButton>
-                            )}
-                          </div>
-                          {!weekendModeEnabled && nextWeekWithWork && (
-                            <div className="text-xs text-muted-foreground max-w-sm mx-auto">
-                              💡 Enable weekend mode to automatically jump to weeks with scheduled work
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )
-                  }
-                  
-                  // Current week is empty but next week has work
-                  if (currentWeekEmpty && nextWeekWorkOrders.length > 0 && isCurrentWeek) {
-                    return (
-                      <>
-                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4 animate-bounce" />
-                        <CardTitle className="text-xl mb-2">
-                          <AnimatedText text="✓ Current Week Complete" animationType="reveal" />
-                        </CardTitle>
-                        <CardDescription className="mb-6 max-w-md mx-auto">
-                          <AnimatedText 
-                            text={`Excellent! You've completed all work for this week. ${nextWeekWorkOrders.length} work ${nextWeekWorkOrders.length === 1 ? 'order' : 'orders'} scheduled for next week.`}
-                            animationType="fade"
-                            delay={0.2}
-                          />
-                        </CardDescription>
-                        <div className="space-y-4">
-                          <RippleButton 
-                            onClick={() => {
-                              setWeekendModeEnabled(true)
-                              handleWeekChange(nextWeek)
-                            }} 
-                            size="lg"
-                            variant="default"
-                            className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
-                          >
-                            <CalendarDays className="w-4 h-4 mr-2" />
-                            View Next Week's Work
-                          </RippleButton>
-                          <div className="text-xs text-muted-foreground max-w-sm mx-auto">
-                            🏁 Weekend mode automatically activates on Thursday afternoons or weekends when the current week is complete.
-                          </div>
-                        </div>
-                      </>
-                    )
-                  }
-                  
-                  // Future week with no work scheduled
-                  if (currentWeekEmpty && isFutureWeek) {
-                    const nextWeekWithWork = findNextWeekWithWork()
-                    const weekDesc = format(startOfWeek(selectedWeek, { weekStartsOn: 1 }), 'MMM d, yyyy')
-                    
-                    return (
-                      <>
-                        <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-                        <CardTitle className="text-xl mb-2">
-                          <AnimatedText text="No Work Scheduled" animationType="reveal" />
-                        </CardTitle>
-                        <CardDescription className="mb-6 max-w-md mx-auto">
-                          <AnimatedText 
-                            text={`No work orders are scheduled for the week of ${weekDesc}. Check back closer to the date or run a fresh scrape.`}
-                            animationType="fade"
-                            delay={0.2}
-                          />
-                        </CardDescription>
-                        <div className="space-y-4">
-                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                            <RippleButton 
-                              onClick={() => handleWeekChange(new Date())} 
-                              size="lg"
-                              variant="outline"
-                            >
-                              <Calendar className="w-4 h-4 mr-2" />
-                              Return to Current Week
-                            </RippleButton>
-                            {nextWeekWithWork && (
-                              <RippleButton 
-                                onClick={() => handleWeekChange(nextWeekWithWork)} 
-                                size="lg"
-                                variant="default"
-                              >
-                                <ArrowRight className="w-4 h-4 mr-2" />
-                                Find Next Work
-                              </RippleButton>
-                            )}
-                          </div>
-                          <RippleButton 
-                            onClick={handleScrape} 
-                            size="sm"
-                            variant="ghost"
-                            className="text-xs"
-                          >
-                            <RefreshCw className="w-3 h-3 mr-1" />
-                            Check for Updates
-                          </RippleButton>
-                        </div>
-                      </>
-                    )
-                  }
-                  
-                  // Current week empty and no future work - all caught up!
-                  if (currentWeekEmpty && nextWeekWorkOrders.length === 0 && isCurrentWeek && workOrders.length > 0) {
-                    // Check if there's any work in future weeks
-                    const hasFutureWork = workOrders.some(wo => {
-                      if (!wo.scheduled_date) return false
-                      const date = new Date(wo.scheduled_date)
-                      return date > endOfWeek(new Date(), { weekStartsOn: 1 })
-                    })
-                    
-                    return (
-                      <>
-                        <Sparkles className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
-                        <CardTitle className="text-xl mb-2">
-                          <AnimatedText text="✓ All Caught Up!" animationType="reveal" />
-                        </CardTitle>
-                        <CardDescription className="mb-6 max-w-md mx-auto">
-                          <AnimatedText 
-                            text={hasFutureWork 
-                              ? "Amazing! You've completed all work for this week. Future work is scheduled, but nothing immediate."
-                              : "Amazing! You've completed all your work and have no upcoming orders scheduled. Time to relax!"
-                            }
-                            animationType="fade"
-                            delay={0.2}
-                          />
-                        </CardDescription>
-                        <div className="space-y-4">
-                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                            <RippleButton onClick={handleScrape} size="lg" variant="outline">
-                              <RefreshCw className="w-4 h-4 mr-2" />
-                              Check for New Work
-                            </RippleButton>
-                            {hasFutureWork && !weekendModeEnabled && (
-                              <RippleButton 
-                                onClick={() => setWeekendModeEnabled(true)} 
-                                size="lg"
-                                variant="default"
-                                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                              >
-                                <CalendarDays className="w-4 h-4 mr-2" />
-                                Enable Weekend Mode
-                              </RippleButton>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground max-w-sm mx-auto">
-                            {hasFutureWork 
-                              ? "💪 Great work! Enable weekend mode to jump ahead to future work weeks."
-                              : "🎉 Enjoy your well-deserved break! Check back later for new assignments."
-                            }
-                          </div>
-                        </div>
-                      </>
-                    )
-                  }
-                  
-                  // Default empty state - no work orders at all
-                  return (
-                    <>
-                      <Fuel className="w-16 h-16 text-muted-foreground mx-auto mb-4 animate-bounce" />
-                      <CardTitle className="text-xl mb-2">
-                        <AnimatedText text="No Work Orders Available" animationType="reveal" />
-                      </CardTitle>
-                      <CardDescription className="mb-6 max-w-md mx-auto">
-                        <AnimatedText 
-                          text="You don't have any work orders yet. Click 'Scrape Work Orders' below to fetch your latest assignments from WorkFossa."
-                          animationType="fade"
-                          delay={0.2}
-                        />
-                      </CardDescription>
-                      <div className="space-y-4">
-                        <RippleButton onClick={handleScrape} size="lg">
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Scrape Work Orders
-                        </RippleButton>
-                        <div className="text-xs text-muted-foreground max-w-sm mx-auto">
-                          💡 Make sure your WorkFossa credentials are configured in Settings and you have assigned work orders on the WorkFossa platform.
-                        </div>
-                      </div>
-                    </>
-                  )
-                })()
+                <EmptyStateComponent 
+                  workOrders={workOrders}
+                  filteredWorkOrders={filteredWorkOrders}
+                  weekFilteredWorkOrders={weekFilteredWorkOrders}
+                  viewMode={viewMode}
+                  selectedWeek={selectedWeek}
+                  showAllJobs={showAllJobs}
+                  weekendModeEnabled={weekendModeEnabled}
+                  setWeekendModeEnabled={setWeekendModeEnabled}
+                  setShowAllJobs={setShowAllJobs}
+                  handleScrape={handleScrape}
+                  handleWeekChange={handleWeekChange}
+                />
               )}
             </CardContent>
           </AnimatedCard>
