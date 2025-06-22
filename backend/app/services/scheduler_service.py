@@ -571,7 +571,13 @@ class SchedulerService:
                     existing.updated_at = datetime.utcnow()
                     logger.warning(f"Updated existing schedule record for user {user_id}")
                 else:
-                    logger.info(f"Restore mode - keeping existing database values")
+                    # In restore mode, still update next_run if it's missing
+                    if not existing.next_run and job.next_run_time:
+                        existing.next_run = job.next_run_time
+                        existing.updated_at = datetime.utcnow()
+                        logger.info(f"Restore mode - updated missing next_run to: {job.next_run_time}")
+                    else:
+                        logger.info(f"Restore mode - keeping existing database values")
             else:
                 # Create new schedule
                 schedule = ScrapingSchedule(
@@ -783,6 +789,13 @@ class SchedulerService:
                         schedule.active_hours = active_hours
                     if enabled is not None:
                         schedule.enabled = enabled
+                    
+                    # Update next_run time from the rescheduled job
+                    job = self.scheduler.get_job(job_id)
+                    if job and job.next_run_time:
+                        schedule.next_run = job.next_run_time
+                        logger.info(f"Updated next_run in database to: {job.next_run_time}")
+                    
                     schedule.updated_at = datetime.utcnow()
                     db.commit()
             finally:

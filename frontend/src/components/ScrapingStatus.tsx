@@ -30,15 +30,19 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
 
   const fetchStatus = async () => {
     try {
-      // Get schedules
-      const schedulesResponse = await apiClient.get('/api/scraping-schedules/');
+      // Get schedules with a shorter timeout for better UX
+      const schedulesResponse = await apiClient.get('/api/scraping-schedules/', {
+        timeout: 10000 // 10 seconds instead of 30
+      });
       const schedules = schedulesResponse.data;
       
       if (schedules && schedules.length > 0) {
         const schedule = schedules[0];
         
         // Get latest history
-        const historyResponse = await apiClient.get('/api/scraping-schedules/history/work_orders?limit=1');
+        const historyResponse = await apiClient.get('/api/scraping-schedules/history/work_orders?limit=1', {
+          timeout: 10000 // 10 seconds instead of 30
+        });
         const history = historyResponse.data;
         
         const lastRun = history && history.length > 0 ? history[0] : null;
@@ -68,7 +72,36 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
     // Refresh status every 30 seconds
     const interval = setInterval(fetchStatus, 30000);
     
-    return () => clearInterval(interval);
+    // Listen for custom event to refresh immediately
+    const handleScheduleUpdate = (event: any) => {
+      console.log('ScrapingStatus: Received schedule update event, refreshing status...');
+      
+      // If we have schedule data in the event, update immediately
+      if (event.detail && event.detail.schedule) {
+        console.log('ScrapingStatus: Using immediate schedule data from event');
+        const updatedSchedule = event.detail.schedule;
+        console.log('ScrapingStatus: Updating status from', status?.enabled, 'to', updatedSchedule.enabled);
+        setStatus(prevStatus => prevStatus ? { 
+          ...prevStatus, 
+          enabled: updatedSchedule.enabled 
+        } : null);
+      }
+      
+      // Still fetch from API for complete data, but with a small delay to avoid UI flickering
+      // Use a shorter timeout to avoid blocking the UI
+      setTimeout(() => {
+        fetchStatus().catch(error => {
+          console.warn('ScrapingStatus: Background API fetch failed, keeping immediate update:', error.message);
+        });
+      }, 100);
+    };
+    
+    window.addEventListener('scraping-schedule-updated', handleScheduleUpdate);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('scraping-schedule-updated', handleScheduleUpdate);
+    };
   }, []);
 
   const getTimeUntilNext = () => {

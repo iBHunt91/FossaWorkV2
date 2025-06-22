@@ -101,6 +101,9 @@ const ScrapingSchedule: React.FC = () => {
       });
       
       if (response.data.success) {
+        // Dispatch custom event to refresh ScrapingStatus component immediately
+        window.dispatchEvent(new Event('scraping-schedule-updated'));
+        
         setStatusMessage('✅ Hourly scraping schedule created successfully');
         setTimeout(() => setStatusMessage(null), 3000);
         await fetchSchedule();
@@ -118,6 +121,20 @@ const ScrapingSchedule: React.FC = () => {
     
     try {
       setLoading(true);
+      
+      // Update local state immediately for instant UI feedback
+      if (enabled !== undefined) {
+        console.log('Updating local schedule state immediately');
+        setSchedule(prev => prev ? { ...prev, enabled } : null);
+      }
+      
+      // Dispatch event immediately for instant UI feedback with updated data
+      console.log('Dispatching immediate event for UI update');
+      const updatedSchedule = enabled !== undefined ? { ...schedule, enabled } : schedule;
+      window.dispatchEvent(new CustomEvent('scraping-schedule-updated', { 
+        detail: { schedule: updatedSchedule }
+      }));
+      
       const activeHours = useActiveHours ? { start: activeHoursStart, end: activeHoursEnd } : null;
       
       const requestData = {
@@ -135,6 +152,9 @@ const ScrapingSchedule: React.FC = () => {
       const response = await apiClient.put(`/api/scraping-schedules/${schedule.job_id}`, requestData);
       
       if (response.data.success) {
+        // Dispatch custom event to refresh ScrapingStatus component immediately
+        window.dispatchEvent(new Event('scraping-schedule-updated'));
+        
         setStatusMessage('✅ Schedule updated successfully');
         setTimeout(() => setStatusMessage(null), 3000);
         await fetchSchedule();
