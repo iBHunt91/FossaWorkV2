@@ -30,4 +30,4 @@ apscheduler>=3.10.0  # For background task scheduling and automation
 
 # Optional dependencies (can be installed later)
 # psycopg2-binary>=2.9.0  # For PostgreSQL
-# alembic>=1.12.0  # For database migrations
+# alembic>=1.12.0  # For database migrationsslowapi>=0.1.9

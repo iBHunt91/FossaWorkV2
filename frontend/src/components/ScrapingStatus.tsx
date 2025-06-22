@@ -73,8 +73,10 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
     
     // Subscribe to real-time updates
     const unsubscribe = subscribe(() => {
-      // Fetch immediately when notified of a change
-      fetchStatus();
+      // Add a small delay to ensure backend has processed changes
+      setTimeout(() => {
+        fetchStatus();
+      }, 100);
     });
     
     // Also keep polling as a fallback (but less frequently)
