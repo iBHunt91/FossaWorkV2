@@ -588,6 +588,9 @@ const WorkOrders: React.FC = () => {
           // Immediately refetch work orders
           queryClient.invalidateQueries({ queryKey: ['work-orders'] })
           refetchWorkOrders()
+          // Immediately hide the progress card by setting status to idle
+          setScrapeStatus('idle')
+          setScrapingProgress(null)
         }
         
         setTimeout(() => {
@@ -621,6 +624,9 @@ const WorkOrders: React.FC = () => {
             // Immediately refetch work orders
             queryClient.invalidateQueries({ queryKey: ['work-orders'] })
             refetchWorkOrders()
+            // Immediately hide the progress card by setting status to idle
+            setDispenserScrapeStatus('idle')
+            setDispenserScrapingProgress(null)
           }
           
           setTimeout(() => {
@@ -1943,7 +1949,7 @@ const WorkOrders: React.FC = () => {
         {/* Scraping Status Display */}
         {scrapeStatus !== 'idle' && (
           <div className="animate-slide-in-from-top">
-            {scrapeStatus === 'scraping' && (
+            {scrapeStatus === 'scraping' && scrapingProgress && scrapingProgress.status !== 'completed' && (
               <GlowCard 
                 glowColor="rgba(59, 130, 246, 0.3)" 
                 className="w-full border-blue-500/20 bg-gradient-to-br from-blue-50/50 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20"
@@ -2094,7 +2100,7 @@ const WorkOrders: React.FC = () => {
         {/* Batch Dispenser Scraping Status Display */}
         {dispenserScrapeStatus !== 'idle' && !singleDispenserProgress && (
           <div className="animate-slide-in-from-top">
-            {dispenserScrapeStatus === 'scraping' && dispenserScrapingProgress && (
+            {dispenserScrapeStatus === 'scraping' && dispenserScrapingProgress && dispenserScrapingProgress.status !== 'completed' && (
               <GlowCard 
                 glowColor="rgba(251, 146, 60, 0.3)" 
                 className="w-full border-orange-500/20 bg-gradient-to-br from-orange-50/50 to-amber-50/50 dark:from-orange-950/20 dark:to-amber-950/20"

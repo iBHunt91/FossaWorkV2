@@ -11,8 +11,9 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Set the master key environment variable
-os.environ['FOSSAWORK_MASTER_KEY'] = '8mwFZv2Yv0FeZIgG1XHP2CM-1PAD_Kvwd-bTANycUHw'
+# Set the master key environment variable (only if not already set)
+if 'FOSSAWORK_MASTER_KEY' not in os.environ:
+    os.environ['FOSSAWORK_MASTER_KEY'] = os.getenv('FOSSAWORK_MASTER_KEY', 'test_master_key')
 
 def test_auth_flow():
     """Test the full authentication flow"""
@@ -26,8 +27,8 @@ def test_auth_flow():
     
     # Note: You'll need to replace with actual WorkFossa credentials
     login_data = {
-        "username": "bruce.hunt@owlservices.com",
-        "password": "YOUR_WORKFOSSA_PASSWORD"  # Replace with actual password
+        "username": os.getenv("TEST_USERNAME", "test@example.com"),
+        "password": os.getenv("TEST_PASSWORD", "test_password")
     }
     
     print("⚠️  Note: Replace 'YOUR_WORKFOSSA_PASSWORD' with actual password in the script")

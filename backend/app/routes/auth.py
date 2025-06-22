@@ -244,3 +244,50 @@ async def get_verification_status(verification_id: str):
         message=status_data["message"],
         progress=status_data["progress"]
     )
+
+
+# Demo login endpoint for development only
+import os
+if os.getenv("ENVIRONMENT", "development") == "development":
+    @router.post("/demo-login", response_model=Token)
+    async def demo_login(db: Session = Depends(get_db)):
+        """
+        Demo login endpoint for development testing
+        WARNING: This endpoint is only available in development mode!
+        """
+        # Create or get demo user
+        demo_email = "demo@fossawork.com"
+        demo_user = db.query(User).filter(User.email == demo_email).first()
+        
+        if not demo_user:
+            # Create demo user
+            demo_user = User(
+                email=demo_email,
+                password_hash=User.hash_password("demo123"),
+                label="Demo User",
+                friendly_name="Demo",
+                created_at=datetime.utcnow()
+            )
+            db.add(demo_user)
+            db.commit()
+        
+        # Create access token
+        access_token_expires = timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+        access_token = create_access_token(
+            data={"sub": demo_user.id},
+            expires_delta=access_token_expires
+        )
+        
+        return Token(
+            access_token=access_token,
+            token_type="bearer",
+            user_id=demo_user.id,
+            username=demo_user.email,
+            is_new_user=False,
+            user={
+                "id": demo_user.id,
+                "email": demo_user.email,
+                "label": demo_user.label,
+                "friendlyName": demo_user.friendly_name
+            }
+        )

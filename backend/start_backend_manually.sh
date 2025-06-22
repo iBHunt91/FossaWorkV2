@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend
+cd /Users/ibhunt/Documents/GitHub/FossaWorkV2-security-fixes/backend
 
 # Activate virtual environment
 source venv/bin/activate

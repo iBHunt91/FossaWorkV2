@@ -11,14 +11,15 @@ import asyncio
 
 async def test_auth():
     """Test authentication directly"""
+    import os
     db = SessionLocal()
     
     try:
         auth_service = AuthenticationService(db)
         
         # Test with your credentials
-        username = "bruce.hunt@owlservices.com"
-        password = "test1234"
+        username = os.getenv("TEST_USERNAME", "test@example.com")
+        password = os.getenv("TEST_PASSWORD", "test_password")
         
         print(f"Testing authentication for: {username}")
         

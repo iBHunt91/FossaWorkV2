@@ -8,9 +8,10 @@ import json
 from datetime import datetime
 
 # Configuration
-BASE_URL = "http://localhost:8000"
-USERNAME = "bruce.hunt@owlservices.com"
-PASSWORD = "Newyork23!@"
+import os
+BASE_URL = os.getenv("TEST_API_URL", "http://localhost:8000")
+USERNAME = os.getenv("TEST_USERNAME", "test_user")
+PASSWORD = os.getenv("TEST_PASSWORD", "test_password")
 
 def login():
     """Login and get auth token"""

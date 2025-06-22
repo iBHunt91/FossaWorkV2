@@ -14,6 +14,7 @@ import { MobileDrawer } from './components/MobileDrawer'
 import { HamburgerMenu } from './components/HamburgerMenu'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
+import { ScrapingStatusProvider } from './contexts/ScrapingStatusContext'
 import { logger } from './services/fileLoggingService'
 import chromeDevToolsLogger from './services/chromeDevToolsLogger'
 import LoadingSpinner from './components/LoadingSpinner'
@@ -104,7 +105,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <AppContent />
+          <ScrapingStatusProvider>
+            <AppContent />
+          </ScrapingStatusProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

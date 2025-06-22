@@ -101,11 +101,12 @@ def test_protected_endpoint(token):
 
 def main():
     """Run complete authentication flow test"""
+    import os
     print("=== Testing Complete Authentication Flow ===")
     
     # Test credentials
-    test_username = "bruce.hunt@owlservices.com"
-    test_password = "Crompco0511"
+    test_username = os.getenv("TEST_USERNAME", "test@example.com")
+    test_password = os.getenv("TEST_PASSWORD", "test_password")
     
     # Check server status
     print("\nChecking if server is running...")

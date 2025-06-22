@@ -16,11 +16,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # API configuration
 BASE_URL = "http://localhost:8000"
-USER_ID = "7bea3bdb7e8e303eacaba442bd824004"
+USER_ID = os.getenv("TEST_USER_ID", "7bea3bdb7e8e303eacaba442bd824004")
 
 # Authentication - using basic auth for testing
-AUTH_USERNAME = "brucehunt"  # Replace with actual username
-AUTH_PASSWORD = "admin"      # Replace with actual password
+AUTH_USERNAME = os.getenv("TEST_USERNAME", "test@example.com")
+AUTH_PASSWORD = os.getenv("TEST_PASSWORD", "test_password")
 
 def check_date_validity(date_string):
     """Check if a date string is valid and parseable."""

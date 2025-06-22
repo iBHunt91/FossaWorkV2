@@ -25,8 +25,8 @@ def create_test_user():
     
     try:
         # Test user credentials
-        username = "bruce.hunt@owlservices.com"
-        password = "Crompco0511"
+        username = os.getenv("TEST_USERNAME", "test@example.com")
+        password = os.getenv("TEST_PASSWORD", "test_password")
         
         # Generate user ID
         user_id = generate_user_id(username)

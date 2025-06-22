@@ -77,7 +77,7 @@ const Login: React.FC = () => {
       const endpoint = 'http://localhost:8000/api/auth/login'
 
       console.log('[LOGIN] Using endpoint:', endpoint)
-      console.log('[LOGIN] Sending request body:', JSON.stringify(credentials))
+      console.log('[LOGIN] Authenticating user:', credentials.username)
 
       // Show initial verification status
       setVerificationStatus({
@@ -380,6 +380,55 @@ const Login: React.FC = () => {
                   </>
                 )}
               </RippleButton>
+              
+              {/* Demo login button - DEVELOPMENT ONLY */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-4">
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-background px-2 text-muted-foreground">Or</span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full mt-4"
+                    onClick={async () => {
+                      setSubmitting(true)
+                      setError('')
+                      try {
+                        const response = await fetch('http://localhost:8000/api/auth/demo-login', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                        })
+                        
+                        if (response.ok) {
+                          const data = await response.json()
+                          login(data.access_token, {
+                            id: data.user_id,
+                            email: data.user.email,
+                            username: data.username
+                          })
+                          navigate('/work-orders')
+                        } else {
+                          setError('Demo login failed')
+                        }
+                      } catch (err) {
+                        setError('Demo login error')
+                      } finally {
+                        setSubmitting(false)
+                      }
+                    }}
+                    disabled={submitting}
+                  >
+                    <Shield className="mr-2 h-4 w-4" />
+                    Demo Login (Development Only)
+                  </Button>
+                </div>
+              )}
             </form>
 
 

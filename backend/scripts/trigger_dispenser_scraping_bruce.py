@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Trigger dispenser scraping for bruce.hunt@owlservices.com"""
+"""Trigger dispenser scraping for a user"""
 
 import requests
 import json
 import time
 import sys
+import os
 
 base_url = "http://localhost:8000"
-user_id = "7bea3bdb7e8e303eacaba442bd824004"  # bruce.hunt@owlservices.com
+user_id = os.getenv("TEST_USER_ID", "7bea3bdb7e8e303eacaba442bd824004")  # Default to known test user
 
 # Create session
 session = requests.Session()
