@@ -7,9 +7,10 @@ import requests
 import json
 
 # Configuration
+import os
 BASE_URL = "http://localhost:8000"
-USERNAME = "bruce.hunt@owlservices.com"
-PASSWORD = "Newyork23!@"
+USERNAME = os.getenv("TEST_USERNAME", "test@example.com")
+PASSWORD = os.getenv("TEST_PASSWORD", "test_password")
 
 def login():
     """Login and get auth token"""

@@ -17,9 +17,10 @@ def test_settings_endpoints():
     
     # First, login to get a token
     print("\n1. Authenticating...")
+    import os
     login_data = {
-        "username": "bruce.hunt@owlservices.com",
-        "password": "test_password"  # Use actual password
+        "username": os.getenv("TEST_USERNAME", "test@example.com"),
+        "password": os.getenv("TEST_PASSWORD", "test_password")
     }
     
     try:

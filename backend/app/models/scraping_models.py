@@ -85,6 +85,9 @@ class ScrapingHistory(Base):
     # Additional data
     run_metadata = Column(JSON, nullable=True)
     
+    # Track whether this was a manual or scheduled run
+    trigger_type = Column(String, nullable=True, default="scheduled")  # "manual" or "scheduled"
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""
         return {
@@ -102,7 +105,8 @@ class ScrapingHistory(Base):
             "error_details": self.error_details,
             "duration_seconds": self.duration_seconds,
             "memory_usage_mb": self.memory_usage_mb,
-            "metadata": self.run_metadata
+            "metadata": self.run_metadata,
+            "trigger_type": self.trigger_type
         }
 
 

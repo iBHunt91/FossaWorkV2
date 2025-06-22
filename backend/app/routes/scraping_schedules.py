@@ -43,6 +43,16 @@ router = APIRouter(prefix="/api/scraping-schedules", tags=["scraping-schedules"]
 logger = get_logger("api.scraping_schedules")
 
 
+def extract_user_id_from_job_id(job_id: str, current_user_id: str) -> str:
+    """Extract user_id from job_id, handling both format variations"""
+    if job_id.startswith("work_order_scrape_"):
+        return job_id.replace("work_order_scrape_", "")
+    elif job_id.startswith("work_orders_scrape_"):
+        return job_id.replace("work_orders_scrape_", "")
+    else:
+        return current_user_id
+
+
 class CreateScheduleRequest(BaseModel):
     schedule_type: str = Field(..., description="Type of schedule (e.g., 'work_orders')")
     interval_hours: float = Field(1.0, ge=0.5, le=24, description="Interval between runs in hours")
@@ -163,7 +173,11 @@ async def create_schedule(
         # Prepare response
         schedule_status = None
         if schedule_created and hasattr(scheduler_service, 'get_schedule_status'):
-            schedule_status = await scheduler_service.get_schedule_status(job_id)
+            try:
+                schedule_status = await scheduler_service.get_schedule_status(job_id)
+            except Exception as e:
+                logger.error(f"Failed to get schedule status for {job_id}: {e}", exc_info=True)
+                schedule_status = None
         
         if not schedule_status:
             # Create a mock status from database
@@ -220,9 +234,15 @@ async def get_schedules(
         
         # If scheduler service is available, enhance with runtime info
         if scheduler_service and hasattr(scheduler_service, 'is_initialized') and scheduler_service.is_initialized:
-            # Get runtime schedules
-            all_schedules = await scheduler_service.get_all_schedules()
-            user_schedules = {s["job_id"]: s for s in all_schedules if s["user_id"] == current_user.id}
+            try:
+                # Get runtime schedules
+                all_schedules = await scheduler_service.get_all_schedules()
+                user_schedules = {s["job_id"]: s for s in all_schedules if s["user_id"] == current_user.id}
+            except Exception as e:
+                logger.error(f"Failed to get runtime schedules from scheduler: {e}", exc_info=True)
+                # Fall back to database-only mode
+                all_schedules = []
+                user_schedules = {}
             
             # Merge database and runtime info
             result = []
@@ -305,11 +325,8 @@ async def get_schedule(
         # First check database
         from ..models.scraping_models import ScrapingSchedule
         
-        # Extract user_id from job_id (format: work_order_scrape_{user_id})
-        if job_id.startswith("work_order_scrape_"):
-            schedule_user_id = job_id.replace("work_order_scrape_", "")
-        else:
-            schedule_user_id = current_user.id
+        # Extract user_id from job_id
+        schedule_user_id = extract_user_id_from_job_id(job_id, current_user.id)
         
         # Security check
         if schedule_user_id != current_user.id:
@@ -325,11 +342,14 @@ async def get_schedule(
         
         # Try to get runtime status
         if scheduler_service and hasattr(scheduler_service, 'get_schedule_status'):
-            runtime_status = await scheduler_service.get_schedule_status(job_id)
-            if runtime_status:
-                runtime_status["interval_hours"] = db_schedule.interval_hours
-                runtime_status["active_hours"] = db_schedule.active_hours
-                return runtime_status
+            try:
+                runtime_status = await scheduler_service.get_schedule_status(job_id)
+                if runtime_status:
+                    runtime_status["interval_hours"] = db_schedule.interval_hours
+                    runtime_status["active_hours"] = db_schedule.active_hours
+                    return runtime_status
+            except Exception as e:
+                logger.error(f"Failed to get runtime status for {job_id}: {e}", exc_info=True)
         
         # Return database info
         return {
@@ -371,10 +391,7 @@ async def update_schedule(
     logger.info(f"Enabled: {request.enabled}")
     try:
         # Extract user_id from job_id
-        if job_id.startswith("work_order_scrape_"):
-            schedule_user_id = job_id.replace("work_order_scrape_", "")
-        else:
-            schedule_user_id = current_user.id
+        schedule_user_id = extract_user_id_from_job_id(job_id, current_user.id)
         
         # Security check
         if schedule_user_id != current_user.id:
@@ -486,10 +503,7 @@ async def delete_schedule(
     logger.info(f"Deleting schedule {job_id} for user {current_user.id}")
     try:
         # Extract user_id from job_id
-        if job_id.startswith("work_order_scrape_"):
-            schedule_user_id = job_id.replace("work_order_scrape_", "")
-        else:
-            schedule_user_id = current_user.id
+        schedule_user_id = extract_user_id_from_job_id(job_id, current_user.id)
         
         # Security check
         if schedule_user_id != current_user.id:
@@ -618,8 +632,8 @@ async def trigger_manual_scrape(
         
         logger.info(f"Triggering immediate execution of {schedule_type} scraping")
         
-        # Run the job in the background
-        asyncio.create_task(execute_work_order_scraping(current_user.id))
+        # Run the job in the background with manual trigger type
+        asyncio.create_task(execute_work_order_scraping(current_user.id, trigger_type="manual"))
         
         return {
             "success": True,
@@ -635,4 +649,88 @@ async def trigger_manual_scrape(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to trigger manual scrape: {str(e)}"
+        )
+
+
+@router.delete("/history/{history_id}")
+async def delete_scraping_history(
+    history_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete a specific scraping history record
+    """
+    logger.info(f"Deleting history record {history_id} for user {current_user.id}")
+    
+    try:
+        from ..models.scraping_models import ScrapingHistory
+        
+        # Find the history record
+        history_record = db.query(ScrapingHistory).filter(
+            ScrapingHistory.id == history_id,
+            ScrapingHistory.user_id == current_user.id  # Ensure user owns this record
+        ).first()
+        
+        if not history_record:
+            raise HTTPException(
+                status_code=404,
+                detail="History record not found"
+            )
+        
+        # Delete the record
+        db.delete(history_record)
+        db.commit()
+        
+        logger.info(f"Successfully deleted history record {history_id}")
+        
+        return {
+            "success": True,
+            "message": f"History record {history_id} deleted successfully",
+            "timestamp": format_datetime_for_api(datetime.utcnow())
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete history record: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete history record: {str(e)}"
+        )
+
+
+@router.delete("/history")
+async def delete_all_scraping_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Delete all scraping history records for the current user
+    """
+    logger.info(f"Deleting all history records for user {current_user.id}")
+    
+    try:
+        from ..models.scraping_models import ScrapingHistory
+        
+        # Delete all history records for this user
+        deleted_count = db.query(ScrapingHistory).filter(
+            ScrapingHistory.user_id == current_user.id
+        ).delete()
+        
+        db.commit()
+        
+        logger.info(f"Successfully deleted {deleted_count} history records")
+        
+        return {
+            "success": True,
+            "message": f"Deleted {deleted_count} history records",
+            "timestamp": format_datetime_for_api(datetime.utcnow())
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to delete history records: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete history records: {str(e)}"
         )

@@ -51,12 +51,12 @@ def cleanup_user_progress(user_id: str):
         del scraping_progress[key]
 
 @router.get("/test")
-async def test_endpoint():
+async def test_endpoint(current_user: User = Depends(require_auth)):
     """Test endpoint to verify router is working"""
     return {"message": "Work orders router is working", "timestamp": datetime.now().isoformat()}
 
 @router.get("/debug/last-scrape")
-async def debug_last_scrape():
+async def debug_last_scrape(current_user: User = Depends(require_auth)):
     """Debug endpoint to check the last scraping attempt"""
     import os
     
@@ -551,10 +551,14 @@ async def trigger_scrape(
 async def open_work_order_visit(
     work_order_id: str,
     user_id: str = Query(..., description="User ID to verify ownership"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Open work order visit in browser with auto-login"""
     try:
+        # Verify user can only access their own data
+        if current_user.id != user_id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to access work orders for this user")
         # Verify work order exists and belongs to user
         work_order = db.query(WorkOrder).filter(
             WorkOrder.id == work_order_id,
@@ -606,6 +610,7 @@ async def open_work_order_visit(
 async def perform_scrape(user_id: str, credentials: Dict[str, str]):
     """Background task to perform actual scraping"""
     session_id = f"scrape_{user_id}_{datetime.now().timestamp()}"
+    start_time = datetime.utcnow()
     
     logger.info(f"[SCRAPE] Starting scraping for user {user_id}")
     logger.info(f"[SCRAPE] Session ID: {session_id}")
@@ -722,6 +727,8 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         
         # Find and remove work orders that are no longer present (completed/removed)
         removed_count = 0
+        added_count = 0
+        updated_count = 0
         for existing_wo in existing_work_orders:
             if existing_wo.external_id not in current_external_ids:
                 logger.info(f"[SCRAPE] Removing completed work order: {existing_wo.external_id} - {existing_wo.site_name}")
@@ -783,6 +790,7 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
                 }
                 existing.updated_at = datetime.now()
                 work_order = existing
+                updated_count += 1
             else:
                 # Create new work order with all V1 fields
                 work_order = WorkOrder(
@@ -826,6 +834,7 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
                 )
                 db.add(work_order)
                 db.flush()  # Get the ID
+                added_count += 1
             
             # Clear existing dispensers if updating
             if existing:
@@ -854,6 +863,25 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
         db.commit()
         logger.info(f"Successfully stored {len(work_orders)} work orders in database")
         
+        # Create history record for manual scrape
+        from ..models.scraping_models import ScrapingHistory
+        history = ScrapingHistory(
+            user_id=user_id,
+            schedule_type="work_orders",
+            started_at=start_time,
+            completed_at=datetime.utcnow(),
+            success=True,
+            items_processed=len(work_orders),
+            items_added=added_count,
+            items_updated=updated_count,
+            items_failed=0,
+            duration_seconds=(datetime.utcnow() - start_time).total_seconds(),
+            trigger_type="manual"  # Mark as manual run
+        )
+        db.add(history)
+        db.commit()
+        logger.info(f"Created ScrapingHistory record for manual scrape - items: {len(work_orders)}")
+        
         # Update progress to complete
         completion_message = f"Successfully scraped {len(work_orders)} work orders"
         if removed_count > 0:
@@ -870,6 +898,29 @@ async def perform_scrape(user_id: str, credentials: Dict[str, str]):
     except Exception as e:
         logger.error(f"Scraping failed for user {user_id}: {e}", exc_info=True)
         db.rollback()
+        
+        # Create history record for failed manual scrape
+        try:
+            from ..models.scraping_models import ScrapingHistory
+            history = ScrapingHistory(
+                user_id=user_id,
+                schedule_type="work_orders",
+                started_at=start_time,
+                completed_at=datetime.utcnow(),
+                success=False,
+                items_processed=0,
+                items_added=0,
+                items_updated=0,
+                items_failed=0,
+                error_message=str(e),
+                duration_seconds=(datetime.utcnow() - start_time).total_seconds(),
+                trigger_type="manual"  # Mark as manual run
+            )
+            db.add(history)
+            db.commit()
+            logger.info(f"Created ScrapingHistory record for failed manual scrape")
+        except Exception as hist_error:
+            logger.error(f"Failed to create history record: {hist_error}")
         
         # Update progress with error
         update_progress("error", 0, f"Scraping failed: {str(e)}", error=str(e))
@@ -894,10 +945,14 @@ async def update_work_order_status(
     work_order_id: str,
     user_id: str = Query(..., description="User ID to verify ownership"),
     status_data: Dict[str, str] = {},
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Update work order status"""
     try:
+        # Verify user can only update their own data
+        if current_user.id != user_id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to update work orders for this user")
         work_order = db.query(WorkOrder).filter(
             WorkOrder.id == work_order_id,
             WorkOrder.user_id == user_id
@@ -1307,10 +1362,14 @@ async def scrape_dispensers_batch(
     work_order_ids: List[str] = Query(None, description="Optional list of specific work order IDs to scrape"),
     force_refresh: bool = Query(False, description="Force re-scrape even if dispensers exist"),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Trigger batch dispenser scraping for all or selected work orders with dispenser-related service codes"""
     try:
+        # Verify user can only scrape their own data
+        if current_user.id != user_id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to scrape for this user")
         # Verify user exists
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -1447,8 +1506,14 @@ async def scrape_dispensers_batch(
 
 
 @router.get("/scrape-dispensers/progress/{user_id}")
-async def get_dispenser_scraping_progress(user_id: str):
+async def get_dispenser_scraping_progress(
+    user_id: str,
+    current_user: User = Depends(require_auth)
+):
     """Get current dispenser scraping progress for a user"""
+    # Verify user can only access their own progress
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Not authorized to access this user's progress")
     progress = scraping_progress.get(f"dispensers_{user_id}", {
         "status": "idle",
         "phase": "not_started",
@@ -1800,10 +1865,14 @@ async def perform_batch_dispenser_scrape(user_id: str, credentials: dict, work_o
 @router.delete("/clear-all")
 async def clear_all_work_orders(
     user_id: str = Query(..., description="User ID to clear work orders for"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Clear all work orders and dispensers for a user"""
     try:
+        # Verify user can only clear their own data
+        if current_user.id != user_id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to clear work orders for this user")
         # Get all work orders for the user
         work_orders = db.query(WorkOrder).filter(WorkOrder.user_id == user_id).all()
         
@@ -1846,10 +1915,14 @@ async def clear_all_work_orders(
 async def delete_work_order(
     work_order_id: str,
     user_id: str = Query(..., description="User ID to verify ownership"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
 ):
     """Delete work order and associated dispensers"""
     try:
+        # Verify user can only delete their own data
+        if current_user.id != user_id and not current_user.is_admin:
+            raise HTTPException(status_code=403, detail="Not authorized to delete work orders for this user")
         work_order = db.query(WorkOrder).filter(
             WorkOrder.id == work_order_id,
             WorkOrder.user_id == user_id

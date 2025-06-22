@@ -4,6 +4,7 @@ import { apiClient } from '../services/api';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { useScrapingStatus } from '../contexts/ScrapingStatusContext';
 
 interface ScrapingStatusData {
   enabled: boolean;
@@ -27,6 +28,7 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
+  const { subscribe } = useScrapingStatus();
 
   const fetchStatus = async () => {
     try {
@@ -69,40 +71,20 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
   useEffect(() => {
     fetchStatus();
     
-    // Refresh status every 30 seconds
-    const interval = setInterval(fetchStatus, 30000);
+    // Subscribe to real-time updates
+    const unsubscribe = subscribe(() => {
+      // Fetch immediately when notified of a change
+      fetchStatus();
+    });
     
-    // Listen for custom event to refresh immediately
-    const handleScheduleUpdate = (event: any) => {
-      console.log('ScrapingStatus: Received schedule update event, refreshing status...');
-      
-      // If we have schedule data in the event, update immediately
-      if (event.detail && event.detail.schedule) {
-        console.log('ScrapingStatus: Using immediate schedule data from event');
-        const updatedSchedule = event.detail.schedule;
-        console.log('ScrapingStatus: Updating status from', status?.enabled, 'to', updatedSchedule.enabled);
-        setStatus(prevStatus => prevStatus ? { 
-          ...prevStatus, 
-          enabled: updatedSchedule.enabled 
-        } : null);
-      }
-      
-      // Still fetch from API for complete data, but with a small delay to avoid UI flickering
-      // Use a shorter timeout to avoid blocking the UI
-      setTimeout(() => {
-        fetchStatus().catch(error => {
-          console.warn('ScrapingStatus: Background API fetch failed, keeping immediate update:', error.message);
-        });
-      }, 100);
-    };
-    
-    window.addEventListener('scraping-schedule-updated', handleScheduleUpdate);
+    // Also keep polling as a fallback (but less frequently)
+    const interval = setInterval(fetchStatus, 60000); // Reduced to 60 seconds
     
     return () => {
       clearInterval(interval);
-      window.removeEventListener('scraping-schedule-updated', handleScheduleUpdate);
+      unsubscribe();
     };
-  }, []);
+  }, [subscribe]);
 
   const getTimeUntilNext = () => {
     if (!status?.next_run) return 'Not scheduled';

@@ -14,8 +14,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # API configuration
 BASE_URL = "http://localhost:8000"
-AUTH_USERNAME = "brucehunt"
-AUTH_PASSWORD = "admin"
+AUTH_USERNAME = os.getenv("TEST_USERNAME", "test@example.com")
+AUTH_PASSWORD = os.getenv("TEST_PASSWORD", "test_password")
 
 def get_auth_token():
     """Get authentication token from the API."""

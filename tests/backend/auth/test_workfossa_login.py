@@ -206,8 +206,9 @@ async def test_workfossa_login(username: str, password: str, headless: bool = Fa
 
 async def main():
     # Test credentials
-    username = "bruce.hunt@owlservices.com"
-    password = "Crompco0511"
+    import os
+    username = os.getenv("TEST_USERNAME", "test@example.com")
+    password = os.getenv("TEST_PASSWORD", "test_password")
     
     print("WorkFossa Login Test")
     print("=" * 50)

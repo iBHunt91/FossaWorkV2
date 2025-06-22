@@ -15,10 +15,11 @@ async def test_endpoints():
     
     # First, login to get a token
     print("1. Testing login...")
+    import os
     async with httpx.AsyncClient() as client:
         login_data = {
-            "username": "bruce.hunt@owlservices.com",
-            "password": "your_password_here"  # You'll need to provide the actual password
+            "username": os.getenv("TEST_USERNAME", "test@example.com"),
+            "password": os.getenv("TEST_PASSWORD", "test_password")
         }
         
         try:

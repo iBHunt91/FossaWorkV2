@@ -18,8 +18,8 @@ async def main():
     print("🚀 Testing dispenser scraping fixes...")
     
     # Test credentials
-    email = "bruce.hunt@owlservices.com"
-    password = "Ih031815"
+    email = os.getenv("TEST_USERNAME", "test@example.com")
+    password = os.getenv("TEST_PASSWORD", "test_password")
     
     async with async_playwright() as p:
         # Launch browser
