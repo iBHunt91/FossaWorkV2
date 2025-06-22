@@ -468,8 +468,9 @@ class UserCredential(Base):
 
 def test_user_id_generation():
     """Test function to verify MD5 generation matches V1 exactly"""
-    test_email = "bruce.hunt@owlservices.com"
-    expected_id = "7bea3bdb7e8e303eacaba442bd824004"
+    import os
+    test_email = os.getenv("TEST_USERNAME", "test@example.com")
+    expected_id = "7bea3bdb7e8e303eacaba442bd824004"  # Expected for bruce.hunt@owlservices.com
     generated_id = generate_user_id(test_email)
     
     print(f"Testing V1 MD5 compatibility:")

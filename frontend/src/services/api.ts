@@ -24,13 +24,25 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
     
-    // Log the API request
+    // Log the API request (sanitized)
+    const sanitizedData = config.data ? {
+      ...config.data,
+      password: config.data.password ? '***' : undefined,
+      credentials: config.data.credentials ? '***' : undefined,
+      token: config.data.token ? '***' : undefined
+    } : config.data
+    
+    const sanitizedHeaders = {
+      ...config.headers,
+      Authorization: config.headers.Authorization ? 'Bearer ***' : undefined
+    }
+    
     logger.info('api.request', `📤 ${config.method?.toUpperCase()} ${config.url}`, {
       url: config.url,
       method: config.method,
-      headers: config.headers,
+      headers: sanitizedHeaders,
       params: config.params,
-      data: config.data
+      data: sanitizedData
     })
     
     return config

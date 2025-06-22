@@ -7,6 +7,7 @@ import requests
 import json
 
 def test_backend_auth():
+    import os
     print("Testing Backend Authentication")
     print("=" * 50)
     
@@ -19,8 +20,8 @@ def test_backend_auth():
     # Try to initialize
     print("\n2. Trying to initialize with credentials...")
     credentials = {
-        "username": "bruce.hunt@owlservices.com",
-        "password": "Crompco0511"
+        "username": os.getenv("TEST_USERNAME", "test@example.com"),
+        "password": os.getenv("TEST_PASSWORD", "test_password")
     }
     
     response = requests.post(

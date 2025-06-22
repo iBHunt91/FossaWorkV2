@@ -438,7 +438,7 @@ print(f'Backup created: {backup_dir}')
 
 **Problem Solving:** Find root causes, don't throw random solutions, break down large/vague tasks
 
-**UI/UX:** Focus on aesthetics, usability, best practices, smooth interactions
+**UI/UX:** Focus on aesthetics, usability, best practices, smooth interactions. **NEVER use browser native `confirm()`, `alert()`, or `prompt()` dialogs** - always use custom React components to maintain consistent UI and avoid "localhost says" browser dialogs.
 
 **IMPORTANT: Command Guidelines:**
 - **ALWAYS provide full absolute paths** when giving file paths or test commands

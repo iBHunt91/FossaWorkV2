@@ -46,19 +46,81 @@ app = FastAPI(
     description="Modern Fuel Dispenser Automation System with Browser Automation and Real-time Logging"
 )
 
-# CORS for development (must be added BEFORE authentication middleware)
+# Environment-based CORS configuration
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+# Define CORS settings based on environment
+CORS_ORIGINS = {
+    "development": ["http://localhost:3001", "http://localhost:5173", "http://localhost:5174"],
+    "staging": [os.getenv("STAGING_FRONTEND_URL", "https://staging.fossawork.com")],
+    "production": [os.getenv("PRODUCTION_FRONTEND_URL", "https://app.fossawork.com")]
+}
+
+# Get allowed origins for current environment
+allowed_origins = CORS_ORIGINS.get(ENVIRONMENT, CORS_ORIGINS["development"])
+
+# Add any additional origins from environment variable
+additional_origins = os.getenv("ADDITIONAL_CORS_ORIGINS", "")
+if additional_origins:
+    allowed_origins.extend([origin.strip() for origin in additional_origins.split(",") if origin.strip()])
+
+# Configure CORS with proper production settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001", "http://localhost:5173"],  # Vite dev server
+    allow_origins=allowed_origins,  # Use specific origins when credentials=True
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+    expose_headers=["X-Process-Time", "X-Request-ID"],  # Headers exposed to frontend
+    max_age=86400,  # Cache preflight requests for 24 hours
 )
+
+logger.info(f"[CORS] Environment: {ENVIRONMENT}, Allowed origins: {allowed_origins}")
+
+# Global exception handler to ensure CORS headers are always included
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Global exception handler that ensures CORS headers are always included"""
+    origin = request.headers.get("origin")
+    
+    # Add CORS headers based on allowed origins
+    headers = {
+        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Allow-Headers": "*",
+        "Access-Control-Expose-Headers": "X-Process-Time, X-Request-ID"
+    }
+    
+    # Only add origin if it's in allowed list
+    if origin in allowed_origins:
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    elif origin and ENVIRONMENT == "development":
+        # In development, be more permissive but still specific
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    
+    # Add any existing headers from the exception
+    if hasattr(exc, 'headers') and exc.headers:
+        headers.update(exc.headers)
+    
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=headers
+    )
 
 # Request ID middleware (must be first for proper tracking)
 app.add_middleware(RequestIDMiddleware)
 
-# Authentication middleware (must be added AFTER CORS)
+# Rate limiting middleware (before authentication for DDoS protection)
+from .middleware.rate_limit import RateLimitMiddleware, limiter, rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+app.add_middleware(RateLimitMiddleware, limiter_instance=limiter)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Authentication middleware (must be added AFTER CORS and rate limiting)
 app.add_middleware(AuthenticationMiddleware)
 
 # Add schedule debug middleware

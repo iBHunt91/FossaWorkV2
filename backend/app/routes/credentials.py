@@ -18,16 +18,7 @@ from ..auth.dependencies import require_auth
 
 router = APIRouter(prefix="/api/v1/credentials", tags=["credentials"])
 
-def simple_encrypt(password: str) -> str:
-    """Simple base64 encoding for demo (use proper encryption in production)"""
-    return base64.b64encode(password.encode()).decode()
-
-def simple_decrypt(encrypted_password: str) -> str:
-    """Simple base64 decoding for demo (use proper decryption in production)"""
-    try:
-        return base64.b64decode(encrypted_password.encode()).decode()
-    except:
-        return ""
+# Removed simple_encrypt/decrypt functions - using proper encryption via credential_manager
 
 @router.post("/workfossa")
 async def save_workfossa_credentials(
@@ -70,30 +61,21 @@ async def save_workfossa_credentials(
         # Store using secure credential manager (primary storage)
         stored_securely = credential_manager.store_credentials(secure_creds)
         
-        # Also store in database for backward compatibility
+        # Mark successful validation after storage
+        secure_creds.is_valid = True
+        secure_creds.validation_attempts = 1
+        credential_manager.store_credentials(secure_creds)
+        
+        # Remove database storage - only use secure credential manager
+        # Clean up any old database entries
         existing_creds = db.query(UserCredentials).filter(
             UserCredentials.user_id == user_id,
             UserCredentials.service_name == "workfossa"
         ).first()
         
         if existing_creds:
-            # Update existing credentials
-            existing_creds.encrypted_username = simple_encrypt(username)
-            existing_creds.encrypted_password = simple_encrypt(password)
-            existing_creds.updated_at = datetime.now()
-            existing_creds.is_active = True
-        else:
-            # Create new credentials
-            new_creds = UserCredentials(
-                user_id=user_id,
-                service_name="workfossa",
-                encrypted_username=simple_encrypt(username),
-                encrypted_password=simple_encrypt(password),
-                is_active=True
-            )
-            db.add(new_creds)
-        
-        db.commit()
+            db.delete(existing_creds)
+            db.commit()
         
         return {
             "status": "success",
@@ -122,13 +104,10 @@ async def get_workfossa_credentials(
         raise HTTPException(status_code=403, detail="Not authorized to access this user's credentials")
     
     try:
-        credentials = db.query(UserCredentials).filter(
-            UserCredentials.user_id == user_id,
-            UserCredentials.service_name == "workfossa",
-            UserCredentials.is_active == True
-        ).first()
+        # Use secure credential manager
+        secure_creds = credential_manager.retrieve_credentials(user_id)
         
-        if not credentials:
+        if not secure_creds:
             return {
                 "has_credentials": False,
                 "username": "",
@@ -137,9 +116,9 @@ async def get_workfossa_credentials(
         
         return {
             "has_credentials": True,
-            "username": simple_decrypt(credentials.encrypted_username),
-            "created_at": credentials.created_at.isoformat(),
-            "updated_at": credentials.updated_at.isoformat()
+            "username": secure_creds.username,
+            "created_at": secure_creds.created_at.isoformat(),
+            "updated_at": secure_creds.last_used.isoformat() if secure_creds.last_used else secure_creds.created_at.isoformat()
         }
         
     except Exception as e:
@@ -168,24 +147,11 @@ async def get_workfossa_credentials_decrypted(
                 "storage_method": "secure_file_storage"
             }
         
-        # Fallback to database storage
-        credentials = db.query(UserCredentials).filter(
-            UserCredentials.user_id == user_id,
-            UserCredentials.service_name == "workfossa",
-            UserCredentials.is_active == True
-        ).first()
-        
-        if not credentials:
-            return {
-                "username": "",
-                "password": "",
-                "storage_method": "none"
-            }
-        
+        # No fallback - only use secure storage
         return {
-            "username": simple_decrypt(credentials.encrypted_username),
-            "password": simple_decrypt(credentials.encrypted_password),
-            "storage_method": "database_fallback"
+            "username": "",
+            "password": "",
+            "storage_method": "none"
         }
         
     except Exception as e:
@@ -203,19 +169,21 @@ async def delete_workfossa_credentials(
         raise HTTPException(status_code=403, detail="Not authorized to delete this user's credentials")
     
     try:
+        # Delete from secure credential manager
+        deleted = credential_manager.delete_credentials(user_id)
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail="No credentials found")
+        
+        # Clean up any legacy database entries
         credentials = db.query(UserCredentials).filter(
             UserCredentials.user_id == user_id,
             UserCredentials.service_name == "workfossa"
         ).first()
         
-        if not credentials:
-            raise HTTPException(status_code=404, detail="No credentials found")
-        
-        # Soft delete by marking inactive
-        credentials.is_active = False
-        credentials.updated_at = datetime.now()
-        
-        db.commit()
+        if credentials:
+            db.delete(credentials)
+            db.commit()
         
         return {
             "status": "success",
@@ -244,18 +212,14 @@ async def test_workfossa_credentials(
             username = test_credentials.get("username", "").strip()
             password = test_credentials.get("password", "").strip()
         else:
-            # Test saved credentials
-            credentials = db.query(UserCredentials).filter(
-                UserCredentials.user_id == user_id,
-                UserCredentials.service_name == "workfossa",
-                UserCredentials.is_active == True
-            ).first()
+            # Test saved credentials from secure storage
+            secure_creds = credential_manager.retrieve_credentials(user_id)
             
-            if not credentials:
+            if not secure_creds:
                 raise HTTPException(status_code=404, detail="No WorkFossa credentials found")
             
-            username = simple_decrypt(credentials.encrypted_username)
-            password = simple_decrypt(credentials.encrypted_password)
+            username = secure_creds.username
+            password = secure_creds.password
         
         if not username or not password:
             raise HTTPException(status_code=400, detail="Username and password are required")
@@ -320,7 +284,7 @@ async def get_security_info(
         security_info = credential_manager.get_security_info()
         
         return {
-            "crypto_available": security_info['crypto_available'],
+            "encryption_enabled": security_info['encryption_enabled'],
             "encryption_method": security_info['encryption_method'],
             "master_key_set": security_info['master_key_set'],
             "stored_users_count": security_info['stored_users_count'],
@@ -354,25 +318,7 @@ async def get_user_credentials_for_automation(user_id: str) -> Dict[str, str]:
                 'password': credentials.password
             }
         
-        # Fallback to database (this matches the existing endpoint behavior)
-        from ..database import get_db
-        db = next(get_db())
-        
-        try:
-            db_credentials = db.query(UserCredentials).filter(
-                UserCredentials.user_id == user_id,
-                UserCredentials.service_name == "workfossa",
-                UserCredentials.is_active == True
-            ).first()
-            
-            if db_credentials:
-                return {
-                    'username': simple_decrypt(db_credentials.encrypted_username),
-                    'password': simple_decrypt(db_credentials.encrypted_password)
-                }
-        finally:
-            db.close()
-        
+        # No database fallback - only use secure credential storage
         return {}
         
     except Exception as e:

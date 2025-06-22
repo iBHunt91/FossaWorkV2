@@ -4,6 +4,7 @@ import { apiClient } from '../services/api';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { useScrapingStatus } from '../contexts/ScrapingStatusContext';
 
 interface ScrapingStatusData {
   enabled: boolean;
@@ -27,6 +28,7 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
   const navigate = useNavigate();
+  const { subscribe } = useScrapingStatus();
 
   const fetchStatus = async () => {
     try {
@@ -65,11 +67,20 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
   useEffect(() => {
     fetchStatus();
     
-    // Refresh status every 30 seconds
-    const interval = setInterval(fetchStatus, 30000);
+    // Subscribe to real-time updates
+    const unsubscribe = subscribe(() => {
+      // Fetch immediately when notified of a change
+      fetchStatus();
+    });
     
-    return () => clearInterval(interval);
-  }, []);
+    // Also keep polling as a fallback (but less frequently)
+    const interval = setInterval(fetchStatus, 60000); // Reduced to 60 seconds
+    
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, [subscribe]);
 
   const getTimeUntilNext = () => {
     if (!status?.next_run) return 'Not scheduled';

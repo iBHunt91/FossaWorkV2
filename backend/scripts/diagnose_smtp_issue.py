@@ -6,9 +6,10 @@ import json
 
 def test_endpoint():
     """Test various aspects of the SMTP endpoint"""
+    import os
     
     base_url = "http://localhost:8000"
-    user_id = "7bea3bdb7e8e303eacaba442bd824004"  # Known user ID
+    user_id = os.getenv("TEST_USER_ID", "7bea3bdb7e8e303eacaba442bd824004")  # Known user ID
     
     print("🔍 Testing SMTP Settings Endpoint Diagnosis")
     print("=" * 60)
@@ -61,8 +62,8 @@ def test_endpoint():
     # Test 4: Login and get token
     print("\n4. Testing authentication...")
     login_data = {
-        "username": "bruce.hunt@owlservices.com",
-        "password": "test_password"  # This might not be correct
+        "username": os.getenv("TEST_USERNAME", "test@example.com"),
+        "password": os.getenv("TEST_PASSWORD", "test_password")
     }
     try:
         response = requests.post(

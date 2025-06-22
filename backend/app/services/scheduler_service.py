@@ -39,13 +39,17 @@ logger = get_logger("fossawork.scheduler")
 
 
 # Standalone job functions to avoid serialization issues
-async def execute_work_order_scraping(user_id: str):
+async def execute_work_order_scraping(user_id: str, trigger_type: str = "scheduled"):
     """Execute work order scraping task - standalone function for scheduler"""
     from datetime import datetime
     from ..database import SessionLocal
     from ..services.logging_service import get_logger, log_automation_event
     from ..models import UserCredential
     import base64
+    
+    # Ensure environment variables are loaded for background tasks
+    from dotenv import load_dotenv
+    load_dotenv()
     
     logger = get_logger("scheduler.jobs")
     start_time = datetime.utcnow()
@@ -71,35 +75,21 @@ async def execute_work_order_scraping(user_id: str):
     try:
         logger.info(f"Starting scheduled work order scraping for user {user_id}")
         
-        # Get user credentials from database (same method as UI uses)
-        def simple_decrypt(encrypted_password: str) -> str:
-            """Simple decryption - check if it's base64 or plain text"""
-            try:
-                # Try base64 decode first
-                return base64.b64decode(encrypted_password.encode()).decode()
-            except:
-                # If that fails, it might be plain text
-                return encrypted_password
+        # Get user credentials using CredentialManager
+        from ..services.credential_manager import CredentialManager
         
-        db = SessionLocal()
-        try:
-            creds = db.query(UserCredential).filter(
-                UserCredential.user_id == user_id,
-                UserCredential.service_name == "workfossa",
-                UserCredential.is_active == True
-            ).first()
-            
-            if not creds:
-                raise Exception("No WorkFossa credentials found in database")
-            
-            # Decrypt credentials
-            credentials = {
-                'username': simple_decrypt(creds.encrypted_username),
-                'password': simple_decrypt(creds.encrypted_password)
-            }
-            logger.info("Successfully retrieved WorkFossa credentials from database")
-        finally:
-            db.close()
+        credential_manager = CredentialManager()
+        workfossa_creds = credential_manager.retrieve_credentials(user_id)
+        
+        if not workfossa_creds:
+            raise Exception("No WorkFossa credentials found")
+        
+        # Convert to expected format
+        credentials = {
+            'username': workfossa_creds.username,
+            'password': workfossa_creds.password
+        }
+        logger.info(f"Successfully retrieved WorkFossa credentials for user {user_id}")
         
         # Initialize progress tracking for UI
         # Import the shared progress dictionary from work_orders route
@@ -356,7 +346,8 @@ async def execute_work_order_scraping(user_id: str):
             completed_at=datetime.utcnow(),
             success=success,
             items_processed=items_processed,
-            error_message=error_message
+            error_message=error_message,
+            trigger_type=trigger_type  # Use the provided trigger type
         )
         db.add(history)
         logger.info(f"Created ScrapingHistory record - success: {success}, items: {items_processed}")
@@ -604,7 +595,7 @@ class SchedulerService:
         logger.info(f"Successfully added work order scraping schedule for user {user_id} with job ID {job_id}")
         return job_id
     
-    async def _execute_work_order_scraping(self, user_id: str):
+    async def _execute_work_order_scraping(self, user_id: str, trigger_type: str = "scheduled"):
         """Execute work order scraping task"""
         start_time = datetime.utcnow()
         success = False
@@ -644,7 +635,8 @@ class SchedulerService:
                     completed_at=datetime.utcnow(),
                     success=success,
                     items_processed=items_processed,
-                    error_message=error_message
+                    error_message=error_message,
+                    trigger_type=trigger_type
                 )
                 db.add(history)
                 db.commit()
@@ -664,7 +656,8 @@ class SchedulerService:
                     started_at=start_time,
                     completed_at=datetime.utcnow(),
                     success=False,
-                    error_message=error_message
+                    error_message=error_message,
+                    trigger_type=trigger_type
                 )
                 db.add(history)
                 db.commit()
@@ -910,7 +903,8 @@ class SchedulerService:
                     "error_message": record.error_message,
                     "duration_seconds": (
                         record.completed_at - record.started_at
-                    ).total_seconds() if record.completed_at else None
+                    ).total_seconds() if record.completed_at else None,
+                    "trigger_type": getattr(record, 'trigger_type', 'scheduled')  # Default to 'scheduled' for old records
                 })
             
             return history

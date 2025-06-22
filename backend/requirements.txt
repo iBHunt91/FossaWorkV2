@@ -20,6 +20,7 @@ psutil>=5.9.0  # For memory monitoring
 passlib[bcrypt]>=1.7.0  # For password hashing
 python-jose[cryptography]>=3.3.0  # For JWT tokens
 cryptography>=41.0.0  # For secure credential encryption
+slowapi>=0.1.9  # For rate limiting and DDoS protection
 
 # HTTP client for notifications
 aiohttp>=3.9.0  # For async HTTP client (Pushover notifications)
