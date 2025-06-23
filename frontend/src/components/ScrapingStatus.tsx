@@ -32,15 +32,19 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
 
   const fetchStatus = async () => {
     try {
-      // Get schedules
-      const schedulesResponse = await apiClient.get('/api/scraping-schedules/');
+      // Get schedules with a shorter timeout for better UX
+      const schedulesResponse = await apiClient.get('/api/scraping-schedules/', {
+        timeout: 10000 // 10 seconds instead of 30
+      });
       const schedules = schedulesResponse.data;
       
       if (schedules && schedules.length > 0) {
         const schedule = schedules[0];
         
         // Get latest history
-        const historyResponse = await apiClient.get('/api/scraping-schedules/history/work_orders?limit=1');
+        const historyResponse = await apiClient.get('/api/scraping-schedules/history/work_orders?limit=1', {
+          timeout: 10000 // 10 seconds instead of 30
+        });
         const history = historyResponse.data;
         
         const lastRun = history && history.length > 0 ? history[0] : null;
@@ -69,8 +73,10 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
     
     // Subscribe to real-time updates
     const unsubscribe = subscribe(() => {
-      // Fetch immediately when notified of a change
-      fetchStatus();
+      // Add a small delay to ensure backend has processed changes
+      setTimeout(() => {
+        fetchStatus();
+      }, 100);
     });
     
     // Also keep polling as a fallback (but less frequently)

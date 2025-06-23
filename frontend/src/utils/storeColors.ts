@@ -14,7 +14,9 @@ export interface BrandStyle {
 }
 
 // Helper function to clean site names by removing time suffixes and extracting brand name
-export const cleanSiteName = (siteName: string): string => {
+export const cleanSiteName = (siteName: string | undefined | null): string => {
+  if (!siteName) return 'Unknown'
+  
   // Remove time patterns like "1956am", "456pm", etc.
   let cleaned = siteName.replace(/\s+\d{1,4}[ap]m$/i, '').trim()
   

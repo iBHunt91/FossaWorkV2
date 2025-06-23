@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Activity, FileText, Users, Wrench, Bell, LogOut, ChevronRight } from 'lucide-react';
+import { X, Activity, FileText, Users, Wrench, Bell, LogOut, ChevronRight, Filter } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -23,6 +23,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
 
   const drawerItems: DrawerItem[] = [
     { path: '/dispensers', label: 'Dispensers', icon: Activity },
+    { path: '/filters', label: 'Filters', icon: Filter },
     { path: '/batch-processor', label: 'Batch Processor', icon: FileText },
     { path: '/queue-manager', label: 'Queue Manager', icon: Wrench },
     { path: '/notifications', label: 'Notifications', icon: Bell },

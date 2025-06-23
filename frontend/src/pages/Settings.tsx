@@ -452,50 +452,13 @@ const Settings: React.FC = () => {
           <div className="min-h-[600px]">
             {activeTab === 'profile' && (
               <div className="space-y-4">
-                <CollapsibleSection
-                  id="profile-info"
-                  title="Profile Information"
-                  description="Manage your account information"
-                  icon={User}
-                  isExpanded={expandedSections.has('profile-info')}
-                  onToggle={() => toggleSection('profile-info')}
-                >
-                  <div className="grid gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Username</Label>
-                      <Input 
-                        id="username" 
-                        value={user?.username || user?.email || ''} 
-                        disabled 
-                        className="input-modern" 
-                        placeholder="Your username"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input 
-                        id="email" 
-                        type="email" 
-                        value={user?.email || ''} 
-                        disabled 
-                        className="input-modern" 
-                        placeholder="Your email address"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="displayName">Display Name</Label>
-                      <Input 
-                        id="displayName" 
-                        placeholder="Enter display name" 
-                        className="input-modern" 
-                      />
-                    </div>
-                  </div>
-                  <RippleButton className="w-full sm:w-auto">
-                    <Save className="w-4 h-4 mr-2" />
-                    Save Profile
-                  </RippleButton>
-                </CollapsibleSection>
+                <Alert>
+                  <User className="h-4 w-4" />
+                  <AlertDescription>
+                    Your profile information is managed through your WorkFossa account.
+                    All details are synchronized from WorkFossa during login.
+                  </AlertDescription>
+                </Alert>
               </div>
             )}
 
@@ -834,63 +797,7 @@ const Settings: React.FC = () => {
 
             {activeTab === 'security' && (
               <div className="space-y-4">
-                <CollapsibleSection
-                  id="password-settings"
-                  title="Password Settings"
-                  description="Manage your account security"
-                  icon={Shield}
-                  isExpanded={expandedSections.has('password-settings')}
-                  onToggle={() => toggleSection('password-settings')}
-                >
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-medium">Password</h3>
-                      <div className="grid gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="current-password">Current Password</Label>
-                          <Input 
-                            id="current-password" 
-                            type="password" 
-                            className="input-modern" 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="new-password">New Password</Label>
-                          <Input 
-                            id="new-password" 
-                            type="password" 
-                            className="input-modern" 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="confirm-password">Confirm New Password</Label>
-                          <Input 
-                            id="confirm-password" 
-                            type="password" 
-                            className="input-modern" 
-                          />
-                        </div>
-                      </div>
-                      <AnimatedButton variant="secondary" animation="pulse">
-                        Update Password
-                      </AnimatedButton>
-                    </div>
-                </CollapsibleSection>
 
-                <CollapsibleSection
-                  id="workfossa-credentials"
-                  title="WorkFossa Credentials"
-                  description="Manage your WorkFossa login credentials"
-                  icon={Key}
-                  isExpanded={expandedSections.has('workfossa-credentials')}
-                  onToggle={() => toggleSection('workfossa-credentials')}
-                >
-                  <CredentialManager 
-                    userId={currentUserId}
-                    onCredentialsUpdated={() => {
-                      queryClient.invalidateQueries({ queryKey: ['workfossa-credentials'] })
-                    }}
-                  />
-                </CollapsibleSection>
               </div>
             )}
 

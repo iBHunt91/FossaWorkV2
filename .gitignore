@@ -108,6 +108,11 @@ server_startup.log
 # User data
 userdata/
 user-data/
+backend/data/credentials/
+backend/data/users/
+backend/data/job_queue/
+backend/data/screenshots/
+backend/fossawork*.db
 
 # Local configuration
 .local/

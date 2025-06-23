@@ -75,20 +75,26 @@ async def execute_work_order_scraping(user_id: str, trigger_type: str = "schedul
     try:
         logger.info(f"Starting scheduled work order scraping for user {user_id}")
         
-        # Get user credentials using CredentialManager
-        from ..services.credential_manager import CredentialManager
+        # Get user credentials from database
+        from ..models.user_models import UserCredential
         
-        credential_manager = CredentialManager()
-        workfossa_creds = credential_manager.retrieve_credentials(user_id)
-        
-        if not workfossa_creds:
-            raise Exception("No WorkFossa credentials found")
-        
-        # Convert to expected format
-        credentials = {
-            'username': workfossa_creds.username,
-            'password': workfossa_creds.password
-        }
+        db = SessionLocal()
+        try:
+            user_credential = db.query(UserCredential).filter(
+                UserCredential.user_id == user_id,
+                UserCredential.service_name == 'workfossa'
+            ).first()
+            
+            if not user_credential:
+                raise Exception("No WorkFossa credentials found")
+            
+            # Convert to expected format
+            credentials = {
+                'username': user_credential.username,
+                'password': user_credential.password
+            }
+        finally:
+            db.close()
         logger.info(f"Successfully retrieved WorkFossa credentials for user {user_id}")
         
         # Initialize progress tracking for UI
@@ -562,7 +568,13 @@ class SchedulerService:
                     existing.updated_at = datetime.utcnow()
                     logger.warning(f"Updated existing schedule record for user {user_id}")
                 else:
-                    logger.info(f"Restore mode - keeping existing database values")
+                    # In restore mode, still update next_run if it's missing
+                    if not existing.next_run and job.next_run_time:
+                        existing.next_run = job.next_run_time
+                        existing.updated_at = datetime.utcnow()
+                        logger.info(f"Restore mode - updated missing next_run to: {job.next_run_time}")
+                    else:
+                        logger.info(f"Restore mode - keeping existing database values")
             else:
                 # Create new schedule
                 schedule = ScrapingSchedule(
@@ -608,11 +620,35 @@ class SchedulerService:
             # Get database session
             db = SessionLocal()
             try:
-                # Initialize scraper
-                scraper = WorkFossaScraper(db, user_id)
+                # Get user credentials from database
+                from ..models.user_models import UserCredential
+                user_credential = db.query(UserCredential).filter(
+                    UserCredential.user_id == user_id,
+                    UserCredential.service_name == 'workfossa'
+                ).first()
                 
-                # Perform scraping
-                result = await scraper.scrape_work_orders()
+                if not user_credential:
+                    raise Exception("No WorkFossa credentials found")
+                
+                # Convert to expected format
+                credentials = {
+                    'username': user_credential.username,
+                    'password': user_credential.password
+                }
+                
+                # Initialize automation service
+                from ..services.workfossa_automation import WorkFossaAutomationService
+                automation_service = WorkFossaAutomationService(headless=True)
+                
+                # Initialize scraper
+                scraper = WorkFossaScraper(automation_service)
+                
+                # Create a session and login
+                session_id = f"scheduler_scrape_{user_id}_{datetime.utcnow().timestamp()}"
+                
+                # TODO: This section needs to be properly implemented using the WorkFossaAutomationService
+                # For now, return a placeholder result to avoid the method breaking
+                result = {"success": False, "error": "Scheduler scraping needs proper implementation with WorkFossaAutomationService"}
                 
                 if result.get("success"):
                     items_processed = len(result.get("work_orders", []))
@@ -776,6 +812,13 @@ class SchedulerService:
                         schedule.active_hours = active_hours
                     if enabled is not None:
                         schedule.enabled = enabled
+                    
+                    # Update next_run time from the rescheduled job
+                    job = self.scheduler.get_job(job_id)
+                    if job and job.next_run_time:
+                        schedule.next_run = job.next_run_time
+                        logger.info(f"Updated next_run in database to: {job.next_run_time}")
+                    
                     schedule.updated_at = datetime.utcnow()
                     db.commit()
             finally:
