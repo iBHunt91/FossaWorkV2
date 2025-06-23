@@ -8,6 +8,7 @@ import { Automation } from './pages/Automation'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 import DesignSystem from './pages/DesignSystem'
+import Filters from './pages/Filters'
 import Navigation from './components/Navigation'
 import { MobileNavigation } from './components/MobileNavigation'
 import { MobileDrawer } from './components/MobileDrawer'
@@ -72,6 +73,7 @@ function AppContent() {
             <Route path="/work-orders" element={<WorkOrders />} />
             <Route path="/job-map" element={<JobMap />} />
             <Route path="/automation" element={<Automation />} />
+            <Route path="/filters" element={<Filters />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/design" element={<DesignSystem />} />
             {/* Add profile route for mobile navigation */}

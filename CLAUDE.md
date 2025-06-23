@@ -92,7 +92,7 @@ If we're heading down an unproductive path, point it out directly.
 - **Legacy References:** Some docs may reference old Node.js structure
 - **Current State:** Modern Python backend with enhanced security and performance
 
-**Key Features:** Multi-user support, web scraping, form automation (single/batch), notifications (Email/Pushover/Desktop), schedule management, progress tracking.
+**Key Features:** Multi-user support, web scraping, form automation (single/batch), notifications (Email/Pushover/Desktop), schedule management, progress tracking, filter management with automatic updates.
 
 **Tech Stack:** 
 - **Frontend:** React 18+, TypeScript, Vite, TailwindCSS, Axios
@@ -149,6 +149,7 @@ DELETE /api/v1/resources/{id}     # Delete
 - `/api/settings/*` - User preferences and config
 - `/api/notifications/*` - Notification management
 - `/api/v1/logs/*` - Logging endpoints (write, stats, download)
+- `/api/filters/*` - Filter calculation and management
 
 **Response Format:**
 ```json
@@ -187,6 +188,13 @@ DELETE /api/v1/resources/{id}     # Delete
 **Notifications:** Multi-channel system (Email, Pushover, Desktop) with centralized formatting.
 
 **Web Scraping:** Automated data collection with change detection and notification triggering.
+
+**Filter Management:** Intelligent filter calculation system with automatic updates:
+- Calculates filter requirements based on dispensers and service codes
+- Automatic update detection with visual indicators
+- Real-time filter quantity editing capabilities
+- Warning system for missing data or configuration issues
+- Export functionality for filter summaries
 
 **WorkFossa Integration:**
 - Login URL: `https://app.workfossa.com` (NOT `/login`)

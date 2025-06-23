@@ -13,7 +13,7 @@ load_dotenv()
 from .database import get_db, create_tables
 from .models.user_models import User
 from .core_models import WorkOrder, Dispenser
-from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules
+from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters
 # Temporarily disabled due to FastAPI validation errors: filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
 from .services.logging_service import get_logger, log_api_request
 from .utils.memory_monitor import setup_memory_monitoring, start_memory_monitoring
@@ -196,6 +196,7 @@ app.include_router(settings.router)
 app.include_router(metrics.router)
 app.include_router(notifications.router)
 app.include_router(scraping_schedules.router)
+app.include_router(filters.router)
 # Temporarily disabled routes due to FastAPI validation errors:
 # app.include_router(filter_calculation.router, prefix="/api/filters", tags=["filters"])
 # app.include_router(filter_inventory.router, prefix="/api/inventory", tags=["inventory"])

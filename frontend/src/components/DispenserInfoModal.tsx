@@ -3,6 +3,7 @@ import { Modal } from './ui/modal';
 import { Badge } from './ui/badge';
 import { cleanSiteName } from '@/utils/storeColors';
 import { format } from 'date-fns';
+import { Dispenser as BaseDispenser } from '../services/api';
 import { 
   Fuel, 
   Wrench, 
@@ -21,7 +22,9 @@ import {
   Calendar,
   MapPin,
   Store,
-  FileText
+  FileText,
+  Filter,
+  Box
 } from 'lucide-react';
 
 // Comprehensive fuel grade ordering based on backend fuel_grades.py
@@ -83,31 +86,10 @@ const getGradeIndex = (grade: string): number => {
   return FUEL_GRADE_ORDER.length;
 };
 
-interface FuelGrade {
-  octane?: number;
-  ethanol?: number;
-  cetane?: number;
-  position: number;
-}
-
-interface Dispenser {
-  dispenser_number: string;
+// Use the base Dispenser interface from api.ts and extend it for modal-specific needs
+interface Dispenser extends BaseDispenser {
   dispenser_numbers?: string[];  // Array format like ["1/2"]
   title?: string;  // Contains "Dispenser 1/2" format
-  dispenser_type: string;
-  fuel_grades: Record<string, FuelGrade>;
-  fuel_grades_list?: string[];  // New field from backend
-  status?: string;
-  progress_percentage?: number;
-  automation_completed?: boolean;
-  // Additional scraped fields
-  serial_number?: string;
-  stand_alone_code?: string;
-  number_of_nozzles?: number;
-  meter_type?: string;
-  make?: string;
-  model?: string;
-  grades_list?: string[];
   custom_fields?: Record<string, any>;
   // Form data that may contain additional scraped info
   form_data?: {
@@ -126,24 +108,47 @@ interface Dispenser {
     model?: string;
     standalone?: boolean;
   };
+  // From backend filter calculation
+  dispenserNumber?: string;
+  dispenserType?: string;
+  meterType?: string;
+  fuelGrades?: Array<{
+    position: number;
+    grade: string;
+  }>;
 }
 
 interface WorkOrder {
   id: string;
-  external_id: string;
-  site_name: string;
+  external_id?: string;
+  site_name?: string;
+  storeName?: string;
   address: string;
   service_name?: string;
+  serviceName?: string;
   dispensers?: Dispenser[];
   store_number?: string;
+  storeNumber?: string;
   visit_url?: string;
   scheduled_date?: string;
+  scheduledDate?: string;
   created_date?: string;
+  customerName?: string;
+  serviceCode?: string;
 }
 
 interface DispenserModalData {
   workOrder: WorkOrder;
   dispensers?: Dispenser[];
+  filters?: {
+    [partNumber: string]: {
+      quantity: number;
+      description: string;
+      filterType: string;
+      isEdited?: boolean;
+      originalQuantity?: number;
+    };
+  };
 }
 
 interface DispenserInfoModalProps {
@@ -275,7 +280,7 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={dispenserData?.workOrder 
-        ? `${cleanSiteName(dispenserData.workOrder.site_name)} - Dispenser Information`
+        ? `${cleanSiteName(dispenserData.workOrder.site_name || dispenserData.workOrder.storeName)} - Dispenser Information`
         : 'Dispenser Information'
       }
       size="xl"
@@ -299,27 +304,27 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
               {/* Top row - Store, Visit, Date badges */}
               <div className="flex flex-wrap items-center gap-3 mb-3">
                 {/* Store Number Badge */}
-                {dispenserData.workOrder.store_number && (
+                {(dispenserData.workOrder.store_number || dispenserData.workOrder.storeNumber) && (
                   <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-3 py-1.5 font-medium">
                     <Store className="w-3 h-3 mr-1.5" />
-                    Store {dispenserData.workOrder.store_number.replace('#', '')}
+                    Store {(dispenserData.workOrder.store_number || dispenserData.workOrder.storeNumber || '').replace('#', '')}
                   </Badge>
                 )}
                 
                 {/* Visit Number Badge */}
-                {dispenserData.workOrder.external_id && (
+                {(dispenserData.workOrder.external_id || dispenserData.workOrder.id) && (
                   <Badge variant="outline" className="bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300 px-3 py-1.5 font-medium">
                     <FileText className="w-3 h-3 mr-1.5" />
-                    Visit {dispenserData.workOrder.external_id.replace('W-', '')}
+                    Visit {(dispenserData.workOrder.external_id || dispenserData.workOrder.id || '').replace('W-', '')}
                   </Badge>
                 )}
                 
                 {/* Date Information */}
-                {(dispenserData.workOrder.scheduled_date || dispenserData.workOrder.created_date) && (
+                {(dispenserData.workOrder.scheduled_date || dispenserData.workOrder.scheduledDate || dispenserData.workOrder.created_date) && (
                   <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 px-3 py-1.5 font-medium">
                     <Calendar className="w-3 h-3 mr-1.5" />
                     {(() => {
-                      const dateStr = dispenserData.workOrder.scheduled_date || dispenserData.workOrder.created_date;
+                      const dateStr = dispenserData.workOrder.scheduled_date || dispenserData.workOrder.scheduledDate || dispenserData.workOrder.created_date;
                       if (!dateStr) return 'No date';
                       
                       try {
@@ -430,15 +435,138 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
                 <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
                   Total Dispensers: {dispensers.length}
                 </p>
-                {dispenserData?.workOrder?.service_name && (
+                {(dispenserData?.workOrder?.service_name || dispenserData?.workOrder?.serviceName) && (
                   <p className="text-xs text-blue-500 dark:text-blue-500 mt-1">
-                    Service: {dispenserData.workOrder.service_name}
+                    Service: {dispenserData.workOrder.service_name || dispenserData.workOrder.serviceName}
                   </p>
                 )}
               </div>
               <Gauge className="w-8 h-8 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
+
+          {/* Filter Summary for this Job */}
+          {dispenserData?.filters && Object.keys(dispenserData.filters).length > 0 ? (
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 shadow-sm border border-gray-200 dark:border-gray-700">
+              {/* Background Pattern */}
+              <div className="absolute inset-0 opacity-5">
+                <div className="absolute inset-0" style={{
+                  backgroundImage: 'radial-gradient(circle at 2px 2px, currentColor 1px, transparent 1px)',
+                  backgroundSize: '32px 32px'
+                }} />
+              </div>
+              
+              {/* Header */}
+              <div className="relative flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-md">
+                    <Filter className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                      Filter Requirements
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {Object.keys(dispenserData.filters).length} type{Object.keys(dispenserData.filters).length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/30 dark:to-purple-900/30 rounded-full">
+                  <Box className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-purple-600 dark:from-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+                    {Object.values(dispenserData.filters).reduce((sum, filter) => sum + filter.quantity, 0)}
+                  </span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                    Total
+                  </span>
+                </div>
+              </div>
+              
+              {/* Filter Cards */}
+              <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {Object.entries(dispenserData.filters).map(([partNumber, filter], index) => {
+                  // Enhanced color theming
+                  let gradientClass = "from-gray-500 to-gray-600";
+                  let glowClass = "";
+                  let iconBg = "bg-gray-100 dark:bg-gray-800";
+                  let icon = <Filter className="w-4 h-4" />;
+                  
+                  if (filter.filterType === 'gas') {
+                    gradientClass = "from-blue-500 to-indigo-600";
+                    glowClass = "hover:shadow-blue-500/25";
+                    iconBg = "bg-blue-100 dark:bg-blue-900/50";
+                    icon = <Fuel className="w-4 h-4 text-blue-600 dark:text-blue-400" />;
+                  } else if (filter.filterType === 'diesel') {
+                    gradientClass = "from-green-500 to-emerald-600";
+                    glowClass = "hover:shadow-green-500/25";
+                    iconBg = "bg-green-100 dark:bg-green-900/50";
+                    icon = <Droplet className="w-4 h-4 text-green-600 dark:text-green-400" />;
+                  } else if (filter.filterType === 'def') {
+                    gradientClass = "from-cyan-500 to-teal-600";
+                    glowClass = "hover:shadow-cyan-500/25";
+                    iconBg = "bg-cyan-100 dark:bg-cyan-900/50";
+                    icon = <Droplet className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />;
+                  }
+                  
+                  return (
+                    <div
+                      key={partNumber}
+                      className={`group relative overflow-hidden rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 transition-all duration-300 hover:scale-105 hover:shadow-lg ${glowClass}`}
+                      style={{ animationDelay: `${index * 50}ms` }}
+                    >
+                      {/* Gradient Border Effect */}
+                      <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass} opacity-0 group-hover:opacity-10 transition-opacity duration-300`} />
+                      
+                      {/* Content */}
+                      <div className="relative p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className={`p-1.5 rounded-lg ${iconBg} transition-transform group-hover:scale-110`}>
+                            {icon}
+                          </div>
+                          {filter.isEdited && (
+                            <div className="flex items-center gap-1 px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900/30 rounded-full">
+                              <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse" />
+                              <span className="text-xs text-yellow-700 dark:text-yellow-300 font-medium">
+                                Edited
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-baseline justify-between">
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">
+                              {filter.filterType}
+                            </p>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                              {partNumber}
+                            </p>
+                          </div>
+                          
+                          <div className={`text-2xl font-bold bg-gradient-to-br ${gradientClass} bg-clip-text text-transparent`}>
+                            {filter.quantity}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Hover Effect Line */}
+                      <div className={`absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r ${gradientClass} transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300`} />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                <Info className="w-5 h-5" />
+                <p className="text-sm">
+                  No filters required for this job
+                  {dispenserData?.workOrder?.serviceCode === '3146' && ' (Open Neck Prover service)'}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Dispenser List with Expandable Details */}
           <div className="space-y-3">
