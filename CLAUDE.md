@@ -39,6 +39,171 @@ The only currency that matters: **Does this advance or halt productive thinking?
 If we're heading down an unproductive path, point it out directly.
 
 
+## Sub-Agent Delegation & Oversight System
+
+**MANDATORY: Claude Code as Overseer/Manager**
+
+### Core Principle
+Claude Code operates as the primary overseer and quality control manager, delegating specialized tasks to sub-agents while maintaining oversight of all work. Never work in isolation - always use appropriate sub-agents for complex tasks.
+
+### Delegation Strategy
+
+**When to Use Sub-Agents (via Task tool):**
+1. **Code Search & Analysis** (>3 files or complex patterns)
+   - Finding implementations across codebase
+   - Analyzing dependencies and relationships
+   - Locating specific patterns or anti-patterns
+   
+2. **Large-Scale Changes** (>100 lines or multiple files)
+   - Refactoring operations
+   - Architecture updates
+   - Cross-cutting concerns
+
+3. **Research & Documentation**
+   - Library usage patterns
+   - Best practices investigation
+   - Documentation creation/updates
+
+4. **Complex Problem Solving**
+   - Multi-step debugging
+   - Performance optimization
+   - Security analysis
+
+### Sub-Agent Management Protocol
+
+**1. Task Definition:**
+```yaml
+Before Delegation:
+  - Define clear objectives and success criteria
+  - Specify boundaries and constraints
+  - List expected deliverables
+  - Set quality standards
+
+Task Structure:
+  description: "Brief 3-5 word task title"
+  prompt: |
+    Context: [Current situation]
+    Objective: [What needs to be done]
+    Constraints: [What to avoid]
+    Deliverables: [Expected outputs]
+    Success Criteria: [How to measure completion]
+```
+
+**2. Quality Control Checklist:**
+After receiving sub-agent results, ALWAYS:
+- [ ] Verify code syntax and imports
+- [ ] Check for security vulnerabilities
+- [ ] Validate against project patterns
+- [ ] Ensure proper error handling
+- [ ] Confirm test coverage
+- [ ] Review documentation updates
+
+**3. Integration Protocol:**
+```yaml
+Sub-Agent Results:
+  1. Review completeness
+  2. Validate accuracy
+  3. Check consistency with existing code
+  4. Test integration points
+  5. Verify no regressions
+
+If Issues Found:
+  - Document specific problems
+  - Create corrective sub-agent task
+  - Re-validate after corrections
+```
+
+### Delegation Examples
+
+**Example 1: Feature Implementation**
+```yaml
+Main Task: "Add user preference system"
+Sub-Agent Tasks:
+  1. "Research existing settings structure"
+  2. "Design preference schema"
+  3. "Implement backend API"
+  4. "Create frontend components"
+  5. "Add tests and documentation"
+```
+
+**Example 2: Bug Investigation**
+```yaml
+Main Task: "Fix authentication timeout issues"
+Sub-Agent Tasks:
+  1. "Analyze current auth flow"
+  2. "Find timeout configurations"
+  3. "Research JWT best practices"
+  4. "Implement token refresh"
+  5. "Test edge cases"
+```
+
+### Parallel vs Sequential Delegation
+
+**Parallel Tasks (when independent):**
+- Multiple file searches
+- Independent component updates
+- Separate documentation sections
+- Non-overlapping tests
+
+**Sequential Tasks (when dependent):**
+- Design → Implementation → Testing
+- Research → Planning → Execution
+- Analysis → Refactoring → Validation
+
+### Sub-Agent Communication
+
+**Information Sharing:**
+- Pass relevant context between sub-agents
+- Share discovered patterns and issues
+- Maintain consistency in approach
+- Document decisions and rationale
+
+**Result Aggregation:**
+- Compile findings into coherent summary
+- Resolve conflicts between sub-agent outputs
+- Prioritize recommendations
+- Create unified implementation plan
+
+### Quality Metrics
+
+**Sub-Agent Performance:**
+- Task completion rate
+- Code quality score
+- Time efficiency
+- Error/revision frequency
+
+**Oversight Effectiveness:**
+- Issues caught in review
+- Integration success rate
+- User satisfaction
+- System stability
+
+### Anti-Patterns to Avoid
+
+**DON'T:**
+- Work on complex tasks without sub-agents
+- Accept sub-agent output without review
+- Delegate without clear instructions
+- Skip integration testing
+- Ignore inconsistencies
+
+**DO:**
+- Always verify sub-agent work
+- Provide detailed context
+- Set clear boundaries
+- Test thoroughly
+- Document decisions
+
+### Emergency Override
+
+When sub-agents produce problematic results:
+1. Stop integration immediately
+2. Document the issues found
+3. Create corrective tasks
+4. Implement fixes directly if urgent
+5. Update delegation criteria
+
+
 ## Documentation System
 
 **Two Documentation Systems:**
@@ -900,7 +1065,17 @@ mcp__notion__API-patch-block-children with after parameter for positioning
 
 ### Worktree Setup Commands
 
-**Create New Worktrees:**
+**Automated Creation (Recommended):**
+```bash
+# Create worktree AND automatically set up environment
+./scripts/setup/git-worktree-create.sh <worktree-name> <branch-name>
+
+# Examples:
+./scripts/setup/git-worktree-create.sh form-prep feature/form-prep
+./scripts/setup/git-worktree-create.sh bugfix-auth bugfix/auth-token
+```
+
+**Manual Creation:**
 ```bash
 # Create worktree with new branch
 git worktree add ../FossaWorkV2-feature-name -b feature-name
@@ -929,14 +1104,24 @@ git worktree prune
 
 ### Worktree Environment Setup
 
-**Each worktree needs its own environment:**
+**Automatic Setup (using the creation script):**
+When you use the `git-worktree-create.sh` script, all environment setup is handled automatically:
+- Creates the worktree with specified branch
+- Installs all npm dependencies (root, frontend, backend)
+- Sets up Python virtual environment
+- Installs Python requirements
+- Provides ready-to-use development commands
+
+**Manual Setup (if created without the script):**
 1. Navigate to worktree: `cd ../FossaWorkV2-feature-name`
 2. Install dependencies: `npm install`
 3. Frontend deps: `cd frontend && npm install && cd ..`
 4. Backend deps: `cd backend && npm install && cd ..`
 5. Python venv (if needed): `cd backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt`
 
-**Setup Script Available:** `setup-worktree.sh` in project root automates environment setup
+**Alternative Setup Scripts:**
+- `scripts/setup/setup-worktree.sh` - Run from within a worktree to set up environment
+- `scripts/setup/setup-worktree-with-mcp.sh` - Includes MCP server setup
 
 ### Parallel Claude Sessions
 
