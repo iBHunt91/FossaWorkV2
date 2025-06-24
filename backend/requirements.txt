@@ -28,6 +28,14 @@ aiohttp>=3.9.0  # For async HTTP client (Pushover notifications)
 # Task scheduling
 apscheduler>=3.10.0  # For background task scheduling and automation
 
+# Testing and development
+httpx>=0.25.0  # For testing HTTP endpoints
+tabulate>=0.9.0  # For formatted output in test scripts
+
+# Monitoring and alerting dependencies (required for production)
+prometheus-client>=0.19.0  # For Prometheus metrics export
+structlog>=23.2.0  # For structured logging
+
 # Optional dependencies (can be installed later)
 # psycopg2-binary>=2.9.0  # For PostgreSQL
-# alembic>=1.12.0  # For database migrationsslowapi>=0.1.9
+# alembic>=1.12.0  # For database migrations

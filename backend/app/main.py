@@ -13,13 +13,15 @@ load_dotenv()
 from .database import get_db, create_tables
 from .models.user_models import User
 from .core_models import WorkOrder, Dispenser
-from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters
+from .auth.dependencies import get_current_user
+from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters, monitoring
 # Temporarily disabled due to FastAPI validation errors: filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
 from .services.logging_service import get_logger, log_api_request
 from .utils.memory_monitor import setup_memory_monitoring, start_memory_monitoring
 from .middleware.auth_middleware import AuthenticationMiddleware
 from .middleware.request_id import RequestIDMiddleware, configure_request_id_logging
 from .middleware.database_monitoring import db_monitoring
+from .middleware.security_migration import SecurityMigrationMiddleware
 from .services.metrics_service import metrics_service
 
 # Initialize logger first
@@ -48,6 +50,13 @@ app = FastAPI(
 
 # Environment-based CORS configuration
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+# Security feature flags
+ENABLE_SECURITY_MIGRATION = os.getenv("ENABLE_SECURITY_MIGRATION", "true").lower() == "true"
+BLOCK_LEGACY_AUTH = os.getenv("BLOCK_LEGACY_AUTH", "false").lower() == "true"
+ENABLE_QUERY_PROFILING = os.getenv("ENABLE_QUERY_PROFILING", "false").lower() == "true"
+
+logger.info(f"[SECURITY] Security features - Migration: {ENABLE_SECURITY_MIGRATION}, Block Legacy: {BLOCK_LEGACY_AUTH}, Query Profiling: {ENABLE_QUERY_PROFILING}")
 
 # Define CORS settings based on environment
 CORS_ORIGINS = {
@@ -113,6 +122,15 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 # Request ID middleware (must be first for proper tracking)
 app.add_middleware(RequestIDMiddleware)
+
+# Security headers middleware (early in chain for all responses)
+from .middleware.security_headers import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Security migration middleware (tracks legacy auth patterns)
+if ENABLE_SECURITY_MIGRATION:
+    logger.info(f"[SECURITY] Enabling security migration middleware (block_legacy={BLOCK_LEGACY_AUTH})")
+    app.add_middleware(SecurityMigrationMiddleware, block_legacy=BLOCK_LEGACY_AUTH)
 
 # Rate limiting middleware (before authentication for DDoS protection)
 from .middleware.rate_limit import RateLimitMiddleware, limiter, rate_limit_exceeded_handler
@@ -197,6 +215,7 @@ app.include_router(metrics.router)
 app.include_router(notifications.router)
 app.include_router(scraping_schedules.router)
 app.include_router(filters.router)
+app.include_router(monitoring.router)  # New comprehensive monitoring endpoints
 # Temporarily disabled routes due to FastAPI validation errors:
 # app.include_router(filter_calculation.router, prefix="/api/filters", tags=["filters"])
 # app.include_router(filter_inventory.router, prefix="/api/inventory", tags=["inventory"])
@@ -219,6 +238,13 @@ async def startup_event():
     from .database import engine
     db_monitoring.setup_monitoring(engine)
     logger.info("[DATABASE] Query monitoring configured")
+    
+    # Setup query profiling if enabled
+    if ENABLE_QUERY_PROFILING:
+        from .utils.query_profiler import QueryProfiler
+        global_profiler = QueryProfiler(enabled=True)
+        app.state.query_profiler = global_profiler
+        logger.info("[DATABASE] Query profiling enabled - N+1 detection active")
     
     # Start metrics background tasks
     await metrics_service.start_background_tasks()
@@ -338,9 +364,157 @@ async def api_status():
             "filter_inventory": "/api/inventory",
             "filter_scheduling": "/api/scheduling",
             "filter_cost": "/api/costs",
-            "advanced_scheduling": "/api/calendar"
+            "advanced_scheduling": "/api/calendar",
+            "security_status": "/api/v1/security/status",
+            "security_migration_report": "/api/v1/security/migration-report",
+            "security_query_profile": "/api/v1/security/query-profile"
         },
         "timestamp": datetime.now().isoformat()
     }
+
+@app.get("/api/v1/security/migration-report")
+async def security_migration_report(current_user: User = Depends(get_current_user)):
+    """Get security migration report (admin only)"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if not ENABLE_SECURITY_MIGRATION:
+        return {
+            "enabled": False,
+            "message": "Security migration tracking is disabled"
+        }
+    
+    # Get middleware instance using the helper function
+    from .middleware.security_migration import get_migration_middleware_instance
+    migration_middleware = get_migration_middleware_instance()
+    
+    if migration_middleware:
+        return {
+            "enabled": True,
+            "block_legacy": BLOCK_LEGACY_AUTH,
+            "report": migration_middleware.get_migration_report()
+        }
+    
+    return {
+        "enabled": True,
+        "error": "Security migration middleware not initialized yet",
+        "hint": "The middleware will be available after first request"
+    }
+
+@app.get("/api/v1/security/query-profile")
+async def query_profile_status(current_user: User = Depends(get_current_user)):
+    """Get query profiling status and recent analysis (admin only)"""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    if not ENABLE_QUERY_PROFILING:
+        return {
+            "enabled": False,
+            "message": "Query profiling is disabled"
+        }
+    
+    # Get profiler from app state
+    profiler = getattr(app.state, 'query_profiler', None)
+    if not profiler:
+        return {
+            "enabled": True,
+            "error": "Query profiler not initialized"
+        }
+    
+    # Get current analysis
+    analysis = profiler.analyze()
+    
+    return {
+        "enabled": True,
+        "analysis": analysis,
+        "recommendations": _generate_query_recommendations(analysis)
+    }
+
+def _generate_query_recommendations(analysis):
+    """Generate recommendations based on query analysis"""
+    recommendations = []
+    
+    if analysis.get('n_plus_one_candidates'):
+        recommendations.append({
+            "severity": "high",
+            "issue": "N+1 queries detected",
+            "details": f"Found {len(analysis['n_plus_one_candidates'])} potential N+1 query patterns",
+            "fix": "Use eager loading (joinedload/selectinload) or batch queries"
+        })
+    
+    if analysis.get('slow_queries'):
+        recommendations.append({
+            "severity": "medium",
+            "issue": "Slow queries detected",
+            "details": f"Found {len(analysis['slow_queries'])} queries slower than 100ms",
+            "fix": "Add indexes, optimize query structure, or cache results"
+        })
+    
+    if analysis.get('duplicate_queries'):
+        recommendations.append({
+            "severity": "low",
+            "issue": "Duplicate queries detected",
+            "details": f"Found {len(analysis['duplicate_queries'])} duplicate queries",
+            "fix": "Cache query results or refactor to avoid redundant database calls"
+        })
+    
+    return recommendations
+
+@app.get("/api/v1/security/status")
+async def security_status():
+    """Get overall security feature status (public endpoint for monitoring)"""
+    return {
+        "environment": ENVIRONMENT,
+        "features": {
+            "security_headers": {
+                "enabled": True,
+                "description": "OWASP security headers active"
+            },
+            "security_migration": {
+                "enabled": ENABLE_SECURITY_MIGRATION,
+                "block_legacy": BLOCK_LEGACY_AUTH,
+                "description": "Tracking legacy authentication patterns"
+            },
+            "query_profiling": {
+                "enabled": ENABLE_QUERY_PROFILING,
+                "description": "N+1 query detection and performance monitoring"
+            },
+            "rate_limiting": {
+                "enabled": True,
+                "description": "API rate limiting active"
+            },
+            "authentication": {
+                "enabled": True,
+                "description": "JWT-based authentication required"
+            }
+        },
+        "recommendations": _get_security_recommendations()
+    }
+
+def _get_security_recommendations():
+    """Generate security recommendations based on current configuration"""
+    recommendations = []
+    
+    if ENVIRONMENT == "production" and not BLOCK_LEGACY_AUTH:
+        recommendations.append({
+            "severity": "high",
+            "message": "Legacy authentication patterns should be blocked in production",
+            "action": "Set BLOCK_LEGACY_AUTH=true"
+        })
+    
+    if ENVIRONMENT == "production" and ENABLE_QUERY_PROFILING:
+        recommendations.append({
+            "severity": "medium",
+            "message": "Query profiling has performance overhead in production",
+            "action": "Set ENABLE_QUERY_PROFILING=false for production"
+        })
+    
+    if ENVIRONMENT != "development":
+        recommendations.append({
+            "severity": "info",
+            "message": f"Running in {ENVIRONMENT} mode with appropriate security settings"
+        })
+    
+    return recommendations
 
 
