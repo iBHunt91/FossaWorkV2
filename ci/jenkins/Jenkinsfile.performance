@@ -1,0 +1,482 @@
+pipeline {
+    agent {
+        label 'performance-testing'
+    }
+
+    triggers {
+        cron('H 23 * * 5') // Weekly performance test on Friday night
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        timeout(time: 180, unit: 'MINUTES')
+        timestamps()
+        ansiColor('xterm')
+    }
+
+    parameters {
+        choice(
+            name: 'TEST_ENVIRONMENT',
+            choices: ['staging', 'production-shadow', 'dedicated-perf'],
+            description: 'Environment to run performance tests against'
+        )
+        choice(
+            name: 'TEST_SUITE',
+            choices: ['smoke', 'load', 'stress', 'spike', 'soak', 'full'],
+            description: 'Type of performance test to run'
+        )
+        string(
+            name: 'DURATION',
+            defaultValue: '30m',
+            description: 'Test duration (e.g., 30m, 1h, 2h)'
+        )
+        string(
+            name: 'USERS',
+            defaultValue: '100',
+            description: 'Number of virtual users'
+        )
+        string(
+            name: 'RAMP_UP',
+            defaultValue: '5m',
+            description: 'Ramp-up period'
+        )
+        booleanParam(
+            name: 'COMPARE_BASELINE',
+            defaultValue: true,
+            description: 'Compare results with baseline'
+        )
+    }
+
+    environment {
+        INFLUXDB_URL = credentials('influxdb-url')
+        INFLUXDB_TOKEN = credentials('influxdb-token')
+        GRAFANA_API_KEY = credentials('grafana-api-key')
+        PERF_REPORT_BUCKET = 'fossawork-performance-reports'
+        
+        TEST_ENV_URL = getEnvironmentUrl(params.TEST_ENVIRONMENT)
+        LOCUST_FILE = "tests/performance/locustfile.py"
+        K6_SCRIPT = "tests/performance/k6-script.js"
+    }
+
+    stages {
+        stage('Prepare') {
+            steps {
+                checkout scm
+                
+                sh '''
+                    # Install performance testing tools
+                    pip install locust pytest-benchmark
+                    
+                    # Install k6
+                    sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+                    echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+                    sudo apt-get update
+                    sudo apt-get install k6
+                    
+                    # Install artillery
+                    npm install -g artillery
+                    
+                    # Setup monitoring
+                    docker-compose -f docker-compose.monitoring.yml up -d
+                '''
+            }
+        }
+
+        stage('Baseline Check') {
+            when {
+                expression { params.COMPARE_BASELINE }
+            }
+            steps {
+                sh '''
+                    # Quick baseline test
+                    k6 run \
+                        --vus 10 \
+                        --duration 2m \
+                        --out influxdb=${INFLUXDB_URL} \
+                        --tag testrun=baseline \
+                        ${K6_SCRIPT}
+                    
+                    # Store baseline metrics
+                    python3 ci/scripts/store-baseline-metrics.py \
+                        --influx-url ${INFLUXDB_URL} \
+                        --output baseline-metrics.json
+                '''
+            }
+        }
+
+        stage('Run Performance Tests') {
+            parallel {
+                stage('Locust Test') {
+                    when {
+                        expression { params.TEST_SUITE != 'smoke' }
+                    }
+                    steps {
+                        sh """
+                            locust \
+                                --locustfile ${LOCUST_FILE} \
+                                --host ${TEST_ENV_URL} \
+                                --users ${params.USERS} \
+                                --spawn-rate \$(( ${params.USERS} / 60 )) \
+                                --run-time ${params.DURATION} \
+                                --headless \
+                                --html locust-report.html \
+                                --csv locust-results
+                        """
+                    }
+                }
+
+                stage('K6 Test') {
+                    steps {
+                        script {
+                            def k6Options = getK6Options(params.TEST_SUITE)
+                            sh """
+                                k6 run \
+                                    ${k6Options} \
+                                    --out influxdb=${INFLUXDB_URL} \
+                                    --out json=k6-results.json \
+                                    --tag testrun=${BUILD_NUMBER} \
+                                    --tag suite=${params.TEST_SUITE} \
+                                    ${K6_SCRIPT}
+                            """
+                        }
+                    }
+                }
+
+                stage('Artillery Test') {
+                    when {
+                        expression { params.TEST_SUITE in ['load', 'stress'] }
+                    }
+                    steps {
+                        sh """
+                            artillery run \
+                                --target ${TEST_ENV_URL} \
+                                --output artillery-report.json \
+                                tests/performance/artillery-scenario.yml
+                            
+                            artillery report artillery-report.json
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Backend Performance Tests') {
+            steps {
+                sh '''
+                    cd backend
+                    
+                    # Python benchmark tests
+                    pytest tests/performance/benchmarks \
+                        --benchmark-only \
+                        --benchmark-json=../benchmark-results.json \
+                        --benchmark-histogram=../benchmark-histogram
+                    
+                    # API endpoint performance
+                    python3 tests/performance/api_performance.py \
+                        --url ${TEST_ENV_URL} \
+                        --output ../api-perf-results.json
+                    
+                    # Database query performance
+                    python3 tests/performance/db_performance.py \
+                        --output ../db-perf-results.json
+                '''
+            }
+        }
+
+        stage('Frontend Performance Tests') {
+            steps {
+                sh '''
+                    cd frontend
+                    
+                    # Lighthouse CI
+                    npm install -g @lhci/cli
+                    lhci autorun \
+                        --collect.url=${TEST_ENV_URL} \
+                        --upload.target=temporary-public-storage
+                    
+                    # Bundle size analysis
+                    npm run build:analyze
+                    
+                    # Runtime performance
+                    npm run test:performance
+                '''
+            }
+        }
+
+        stage('Resource Monitoring') {
+            steps {
+                parallel {
+                    stage('Application Metrics') {
+                        steps {
+                            sh '''
+                                # Collect application metrics during test
+                                python3 ci/scripts/collect-app-metrics.py \
+                                    --duration ${params.DURATION} \
+                                    --output app-metrics.json &
+                                APP_METRICS_PID=$!
+                                
+                                # Wait for other tests to complete
+                                sleep 30
+                                
+                                # Stop collection
+                                kill $APP_METRICS_PID || true
+                            '''
+                        }
+                    }
+
+                    stage('Infrastructure Metrics') {
+                        steps {
+                            sh '''
+                                # Monitor CPU, Memory, Disk I/O, Network
+                                python3 ci/scripts/collect-infra-metrics.py \
+                                    --hosts ${TEST_ENV_URL} \
+                                    --duration ${params.DURATION} \
+                                    --output infra-metrics.json
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Analyze Results') {
+            steps {
+                script {
+                    sh '''
+                        # Aggregate all results
+                        python3 ci/scripts/analyze-performance-results.py \
+                            --locust-csv locust-results_stats.csv \
+                            --k6-json k6-results.json \
+                            --artillery-json artillery-report.json \
+                            --benchmark-json benchmark-results.json \
+                            --api-perf api-perf-results.json \
+                            --db-perf db-perf-results.json \
+                            --app-metrics app-metrics.json \
+                            --infra-metrics infra-metrics.json \
+                            --output performance-analysis.json
+                        
+                        # Generate performance report
+                        python3 ci/scripts/generate-performance-report.py \
+                            --input performance-analysis.json \
+                            --baseline baseline-metrics.json \
+                            --output performance-report.html
+                    '''
+                    
+                    // Check performance thresholds
+                    def analysis = readJSON file: 'performance-analysis.json'
+                    
+                    // Response time thresholds
+                    if (analysis.p95_response_time > 2000) {
+                        error("P95 response time (${analysis.p95_response_time}ms) exceeds threshold (2000ms)")
+                    }
+                    
+                    if (analysis.p99_response_time > 5000) {
+                        error("P99 response time (${analysis.p99_response_time}ms) exceeds threshold (5000ms)")
+                    }
+                    
+                    // Error rate threshold
+                    if (analysis.error_rate > 0.01) {
+                        error("Error rate (${analysis.error_rate * 100}%) exceeds threshold (1%)")
+                    }
+                    
+                    // Throughput threshold
+                    if (analysis.requests_per_second < 100) {
+                        unstable("Throughput (${analysis.requests_per_second} RPS) below expected (100 RPS)")
+                    }
+                    
+                    // Resource utilization
+                    if (analysis.avg_cpu_usage > 80) {
+                        unstable("Average CPU usage (${analysis.avg_cpu_usage}%) is high")
+                    }
+                    
+                    if (analysis.avg_memory_usage > 85) {
+                        unstable("Average memory usage (${analysis.avg_memory_usage}%) is high")
+                    }
+                }
+            }
+        }
+
+        stage('Compare with Baseline') {
+            when {
+                expression { params.COMPARE_BASELINE }
+            }
+            steps {
+                script {
+                    sh '''
+                        python3 ci/scripts/compare-performance.py \
+                            --current performance-analysis.json \
+                            --baseline baseline-metrics.json \
+                            --threshold 10 \
+                            --output comparison-report.json
+                    '''
+                    
+                    def comparison = readJSON file: 'comparison-report.json'
+                    
+                    if (comparison.regression_detected) {
+                        unstable("Performance regression detected: ${comparison.summary}")
+                    }
+                }
+            }
+        }
+
+        stage('Generate Reports') {
+            steps {
+                sh '''
+                    # Create Grafana dashboard snapshot
+                    curl -X POST ${GRAFANA_URL}/api/snapshots \
+                        -H "Authorization: Bearer ${GRAFANA_API_KEY}" \
+                        -H "Content-Type: application/json" \
+                        -d '{"dashboard": {"uid": "perf-test-${BUILD_NUMBER}"}}' \
+                        > grafana-snapshot.json
+                    
+                    # Generate executive summary
+                    python3 ci/scripts/generate-perf-summary.py \
+                        --analysis performance-analysis.json \
+                        --comparison comparison-report.json \
+                        --output executive-summary.md
+                    
+                    # Create performance trends report
+                    python3 ci/scripts/generate-trends-report.py \
+                        --builds 10 \
+                        --output trends-report.html
+                '''
+                
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: '.',
+                    reportFiles: 'performance-report.html,locust-report.html,trends-report.html',
+                    reportName: 'Performance Test Results'
+                ])
+            }
+        }
+
+        stage('Store Results') {
+            steps {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    s3Upload(
+                        bucket: "${PERF_REPORT_BUCKET}",
+                        path: "reports/${BUILD_NUMBER}/",
+                        includePathPattern: '**/*.json,**/*.html,**/*.csv',
+                        workingDir: '.'
+                    )
+                }
+                
+                // Store in performance database
+                sh '''
+                    python3 ci/scripts/store-performance-data.py \
+                        --build ${BUILD_NUMBER} \
+                        --suite ${TEST_SUITE} \
+                        --environment ${TEST_ENVIRONMENT} \
+                        --results performance-analysis.json
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: '''
+                *-results.*,
+                *-report.*,
+                *-metrics.json,
+                performance-analysis.json,
+                executive-summary.md
+            ''', fingerprint: true
+            
+            // Update performance dashboard
+            sh '''
+                curl -X POST https://perf-dashboard.fossawork.com/api/test-results \
+                    -H "Content-Type: application/json" \
+                    -d @performance-analysis.json
+            '''
+        }
+        
+        success {
+            slackSend(
+                channel: '#performance',
+                color: 'good',
+                message: """
+                    ✅ Performance Test Completed
+                    Suite: ${params.TEST_SUITE}
+                    Environment: ${params.TEST_ENVIRONMENT}
+                    Duration: ${params.DURATION}
+                    Users: ${params.USERS}
+                    
+                    P95 Response Time: ${readJSON(file: 'performance-analysis.json').p95_response_time}ms
+                    Throughput: ${readJSON(file: 'performance-analysis.json').requests_per_second} RPS
+                    
+                    Report: ${BUILD_URL}
+                """
+            )
+        }
+        
+        unstable {
+            emailext(
+                subject: "Performance Test Warning: ${env.JOB_NAME} - ${env.BUILD_NUMBER}",
+                body: '''${FILE,path="executive-summary.md"}''',
+                to: 'performance-team@fossawork.com',
+                attachmentsPattern: 'performance-analysis.json,comparison-report.json'
+            )
+        }
+        
+        failure {
+            slackSend(
+                channel: '#performance',
+                color: 'danger',
+                message: """
+                    ❌ Performance Test Failed!
+                    Suite: ${params.TEST_SUITE}
+                    Environment: ${params.TEST_ENVIRONMENT}
+                    
+                    Check results: ${BUILD_URL}
+                """
+            )
+        }
+        
+        cleanup {
+            sh '''
+                # Stop monitoring containers
+                docker-compose -f docker-compose.monitoring.yml down
+                
+                # Clean up test data
+                rm -rf test-results/
+            '''
+            
+            cleanWs()
+        }
+    }
+}
+
+def getEnvironmentUrl(environment) {
+    switch(environment) {
+        case 'staging':
+            return 'https://staging.fossawork.com'
+        case 'production-shadow':
+            return 'https://shadow.fossawork.com'
+        case 'dedicated-perf':
+            return 'https://perf.fossawork.com'
+        default:
+            return 'http://localhost:8000'
+    }
+}
+
+def getK6Options(testSuite) {
+    switch(testSuite) {
+        case 'smoke':
+            return '--vus 5 --duration 1m'
+        case 'load':
+            return "--vus ${params.USERS} --duration ${params.DURATION} --stage ${params.RAMP_UP}"
+        case 'stress':
+            return "--vus ${params.USERS * 2} --duration ${params.DURATION} --stage ${params.RAMP_UP}"
+        case 'spike':
+            return "--vus ${params.USERS * 5} --duration 10m"
+        case 'soak':
+            return "--vus ${params.USERS} --duration 2h"
+        case 'full':
+            return "--vus ${params.USERS} --duration ${params.DURATION} --stage ${params.RAMP_UP} --stage 10m --stage ${params.RAMP_UP}"
+        default:
+            return "--vus ${params.USERS} --duration ${params.DURATION}"
+    }
+}

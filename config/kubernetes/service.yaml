@@ -1,0 +1,152 @@
+# FossaWork V2 Kubernetes Service Configuration
+apiVersion: v1
+kind: Service
+metadata:
+  name: fossawork-backend
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: backend
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:region:account-id:certificate/certificate-id"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "https"
+spec:
+  type: ClusterIP
+  selector:
+    app: fossawork
+    component: backend
+  ports:
+  - name: http
+    port: 8000
+    targetPort: http
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fossawork-frontend
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: fossawork
+    component: frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fossawork-backend-headless
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: backend
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: fossawork
+    component: backend
+  ports:
+  - name: http
+    port: 8000
+    targetPort: http
+    protocol: TCP
+---
+# External PostgreSQL Service (if using external database)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-external
+  namespace: fossawork
+spec:
+  type: ExternalName
+  externalName: postgres.rds.amazonaws.com
+  ports:
+  - port: 5432
+---
+# External Redis Service (if using external Redis)
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-external
+  namespace: fossawork
+spec:
+  type: ExternalName
+  externalName: redis.elasticache.amazonaws.com
+  ports:
+  - port: 6379
+---
+# Internal PostgreSQL Service (if self-hosting)
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: fossawork
+    component: postgres
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: postgres
+    protocol: TCP
+---
+# Internal Redis Service (if self-hosting)
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: fossawork
+    component: redis
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: redis
+    protocol: TCP
+---
+# Monitoring Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: fossawork-metrics
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: metrics
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+spec:
+  type: ClusterIP
+  selector:
+    app: fossawork
+  ports:
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP

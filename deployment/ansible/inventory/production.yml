@@ -1,0 +1,147 @@
+---
+all:
+  vars:
+    environment: production
+    aws_region: us-east-1
+    cluster_name: fossawork-production
+    certificate_arn: "arn:aws:acm:us-east-1:{{ ansible_account_id }}:certificate/{{ certificate_id }}"
+    
+    # Application configuration
+    app_replicas: 3
+    enable_autoscaling: true
+    min_replicas: 2
+    max_replicas: 10
+    
+    # Resource limits for production
+    backend_resources:
+      requests:
+        cpu: "200m"
+        memory: "512Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+        
+    frontend_resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    
+    # Database configuration
+    database_host: "fossawork-production-db.cluster-xyz.us-east-1.rds.amazonaws.com"
+    database_port: 5432
+    database_name: fossawork
+    
+    # Redis configuration
+    redis_host: "fossawork-production-redis.xyz.cache.amazonaws.com"
+    redis_port: 6379
+    
+    # Monitoring and logging
+    log_level: WARN
+    enable_debug: false
+    metrics_enabled: true
+    
+    # Security settings (strict for production)
+    enable_network_policies: true
+    enable_pod_security_policies: true
+    enable_runtime_security: true
+    strict_security: true
+    
+    # Feature flags
+    enable_new_features: false
+    enable_experimental_features: false
+    
+    # External integrations
+    slack_webhook_url: "{{ vault_slack_webhook_production }}"
+    email_notifications_enabled: true
+    
+    # Backup and retention
+    backup_retention_days: 30
+    log_retention_days: 90
+    
+    # Performance settings
+    cache_ttl: 600
+    connection_pool_size: 50
+    worker_processes: 4
+
+# Production environment configuration
+production:
+  vars:
+    domain_name: app.fossawork.com
+    tls_enabled: true
+    cors_origins:
+      - https://app.fossawork.com
+      - https://fossawork.com
+    
+    # Production resource allocation
+    node_pool_size: 3
+    storage_class: gp3
+    storage_size: 100Gi
+    
+    # Security hardened
+    allow_dev_access: false
+    require_mfa: true
+    
+    # Integration endpoints
+    api_base_url: https://app.fossawork.com/api
+    websocket_url: wss://app.fossawork.com/ws
+    
+    # Third-party service endpoints (production)
+    external_api_endpoints:
+      workfossa: https://api.workfossa.com
+      notifications: https://notifications.fossawork.com
+    
+    # Development tools disabled
+    enable_debug_tools: false
+    enable_profiler: false
+    enable_swagger_ui: false
+    
+    # High availability settings
+    enable_multi_az: true
+    enable_cross_region_backup: true
+    disaster_recovery_region: us-west-2
+    
+    # Performance optimizations
+    enable_cdn: true
+    enable_edge_caching: true
+    enable_compression: true
+    
+    # Compliance settings
+    enable_audit_logging: true
+    data_retention_policy: "7_years"
+    gdpr_compliance: true
+    
+    # Alerting thresholds (stricter for production)
+    cpu_alert_threshold: 70
+    memory_alert_threshold: 80
+    disk_alert_threshold: 85
+    error_rate_threshold: 1
+    response_time_threshold: 2000
+    
+    # Scaling parameters
+    scale_up_threshold: 75
+    scale_down_threshold: 25
+    scale_up_cooldown: 300
+    scale_down_cooldown: 600
+    
+    # Load balancer configuration
+    health_check_interval: 30
+    health_check_timeout: 5
+    healthy_threshold: 2
+    unhealthy_threshold: 3
+    
+    # SSL/TLS configuration
+    ssl_policy: "ELBSecurityPolicy-TLS-1-2-2017-01"
+    hsts_enabled: true
+    hsts_max_age: 31536000
+    
+    # Content Security Policy
+    csp_enabled: true
+    csp_policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self' https:;"
+    
+    # Rate limiting
+    rate_limit_enabled: true
+    rate_limit_requests_per_minute: 1000
+    rate_limit_burst: 2000

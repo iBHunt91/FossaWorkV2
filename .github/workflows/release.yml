@@ -1,0 +1,403 @@
+name: Release Process
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.2.3)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Is this a pre-release?'
+        required: false
+        type: boolean
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  validate-release:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if ! [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$ ]]; then
+            echo "Invalid version format: $VERSION"
+            exit 1
+          fi
+
+      - name: Check if version exists
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Version $VERSION already exists"
+            exit 1
+          fi
+
+      - name: Extract changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CHANGELOG=$(awk -v ver="$VERSION" '
+            /^## \[/ { if (p) exit; if (index($0, ver)) p=1; next }
+            p { print }
+          ' CHANGELOG.md)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  run-tests:
+    name: Run Release Tests
+    needs: validate-release
+    uses: ./.github/workflows/test-suite.yml
+    secrets: inherit
+
+  security-scan:
+    name: Security Scan
+    needs: validate-release
+    uses: ./.github/workflows/security-checks.yml
+    secrets: inherit
+
+  build-artifacts:
+    name: Build Release Artifacts
+    needs: [validate-release, run-tests, security-scan]
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Update version in files
+        run: |
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          VERSION_NUM="${VERSION#v}"
+          
+          # Update package.json
+          npm version $VERSION_NUM --no-git-tag-version
+          
+          # Update frontend package.json
+          cd frontend
+          npm version $VERSION_NUM --no-git-tag-version
+          cd ..
+          
+          # Update Python version
+          echo "__version__ = '$VERSION_NUM'" > backend/app/__version__.py
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd frontend && npm ci && cd ..
+          cd backend && pip install -r requirements.txt && cd ..
+
+      - name: Build frontend
+        env:
+          VITE_APP_VERSION: ${{ needs.validate-release.outputs.version }}
+          VITE_BUILD_TIME: ${{ github.event.head_commit.timestamp }}
+          VITE_COMMIT_SHA: ${{ github.sha }}
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Build Electron app
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERTS }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTS_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CERTS }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERTS_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm run electron:build
+
+      - name: Build Python wheel
+        if: matrix.platform == 'linux'
+        run: |
+          cd backend
+          pip install build
+          python -m build
+
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: release-${{ matrix.platform }}
+          path: |
+            dist/*
+            backend/dist/*.whl
+            backend/dist/*.tar.gz
+
+  build-docker-images:
+    name: Build Docker Images
+    needs: [validate-release, run-tests, security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            fossawork/backend:${{ needs.validate-release.outputs.version }}
+            fossawork/backend:latest
+            ghcr.io/${{ github.repository }}-backend:${{ needs.validate-release.outputs.version }}
+            ghcr.io/${{ github.repository }}-backend:latest
+          build-args: |
+            VERSION=${{ needs.validate-release.outputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            fossawork/frontend:${{ needs.validate-release.outputs.version }}
+            fossawork/frontend:latest
+            ghcr.io/${{ github.repository }}-frontend:${{ needs.validate-release.outputs.version }}
+            ghcr.io/${{ github.repository }}-frontend:latest
+          build-args: |
+            VERSION=${{ needs.validate-release.outputs.version }}
+
+  create-release:
+    name: Create GitHub Release
+    needs: [validate-release, build-artifacts, build-docker-images]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create Release Notes
+        run: |
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          cat > release-notes.md << EOF
+          # FossaWork V2 Release $VERSION
+          
+          ## What's Changed
+          ${{ needs.validate-release.outputs.changelog }}
+          
+          ## Installation
+          
+          ### Desktop Application
+          - **Windows**: Download \`FossaWork-Setup-$VERSION.exe\`
+          - **macOS**: Download \`FossaWork-$VERSION.dmg\`
+          - **Linux**: Download \`FossaWork-$VERSION.AppImage\`
+          
+          ### Docker
+          \`\`\`bash
+          docker pull fossawork/backend:$VERSION
+          docker pull fossawork/frontend:$VERSION
+          \`\`\`
+          
+          ### Python Package
+          \`\`\`bash
+          pip install fossawork==$VERSION
+          \`\`\`
+          
+          ## Checksums
+          See \`SHA256SUMS.txt\` for file integrity verification.
+          
+          ## Full Changelog
+          https://github.com/${{ github.repository }}/compare/$(git describe --tags --abbrev=0 HEAD^)...$VERSION
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate-release.outputs.version }}
+          name: Release ${{ needs.validate-release.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+          files: |
+            release-*/*
+            
+  publish-npm:
+    name: Publish to NPM
+    needs: [validate-release, create-release]
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.inputs.prerelease }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          # Publish if package is meant to be public
+          # npm publish
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [validate-release, create-release]
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.inputs.prerelease }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Build and publish
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          cd backend
+          pip install build twine
+          python -m build
+          twine upload dist/*
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [validate-release, create-release]
+    if: ${{ !github.event.inputs.prerelease }}
+    uses: ./.github/workflows/build-deploy.yml
+    with:
+      environment: production
+    secrets: inherit
+
+  post-release:
+    name: Post-Release Tasks
+    needs: [create-release, deploy-production]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Update version for next development
+        run: |
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          MAJOR=$(echo $VERSION | cut -d. -f1 | sed 's/v//')
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3 | cut -d- -f1)
+          NEXT_PATCH=$((PATCH + 1))
+          NEXT_VERSION="$MAJOR.$MINOR.$NEXT_PATCH-dev"
+          
+          # Update package versions
+          npm version $NEXT_VERSION --no-git-tag-version
+          cd frontend && npm version $NEXT_VERSION --no-git-tag-version && cd ..
+          echo "__version__ = '$NEXT_VERSION'" > backend/app/__version__.py
+          
+          # Commit changes
+          git config user.name "Release Bot"
+          git config user.email "release@fossawork.com"
+          git add -A
+          git commit -m "chore: bump version to $NEXT_VERSION [skip ci]"
+          git push origin main
+
+      - name: Send release notifications
+        run: |
+          # Send notifications to Slack, email, etc.
+          echo "Release ${{ needs.validate-release.outputs.version }} completed!"
+
+      - name: Update documentation
+        run: |
+          # Trigger documentation site update
+          curl -X POST ${{ secrets.DOCS_WEBHOOK_URL }} \
+            -H "Authorization: Bearer ${{ secrets.DOCS_TOKEN }}" \
+            -d '{"version": "${{ needs.validate-release.outputs.version }}"}'
+
+      - name: Announce release
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Create announcement issue
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🎉 Release ${{ needs.validate-release.outputs.version }} is now available!`,
+              body: `The latest version of FossaWork V2 has been released!\n\nCheck out the [release notes](https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate-release.outputs.version }}).`,
+              labels: ['announcement', 'release']
+            })

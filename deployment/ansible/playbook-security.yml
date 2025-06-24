@@ -1,0 +1,634 @@
+---
+- name: Security Hardening for FossaWork V2
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    app_name: fossawork
+    namespace: "{{ environment | default('staging') }}"
+    cluster_name: "{{ app_name }}-{{ namespace }}"
+    aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1') }}"
+
+  tasks:
+    - name: Update kubeconfig for EKS cluster
+      shell: |
+        aws eks update-kubeconfig --region {{ aws_region }} --name {{ cluster_name }}
+      changed_when: false
+
+    - name: Create security namespace
+      kubernetes.core.k8s:
+        name: security-system
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Create network policy to deny all ingress by default
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: deny-all-ingress
+            namespace: "{{ namespace }}"
+          spec:
+            podSelector: {}
+            policyTypes:
+            - Ingress
+        state: present
+
+    - name: Create network policy to allow ingress for backend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-backend-ingress
+            namespace: "{{ namespace }}"
+          spec:
+            podSelector:
+              matchLabels:
+                app: fossawork-backend
+            policyTypes:
+            - Ingress
+            ingress:
+            - from:
+              - podSelector:
+                  matchLabels:
+                    app: fossawork-frontend
+              - namespaceSelector:
+                  matchLabels:
+                    name: kube-system
+              ports:
+              - protocol: TCP
+                port: 8000
+        state: present
+
+    - name: Create network policy to allow ingress for frontend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-frontend-ingress
+            namespace: "{{ namespace }}"
+          spec:
+            podSelector:
+              matchLabels:
+                app: fossawork-frontend
+            policyTypes:
+            - Ingress
+            ingress:
+            - from:
+              - namespaceSelector:
+                  matchLabels:
+                    name: kube-system
+              ports:
+              - protocol: TCP
+                port: 80
+        state: present
+
+    - name: Create network policy to allow egress for backend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-backend-egress
+            namespace: "{{ namespace }}"
+          spec:
+            podSelector:
+              matchLabels:
+                app: fossawork-backend
+            policyTypes:
+            - Egress
+            egress:
+            - to: []
+              ports:
+              - protocol: TCP
+                port: 443  # HTTPS
+              - protocol: TCP
+                port: 5432 # PostgreSQL
+              - protocol: TCP
+                port: 6379 # Redis
+              - protocol: UDP
+                port: 53   # DNS
+        state: present
+
+    - name: Create pod security policy for backend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: policy/v1beta1
+          kind: PodSecurityPolicy
+          metadata:
+            name: fossawork-backend-psp
+            namespace: "{{ namespace }}"
+          spec:
+            privileged: false
+            allowPrivilegeEscalation: false
+            requiredDropCapabilities:
+              - ALL
+            volumes:
+              - 'configMap'
+              - 'emptyDir'
+              - 'projected'
+              - 'secret'
+              - 'downwardAPI'
+              - 'persistentVolumeClaim'
+            runAsUser:
+              rule: 'MustRunAsNonRoot'
+            seLinux:
+              rule: 'RunAsAny'
+            fsGroup:
+              rule: 'RunAsAny'
+            readOnlyRootFilesystem: true
+        state: present
+
+    - name: Create cluster role for pod security policy
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: fossawork-psp-use
+          rules:
+          - apiGroups: ['policy']
+            resources: ['podsecuritypolicies']
+            verbs: ['use']
+            resourceNames:
+            - fossawork-backend-psp
+        state: present
+
+    - name: Create cluster role binding for pod security policy
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: fossawork-psp-use
+          roleRef:
+            kind: ClusterRole
+            name: fossawork-psp-use
+            apiGroup: rbac.authorization.k8s.io
+          subjects:
+          - kind: ServiceAccount
+            name: fossawork-backend
+            namespace: "{{ namespace }}"
+        state: present
+
+    - name: Install Falco for runtime security monitoring
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: falco
+        state: present
+
+    - name: Create Falco DaemonSet
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: apps/v1
+          kind: DaemonSet
+          metadata:
+            name: falco
+            namespace: falco
+            labels:
+              app: falco
+          spec:
+            selector:
+              matchLabels:
+                app: falco
+            template:
+              metadata:
+                labels:
+                  app: falco
+              spec:
+                serviceAccount: falco
+                hostNetwork: true
+                hostPID: true
+                containers:
+                - name: falco
+                  image: falcosecurity/falco:0.35.1
+                  securityContext:
+                    privileged: true
+                  args:
+                    - /usr/bin/falco
+                    - --cri=/run/containerd/containerd.sock
+                    - --k8s-api
+                    - --k8s-api-cert=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                    - --k8s-api-token=/var/run/secrets/kubernetes.io/serviceaccount/token
+                  env:
+                  - name: FALCO_K8S_NODE_NAME
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: spec.nodeName
+                  volumeMounts:
+                  - mountPath: /var/run/docker.sock
+                    name: docker-socket
+                  - mountPath: /run/containerd/containerd.sock
+                    name: containerd-socket
+                  - mountPath: /dev
+                    name: dev-fs
+                    readOnly: true
+                  - mountPath: /proc
+                    name: proc-fs
+                    readOnly: true
+                  - mountPath: /boot
+                    name: boot-fs
+                    readOnly: true
+                  - mountPath: /lib/modules
+                    name: lib-modules
+                    readOnly: true
+                  - mountPath: /usr
+                    name: usr-fs
+                    readOnly: true
+                  - mountPath: /etc/falco
+                    name: falco-config
+                volumes:
+                - name: docker-socket
+                  hostPath:
+                    path: /var/run/docker.sock
+                - name: containerd-socket
+                  hostPath:
+                    path: /run/containerd/containerd.sock
+                - name: dev-fs
+                  hostPath:
+                    path: /dev
+                - name: proc-fs
+                  hostPath:
+                    path: /proc
+                - name: boot-fs
+                  hostPath:
+                    path: /boot
+                - name: lib-modules
+                  hostPath:
+                    path: /lib/modules
+                - name: usr-fs
+                  hostPath:
+                    path: /usr
+                - name: falco-config
+                  configMap:
+                    name: falco-config
+        state: present
+
+    - name: Create Falco service account
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: falco
+            namespace: falco
+        state: present
+
+    - name: Create Falco cluster role
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: falco
+          rules:
+          - apiGroups: [""]
+            resources: ["nodes", "namespaces", "pods", "replicationcontrollers", "services", "events"]
+            verbs: ["get", "list", "watch"]
+          - apiGroups: ["apps"]
+            resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+            verbs: ["get", "list", "watch"]
+          - apiGroups: ["extensions"]
+            resources: ["daemonsets", "deployments", "replicasets"]
+            verbs: ["get", "list", "watch"]
+        state: present
+
+    - name: Create Falco cluster role binding
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: falco
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: falco
+          subjects:
+          - kind: ServiceAccount
+            name: falco
+            namespace: falco
+        state: present
+
+    - name: Create Falco configuration
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: falco-config
+            namespace: falco
+          data:
+            falco.yaml: |
+              rules_file:
+                - /etc/falco/falco_rules.yaml
+                - /etc/falco/falco_rules.local.yaml
+                - /etc/falco/k8s_audit_rules.yaml
+                - /etc/falco/rules.d
+              
+              time_format_iso_8601: true
+              json_output: true
+              json_include_output_property: true
+              
+              log_stderr: true
+              log_syslog: true
+              log_level: info
+              
+              priority: debug
+              
+              buffered_outputs: false
+              
+              syscall_event_drops:
+                threshold: 0.1
+                actions:
+                  - log
+                  - alert
+                rate: 0.03333
+                max_burst: 1000
+              
+              outputs:
+                rate: 1
+                max_burst: 1000
+              
+              syslog_output:
+                enabled: true
+              
+              program_output:
+                enabled: false
+                keep_alive: false
+                program: "jq '{text: .output}' | curl -d @- -X POST https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+              
+              http_output:
+                enabled: false
+                url: ""
+        state: present
+
+    - name: Install OPA Gatekeeper for policy enforcement
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: gatekeeper-system
+        state: present
+
+    - name: Install Gatekeeper using Helm
+      kubernetes.core.helm:
+        name: gatekeeper
+        chart_ref: gatekeeper/gatekeeper
+        release_namespace: gatekeeper-system
+        create_namespace: true
+        values:
+          replicas: 3
+          audit:
+            replicas: 1
+          image:
+            repository: openpolicyagent/gatekeeper
+            tag: v3.14.0
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+
+    - name: Create constraint template for required labels
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: templates.gatekeeper.sh/v1beta1
+          kind: ConstraintTemplate
+          metadata:
+            name: k8srequiredlabels
+          spec:
+            crd:
+              spec:
+                names:
+                  kind: K8sRequiredLabels
+                validation:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      labels:
+                        type: array
+                        items:
+                          type: string
+            targets:
+              - target: admission.k8s.gatekeeper.sh
+                rego: |
+                  package k8srequiredlabels
+                  
+                  violation[{"msg": msg}] {
+                    required := input.parameters.labels
+                    provided := input.review.object.metadata.labels
+                    missing := required[_]
+                    not provided[missing]
+                    msg := sprintf("Missing required label: %v", [missing])
+                  }
+        state: present
+
+    - name: Create constraint for required labels
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: constraints.gatekeeper.sh/v1beta1
+          kind: K8sRequiredLabels
+          metadata:
+            name: must-have-app-label
+          spec:
+            match:
+              kinds:
+                - apiGroups: ["apps"]
+                  kinds: ["Deployment"]
+              namespaces: ["{{ namespace }}"]
+            parameters:
+              labels: ["app", "version"]
+        state: present
+
+    - name: Create security context constraints
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: templates.gatekeeper.sh/v1beta1
+          kind: ConstraintTemplate
+          metadata:
+            name: k8ssecuritycontext
+          spec:
+            crd:
+              spec:
+                names:
+                  kind: K8sSecurityContext
+                validation:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      runAsNonRoot:
+                        type: boolean
+                      readOnlyRootFilesystem:
+                        type: boolean
+            targets:
+              - target: admission.k8s.gatekeeper.sh
+                rego: |
+                  package k8ssecuritycontext
+                  
+                  violation[{"msg": msg}] {
+                    input.parameters.runAsNonRoot == true
+                    not input.review.object.spec.template.spec.securityContext.runAsNonRoot
+                    msg := "Containers must run as non-root user"
+                  }
+                  
+                  violation[{"msg": msg}] {
+                    input.parameters.readOnlyRootFilesystem == true
+                    container := input.review.object.spec.template.spec.containers[_]
+                    not container.securityContext.readOnlyRootFilesystem
+                    msg := "Containers must have read-only root filesystem"
+                  }
+        state: present
+
+    - name: Create security context constraint
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: constraints.gatekeeper.sh/v1beta1
+          kind: K8sSecurityContext
+          metadata:
+            name: security-context-constraint
+          spec:
+            match:
+              kinds:
+                - apiGroups: ["apps"]
+                  kinds: ["Deployment"]
+              namespaces: ["{{ namespace }}"]
+            parameters:
+              runAsNonRoot: true
+              readOnlyRootFilesystem: true
+        state: present
+
+    - name: Install cert-manager for automatic SSL certificates
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: cert-manager
+        state: present
+
+    - name: Install cert-manager using Helm
+      kubernetes.core.helm:
+        name: cert-manager
+        chart_ref: jetstack/cert-manager
+        release_namespace: cert-manager
+        create_namespace: true
+        values:
+          installCRDs: true
+          global:
+            rbac:
+              create: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+
+    - name: Create cluster issuer for Let's Encrypt
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: cert-manager.io/v1
+          kind: ClusterIssuer
+          metadata:
+            name: letsencrypt-prod
+          spec:
+            acme:
+              server: https://acme-v02.api.letsencrypt.org/directory
+              email: admin@fossawork.com
+              privateKeySecretRef:
+                name: letsencrypt-prod
+              solvers:
+              - http01:
+                  ingress:
+                    class: alb
+        state: present
+
+    - name: Create image scanning policy
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: templates.gatekeeper.sh/v1beta1
+          kind: ConstraintTemplate
+          metadata:
+            name: k8strustedimages
+          spec:
+            crd:
+              spec:
+                names:
+                  kind: K8sTrustedImages
+                validation:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      allowedRegistries:
+                        type: array
+                        items:
+                          type: string
+            targets:
+              - target: admission.k8s.gatekeeper.sh
+                rego: |
+                  package k8strustedimages
+                  
+                  violation[{"msg": msg}] {
+                    container := input.review.object.spec.template.spec.containers[_]
+                    not starts_with(container.image, input.parameters.allowedRegistries[_])
+                    msg := sprintf("Image '%v' is not from a trusted registry", [container.image])
+                  }
+        state: present
+
+    - name: Create trusted images constraint
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: constraints.gatekeeper.sh/v1beta1
+          kind: K8sTrustedImages
+          metadata:
+            name: trusted-images
+          spec:
+            match:
+              kinds:
+                - apiGroups: ["apps"]
+                  kinds: ["Deployment"]
+              namespaces: ["{{ namespace }}"]
+            parameters:
+              allowedRegistries:
+                - "ghcr.io/fossawork/"
+                - "docker.io/library/"
+                - "gcr.io/google-containers/"
+        state: present
+
+    - name: Verify security policies are working
+      kubernetes.core.k8s_info:
+        api_version: constraints.gatekeeper.sh/v1beta1
+        kind: K8sRequiredLabels
+        name: must-have-app-label
+      register: constraint_check
+
+    - name: Display security hardening results
+      debug:
+        msg:
+          - "Security hardening completed!"
+          - "Network policies: Configured"
+          - "Pod security policies: Configured"
+          - "Falco runtime security: Installed"
+          - "OPA Gatekeeper: Installed"
+          - "Certificate manager: Installed"
+          - "Constraint policies: {{ constraint_check.resources | length }} active"
+
+    - name: Run security validation
+      uri:
+        url: "https://{{ 'staging.' if namespace == 'staging' else '' }}fossawork.com/api/security/status"
+        method: GET
+        timeout: 30
+      register: security_check
+      ignore_errors: true
+
+    - name: Display security check result
+      debug:
+        msg: "Security endpoint {{ 'accessible' if security_check.status == 200 else 'not accessible' }}"

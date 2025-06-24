@@ -1,0 +1,489 @@
+---
+- name: Deploy FossaWork V2 Application
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    app_name: fossawork
+    namespace: "{{ environment | default('staging') }}"
+    image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest') }}"
+    cluster_name: "{{ app_name }}-{{ namespace }}"
+    aws_region: "{{ lookup('env', 'AWS_REGION') | default('us-east-1') }}"
+    
+    # Application configuration
+    backend_image: "ghcr.io/fossawork/backend:{{ image_tag }}"
+    frontend_image: "ghcr.io/fossawork/frontend:{{ image_tag }}"
+    replicas: "{{ 3 if namespace == 'production' else 2 }}"
+    
+    # Resource limits
+    backend_resources:
+      requests:
+        cpu: "200m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+        
+    frontend_resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+  tasks:
+    - name: Verify required environment variables
+      fail:
+        msg: "Required environment variable {{ item }} is not set"
+      when: lookup('env', item) == ''
+      loop:
+        - IMAGE_TAG
+        - AWS_REGION
+
+    - name: Update kubeconfig for EKS cluster
+      shell: |
+        aws eks update-kubeconfig --region {{ aws_region }} --name {{ cluster_name }}
+      changed_when: false
+
+    - name: Create namespace if it doesn't exist
+      kubernetes.core.k8s:
+        name: "{{ namespace }}"
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Create service account for backend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: fossawork-backend
+            namespace: "{{ namespace }}"
+            annotations:
+              eks.amazonaws.com/role-arn: "arn:aws:iam::{{ ansible_account_id }}:role/{{ app_name }}-{{ namespace }}-backend-sa"
+        state: present
+
+    - name: Deploy backend application
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: fossawork-backend
+            namespace: "{{ namespace }}"
+            labels:
+              app: fossawork-backend
+              version: "{{ image_tag }}"
+          spec:
+            replicas: "{{ replicas }}"
+            selector:
+              matchLabels:
+                app: fossawork-backend
+            template:
+              metadata:
+                labels:
+                  app: fossawork-backend
+                  version: "{{ image_tag }}"
+                annotations:
+                  prometheus.io/scrape: "true"
+                  prometheus.io/port: "8000"
+                  prometheus.io/path: "/metrics"
+              spec:
+                serviceAccountName: fossawork-backend
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 1000
+                  fsGroup: 2000
+                containers:
+                - name: backend
+                  image: "{{ backend_image }}"
+                  imagePullPolicy: Always
+                  ports:
+                  - containerPort: 8000
+                    name: http
+                  env:
+                  - name: ENVIRONMENT
+                    value: "{{ namespace }}"
+                  - name: DATABASE_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: app-secrets
+                        key: database_url
+                  - name: REDIS_URL
+                    valueFrom:
+                      secretKeyRef:
+                        name: app-secrets
+                        key: redis_url
+                  - name: JWT_SECRET
+                    valueFrom:
+                      secretKeyRef:
+                        name: app-secrets
+                        key: jwt_secret
+                  resources: "{{ backend_resources }}"
+                  livenessProbe:
+                    httpGet:
+                      path: /health
+                      port: 8000
+                    initialDelaySeconds: 30
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 3
+                  readinessProbe:
+                    httpGet:
+                      path: /health/ready
+                      port: 8000
+                    initialDelaySeconds: 5
+                    periodSeconds: 5
+                    timeoutSeconds: 3
+                    failureThreshold: 3
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop:
+                      - ALL
+                  volumeMounts:
+                  - name: tmp
+                    mountPath: /tmp
+                  - name: logs
+                    mountPath: /app/logs
+                volumes:
+                - name: tmp
+                  emptyDir: {}
+                - name: logs
+                  emptyDir: {}
+        state: present
+
+    - name: Deploy frontend application
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: fossawork-frontend
+            namespace: "{{ namespace }}"
+            labels:
+              app: fossawork-frontend
+              version: "{{ image_tag }}"
+          spec:
+            replicas: "{{ replicas }}"
+            selector:
+              matchLabels:
+                app: fossawork-frontend
+            template:
+              metadata:
+                labels:
+                  app: fossawork-frontend
+                  version: "{{ image_tag }}"
+              spec:
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 101
+                  fsGroup: 101
+                containers:
+                - name: frontend
+                  image: "{{ frontend_image }}"
+                  imagePullPolicy: Always
+                  ports:
+                  - containerPort: 80
+                    name: http
+                  env:
+                  - name: VITE_API_URL
+                    value: "/api"
+                  - name: VITE_APP_VERSION
+                    value: "{{ image_tag }}"
+                  resources: "{{ frontend_resources }}"
+                  livenessProbe:
+                    httpGet:
+                      path: /
+                      port: 80
+                    initialDelaySeconds: 30
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 3
+                  readinessProbe:
+                    httpGet:
+                      path: /
+                      port: 80
+                    initialDelaySeconds: 5
+                    periodSeconds: 5
+                    timeoutSeconds: 3
+                    failureThreshold: 3
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    readOnlyRootFilesystem: true
+                    capabilities:
+                      drop:
+                      - ALL
+                  volumeMounts:
+                  - name: nginx-cache
+                    mountPath: /var/cache/nginx
+                  - name: nginx-run
+                    mountPath: /var/run
+                volumes:
+                - name: nginx-cache
+                  emptyDir: {}
+                - name: nginx-run
+                  emptyDir: {}
+        state: present
+
+    - name: Create backend service
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: fossawork-backend
+            namespace: "{{ namespace }}"
+            labels:
+              app: fossawork-backend
+          spec:
+            type: ClusterIP
+            ports:
+            - port: 8000
+              targetPort: 8000
+              protocol: TCP
+              name: http
+            selector:
+              app: fossawork-backend
+        state: present
+
+    - name: Create frontend service
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: fossawork-frontend
+            namespace: "{{ namespace }}"
+            labels:
+              app: fossawork-frontend
+          spec:
+            type: ClusterIP
+            ports:
+            - port: 80
+              targetPort: 80
+              protocol: TCP
+              name: http
+            selector:
+              app: fossawork-frontend
+        state: present
+
+    - name: Create ingress
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: fossawork-ingress
+            namespace: "{{ namespace }}"
+            annotations:
+              kubernetes.io/ingress.class: alb
+              alb.ingress.kubernetes.io/scheme: internet-facing
+              alb.ingress.kubernetes.io/target-type: ip
+              alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+              alb.ingress.kubernetes.io/ssl-redirect: '443'
+              alb.ingress.kubernetes.io/certificate-arn: "{{ certificate_arn }}"
+              alb.ingress.kubernetes.io/healthcheck-path: /health
+              alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+              alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+              alb.ingress.kubernetes.io/unhealthy-threshold-count: '3'
+              alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+          spec:
+            rules:
+            - host: "{{ 'staging.' if namespace == 'staging' else '' }}fossawork.com"
+              http:
+                paths:
+                - path: /api
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: fossawork-backend
+                      port:
+                        number: 8000
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: fossawork-frontend
+                      port:
+                        number: 80
+        state: present
+
+    - name: Create horizontal pod autoscaler for backend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: fossawork-backend-hpa
+            namespace: "{{ namespace }}"
+          spec:
+            scaleTargetRef:
+              apiVersion: apps/v1
+              kind: Deployment
+              name: fossawork-backend
+            minReplicas: "{{ 2 if namespace == 'production' else 1 }}"
+            maxReplicas: "{{ 10 if namespace == 'production' else 5 }}"
+            metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: 70
+            - type: Resource
+              resource:
+                name: memory
+                target:
+                  type: Utilization
+                  averageUtilization: 80
+        state: present
+
+    - name: Create horizontal pod autoscaler for frontend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: autoscaling/v2
+          kind: HorizontalPodAutoscaler
+          metadata:
+            name: fossawork-frontend-hpa
+            namespace: "{{ namespace }}"
+          spec:
+            scaleTargetRef:
+              apiVersion: apps/v1
+              kind: Deployment
+              name: fossawork-frontend
+            minReplicas: "{{ 2 if namespace == 'production' else 1 }}"
+            maxReplicas: "{{ 8 if namespace == 'production' else 4 }}"
+            metrics:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: 70
+        state: present
+
+    - name: Create pod disruption budget for backend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: policy/v1
+          kind: PodDisruptionBudget
+          metadata:
+            name: fossawork-backend-pdb
+            namespace: "{{ namespace }}"
+          spec:
+            minAvailable: 1
+            selector:
+              matchLabels:
+                app: fossawork-backend
+        state: present
+
+    - name: Create pod disruption budget for frontend
+      kubernetes.core.k8s:
+        definition:
+          apiVersion: policy/v1
+          kind: PodDisruptionBudget
+          metadata:
+            name: fossawork-frontend-pdb
+            namespace: "{{ namespace }}"
+          spec:
+            minAvailable: 1
+            selector:
+              matchLabels:
+                app: fossawork-frontend
+        state: present
+
+    - name: Wait for backend deployment to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: fossawork-backend
+        namespace: "{{ namespace }}"
+        wait: true
+        wait_condition:
+          type: Progressing
+          status: "True"
+          reason: NewReplicaSetAvailable
+        wait_timeout: 600
+
+    - name: Wait for frontend deployment to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: fossawork-frontend
+        namespace: "{{ namespace }}"
+        wait: true
+        wait_condition:
+          type: Progressing
+          status: "True"
+          reason: NewReplicaSetAvailable
+        wait_timeout: 600
+
+    - name: Verify backend pods are running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: "{{ namespace }}"
+        label_selectors:
+          - app=fossawork-backend
+      register: backend_pods
+      failed_when: backend_pods.resources | length == 0
+
+    - name: Verify frontend pods are running
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: "{{ namespace }}"
+        label_selectors:
+          - app=fossawork-frontend
+      register: frontend_pods
+      failed_when: frontend_pods.resources | length == 0
+
+    - name: Get ingress information
+      kubernetes.core.k8s_info:
+        api_version: networking.k8s.io/v1
+        kind: Ingress
+        name: fossawork-ingress
+        namespace: "{{ namespace }}"
+      register: ingress_info
+
+    - name: Display deployment information
+      debug:
+        msg:
+          - "Deployment completed successfully!"
+          - "Environment: {{ namespace }}"
+          - "Image Tag: {{ image_tag }}"
+          - "Backend Replicas: {{ backend_pods.resources | length }}"
+          - "Frontend Replicas: {{ frontend_pods.resources | length }}"
+          - "Ingress Host: {{ ingress_info.resources[0].spec.rules[0].host if ingress_info.resources else 'Not available' }}"
+
+    - name: Run health check
+      uri:
+        url: "https://{{ 'staging.' if namespace == 'staging' else '' }}fossawork.com/health"
+        method: GET
+        timeout: 30
+      register: health_check
+      retries: 10
+      delay: 30
+      until: health_check.status == 200
+      ignore_errors: true
+
+    - name: Display health check result
+      debug:
+        msg: "Health check {{ 'passed' if health_check.status == 200 else 'failed' }}"
+
+  handlers:
+    - name: Clean up failed deployments
+      kubernetes.core.k8s:
+        api_version: apps/v1
+        kind: Deployment
+        name: "{{ item }}"
+        namespace: "{{ namespace }}"
+        state: absent
+      loop:
+        - fossawork-backend
+        - fossawork-frontend
+      when: health_check.status != 200

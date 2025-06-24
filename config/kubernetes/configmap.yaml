@@ -1,0 +1,244 @@
+# FossaWork V2 Kubernetes ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fossawork-config
+  namespace: fossawork
+  labels:
+    app: fossawork
+data:
+  # Application Configuration
+  APP_NAME: "FossaWork V2"
+  APP_VERSION: "2.0.0"
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  API_BASE_PATH: "/api"
+  API_DOCS_ENABLED: "false"
+  
+  # Database Configuration (non-sensitive)
+  DATABASE_POOL_SIZE: "50"
+  DATABASE_POOL_TIMEOUT: "30"
+  DATABASE_POOL_RECYCLE: "1200"
+  DATABASE_MAX_OVERFLOW: "20"
+  DATABASE_ECHO_POOL: "false"
+  
+  # Redis Configuration (non-sensitive)
+  REDIS_DECODE_RESPONSES: "true"
+  REDIS_SOCKET_KEEPALIVE: "true"
+  REDIS_SOCKET_KEEPALIVE_OPTIONS: "30:60:3"
+  
+  # Browser Automation
+  BROWSER_HEADLESS: "true"
+  BROWSER_TIMEOUT: "20000"
+  BROWSER_MAX_INSTANCES: "10"
+  BROWSER_CLEANUP_ON_EXIT: "true"
+  BROWSER_ARGS: "--no-sandbox,--disable-setuid-sandbox,--disable-dev-shm-usage,--disable-gpu"
+  
+  # WorkFossa Integration
+  WORKFOSSA_BASE_URL: "https://app.workfossa.com"
+  WORKFOSSA_TIMEOUT: "15000"
+  WORKFOSSA_RETRY_ATTEMPTS: "3"
+  
+  # Rate Limiting
+  RATE_LIMIT_ENABLED: "true"
+  AUTH_RATE_LIMIT_ATTEMPTS: "5"
+  AUTH_RATE_LIMIT_WINDOW_MINUTES: "15"
+  API_RATE_LIMIT_PER_MINUTE: "60"
+  
+  # Monitoring
+  MONITORING_ENABLED: "true"
+  METRICS_ENABLED: "true"
+  HEALTH_CHECK_ENABLED: "true"
+  
+  # Feature Flags
+  ENABLE_BROWSER_AUTOMATION: "true"
+  ENABLE_EMAIL_NOTIFICATIONS: "true"
+  ENABLE_PUSHOVER_NOTIFICATIONS: "true"
+  ENABLE_SCHEDULE_DETECTION: "true"
+  ENABLE_FILTER_CALCULATION: "true"
+  ENABLE_SECURITY_MONITORING: "true"
+  ENABLE_AUDIT_LOGGING: "true"
+  
+  # CORS Configuration
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+  CORS_ALLOWED_HEADERS: "Content-Type,Authorization,X-Request-ID,X-Session-ID"
+  CORS_MAX_AGE: "86400"
+  
+  # Session Configuration
+  SESSION_COOKIE_HTTPONLY: "true"
+  SESSION_COOKIE_SECURE: "true"
+  SESSION_COOKIE_SAMESITE: "Strict"
+  SESSION_TIMEOUT_MINUTES: "60"
+  
+  # Cache Configuration
+  CACHE_ENABLED: "true"
+  CACHE_DEFAULT_TIMEOUT: "3600"
+  CACHE_KEY_PREFIX: "fossawork:k8s:"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: frontend
+data:
+  nginx.conf: |
+    user nginx;
+    worker_processes auto;
+    error_log /var/log/nginx/error.log warn;
+    pid /var/run/nginx.pid;
+
+    events {
+        worker_connections 1024;
+        use epoll;
+    }
+
+    http {
+        include /etc/nginx/mime.types;
+        default_type application/octet-stream;
+        
+        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                        '$status $body_bytes_sent "$http_referer" '
+                        '"$http_user_agent" "$http_x_forwarded_for"';
+        
+        access_log /var/log/nginx/access.log main;
+        
+        sendfile on;
+        tcp_nopush on;
+        tcp_nodelay on;
+        keepalive_timeout 65;
+        types_hash_max_size 2048;
+        server_tokens off;
+        
+        gzip on;
+        gzip_vary on;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss image/svg+xml;
+        
+        # Security Headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        
+        server {
+            listen 80 default_server;
+            listen [::]:80 default_server;
+            server_name _;
+            
+            root /usr/share/nginx/html;
+            index index.html;
+            
+            # Frontend routes
+            location / {
+                try_files $uri $uri/ /index.html;
+                
+                # Cache static assets
+                location ~* \.(jpg|jpeg|png|gif|ico|css|js|pdf|txt|woff|woff2|ttf|svg|eot)$ {
+                    expires 30d;
+                    add_header Cache-Control "public, immutable";
+                }
+            }
+            
+            # Health check
+            location /health {
+                access_log off;
+                return 200 "healthy\n";
+                add_header Content-Type text/plain;
+            }
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    
+    scrape_configs:
+    - job_name: 'fossawork-backend'
+      kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+          - fossawork
+      relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: fossawork
+  labels:
+    app: fossawork
+    component: monitoring
+data:
+  fossawork-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "FossaWork V2 Dashboard",
+        "panels": [
+          {
+            "title": "API Request Rate",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total[5m])"
+              }
+            ]
+          },
+          {
+            "title": "API Response Time",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))"
+              }
+            ]
+          },
+          {
+            "title": "Active Users",
+            "targets": [
+              {
+                "expr": "fossawork_active_users"
+              }
+            ]
+          },
+          {
+            "title": "Background Jobs",
+            "targets": [
+              {
+                "expr": "fossawork_celery_tasks_total"
+              }
+            ]
+          }
+        ]
+      }
+    }

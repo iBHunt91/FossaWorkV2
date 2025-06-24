@@ -14,7 +14,8 @@ from .database import get_db, create_tables
 from .models.user_models import User
 from .core_models import WorkOrder, Dispenser
 from .auth.dependencies import get_current_user
-from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters, monitoring
+from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters
+# monitoring temporarily disabled for merge
 # Temporarily disabled due to FastAPI validation errors: filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
 from .services.logging_service import get_logger, log_api_request
 from .utils.memory_monitor import setup_memory_monitoring, start_memory_monitoring
@@ -23,6 +24,9 @@ from .middleware.request_id import RequestIDMiddleware, configure_request_id_log
 from .middleware.database_monitoring import db_monitoring
 from .middleware.security_migration import SecurityMigrationMiddleware
 from .services.metrics_service import metrics_service
+# Temporarily disable complex managers for merge testing
+# from .core.config_manager import ConfigManager
+# from .core.migration_manager import MigrationManager
 
 # Initialize logger first
 logger = get_logger("fossawork.main")
@@ -215,7 +219,7 @@ app.include_router(metrics.router)
 app.include_router(notifications.router)
 app.include_router(scraping_schedules.router)
 app.include_router(filters.router)
-app.include_router(monitoring.router)  # New comprehensive monitoring endpoints
+# app.include_router(monitoring.router)  # Temporarily disabled for merge
 # Temporarily disabled routes due to FastAPI validation errors:
 # app.include_router(filter_calculation.router, prefix="/api/filters", tags=["filters"])
 # app.include_router(filter_inventory.router, prefix="/api/inventory", tags=["inventory"])
@@ -227,8 +231,12 @@ app.include_router(monitoring.router)  # New comprehensive monitoring endpoints
 @app.on_event("startup")
 async def startup_event():
     logger.info("[START] FossaWork V2 API starting up...")
+    
     create_tables()
     logger.info("[DATA] Database tables created/verified")
+    
+    # Configuration and migration managers temporarily disabled for merge testing
+    logger.info("[CONFIG] Configuration and migration managers disabled for basic testing")
     
     # Configure request ID logging
     configure_request_id_logging()
