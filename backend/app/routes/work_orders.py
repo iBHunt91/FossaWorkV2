@@ -3,7 +3,7 @@
 Work Order API routes - Clean RESTful endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 from typing import List, Dict, Any
@@ -14,9 +14,10 @@ from datetime import datetime
 
 from ..database import get_db
 from ..models import User, WorkOrder, Dispenser
+from ..utils.query_profiler import QueryProfiler
 from ..services.browser_automation import browser_automation, BrowserAutomationService
 from ..services.workfossa_scraper import WorkOrderData
-from ..auth.dependencies import require_auth
+from ..core.security_deps import require_auth, require_user_access, log_security_violation
 
 logger = logging.getLogger(__name__)
 
@@ -220,24 +221,51 @@ def get_scraped_dispenser_details(work_order: WorkOrder, dispenser_number: str) 
 
 @router.get("/", response_model=List[Dict[str, Any]])
 async def get_work_orders(
+    request: Request,
     user_id: str = Query(..., description="User ID to fetch work orders for"),
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(100, ge=1, le=500, description="Number of records to return (max 500)"),
+    profile_queries: bool = Query(False, description="Enable query profiling (dev mode only)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_auth)
 ):
-    """Get all work orders for a user"""
-    # Verify user can only access their own data
-    if current_user.id != user_id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Not authorized to access this user's work orders")
+    """Get all work orders for a user with pagination"""
+    # Enhanced security check with logging
+    await require_user_access(user_id, request, current_user)
+    
+    # Initialize query profiler if requested (only in dev mode)
+    profiler = None
+    if profile_queries:
+        import os
+        if os.getenv("WORKFOSSA_DEV_MODE", "false").lower() == "true":
+            profiler = QueryProfiler()
+            profiler.start()
+            logger.info("Query profiling enabled for this request")
+        else:
+            logger.warning("Query profiling requested but not in dev mode")
     
     try:
-        # Query work orders from database
-        work_orders = db.query(WorkOrder).filter(WorkOrder.user_id == user_id).all()
+        # Query work orders with eager loading of dispensers
+        # This fixes the N+1 query problem by loading all dispensers in a single query
+        from sqlalchemy.orm import joinedload
+        
+        # Build base query with eager loading
+        query = db.query(WorkOrder)\
+            .filter(WorkOrder.user_id == user_id)\
+            .options(joinedload(WorkOrder.dispensers))
+        
+        # Get total count for pagination info
+        total_count = query.count()
+        
+        # Apply pagination
+        work_orders = query\
+            .order_by(WorkOrder.scheduled_date.desc(), WorkOrder.created_at.desc())\
+            .offset(skip)\
+            .limit(limit)\
+            .all()
         
         result = []
         for wo in work_orders:
-            # Get dispensers for this work order
-            dispensers = db.query(Dispenser).filter(Dispenser.work_order_id == wo.id).all()
-            
             # Use scraped visit URL if available, otherwise generate it
             if wo.visit_url:
                 visit_url = wo.visit_url
@@ -317,10 +345,30 @@ async def get_work_orders(
                             d.form_data.get('grades_list', []) if d.form_data else []
                         ) or convert_fuel_grades_to_list(d.fuel_grades)
                     }
-                    for d in dispensers
+                    for d in wo.dispensers  # Now using pre-loaded dispensers
                 ]
             }
             result.append(wo_data)
+        
+        # Add pagination metadata to response headers
+        from fastapi import Response
+        response = Response()
+        response.headers["X-Total-Count"] = str(total_count)
+        response.headers["X-Skip"] = str(skip)
+        response.headers["X-Limit"] = str(limit)
+        
+        # Add profiling results if enabled
+        if profiler:
+            profiling_results = profiler.stop()
+            # Add profiling summary to response headers
+            response.headers["X-Query-Count"] = str(profiling_results['total_queries'])
+            response.headers["X-Query-Duration"] = f"{profiling_results['total_duration']:.3f}s"
+            
+            # Log profiling results
+            if profiling_results['n_plus_one_candidates']:
+                logger.warning(f"Potential N+1 queries detected: {len(profiling_results['n_plus_one_candidates'])}")
+                for candidate in profiling_results['n_plus_one_candidates'][:3]:
+                    logger.warning(f"  - Pattern executed {candidate['count']} times: {candidate['pattern'][:80]}...")
         
         return result
         
@@ -340,17 +388,22 @@ async def get_work_order(
         raise HTTPException(status_code=403, detail="Not authorized to access this user's work orders")
     
     try:
-        # Find work order
-        work_order = db.query(WorkOrder).filter(
-            WorkOrder.id == work_order_id,
-            WorkOrder.user_id == user_id
-        ).first()
+        # Find work order with eager loading of dispensers
+        from sqlalchemy.orm import joinedload
+        
+        work_order = db.query(WorkOrder)\
+            .filter(
+                WorkOrder.id == work_order_id,
+                WorkOrder.user_id == user_id
+            )\
+            .options(joinedload(WorkOrder.dispensers))\
+            .first()
         
         if not work_order:
             raise HTTPException(status_code=404, detail="Work order not found")
         
-        # Get dispensers
-        dispensers = db.query(Dispenser).filter(Dispenser.work_order_id == work_order_id).all()
+        # Dispensers are already loaded via eager loading
+        dispensers = work_order.dispensers
         
         # Use scraped visit URL if available, otherwise generate it
         if work_order.visit_url:

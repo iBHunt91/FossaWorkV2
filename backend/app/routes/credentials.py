@@ -4,18 +4,20 @@ User Credentials API routes - Secure WorkFossa credential management
 Enhanced with file-based encrypted storage and database fallback
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 import base64
 import json
+import logging
 from datetime import datetime
 
 from ..database import get_db
 from ..models import User, UserCredential as UserCredentials
 from ..services.credential_manager import credential_manager, WorkFossaCredentials
-from ..auth.dependencies import require_auth
+from ..core.security_deps import require_auth, require_user_access, log_security_violation
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/credentials", tags=["credentials"])
 
 # Removed simple_encrypt/decrypt functions - using proper encryption via credential_manager
@@ -126,14 +128,30 @@ async def get_workfossa_credentials(
 
 @router.get("/workfossa/decrypt")
 async def get_workfossa_credentials_decrypted(
+    request: Request,
     user_id: str = Query(..., description="User ID to get decrypted credentials for"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_auth)
 ):
     """Get decrypted WorkFossa credentials for automation use (internal only)"""
-    # Verify user can only get their own credentials
-    if current_user.id != user_id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Not authorized to access this user's credentials")
+    # Enhanced security check with logging
+    try:
+        await require_user_access(user_id, request, current_user)
+    except HTTPException:
+        # Log attempt to access credentials without authorization
+        log_security_violation(
+            request,
+            "CREDENTIAL_DECRYPT_UNAUTHORIZED",
+            f"Unauthorized attempt to decrypt credentials for user {user_id}",
+            user_id=getattr(current_user, 'id', None)
+        )
+        raise
+    
+    # Log successful access for audit trail
+    logger.info(
+        f"CREDENTIAL_ACCESS: User {current_user.id} accessed decrypted credentials | "
+        f"Target: {user_id} | IP: {request.client.host if request.client else 'Unknown'}"
+    )
     
     try:
         # Try secure credential manager first

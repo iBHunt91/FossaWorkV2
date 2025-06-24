@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Headers Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .warning { color: #ffc107; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>FossaWork V2 Security Headers Test Page</h1>
+    
+    <div class="test-section">
+        <h2>Current Security Headers</h2>
+        <p>Check the browser's Developer Tools → Network tab → Response Headers to see all security headers.</p>
+        <div id="headers-display"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>CSP Tests</h2>
+        <p>These tests will trigger CSP violations if the policy is working correctly.</p>
+        
+        <h3>1. Inline Script Test</h3>
+        <button onclick="testInlineScript()">Test Inline Script</button>
+        <div id="inline-script-result"></div>
+        
+        <h3>2. External Script Test</h3>
+        <button onclick="testExternalScript()">Load External Script</button>
+        <div id="external-script-result"></div>
+        
+        <h3>3. Inline Style Test</h3>
+        <button onclick="testInlineStyle()">Test Inline Style</button>
+        <div id="inline-style-result"></div>
+        
+        <h3>4. Image Test</h3>
+        <button onclick="testImageLoad()">Test Image Loading</button>
+        <div id="image-result"></div>
+        
+        <h3>5. Iframe Test</h3>
+        <button onclick="testIframe()">Test Iframe (Should Fail)</button>
+        <div id="iframe-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>CSP Violation Log</h2>
+        <pre id="violation-log">No violations detected yet...</pre>
+    </div>
+
+    <script>
+        // Listen for CSP violations
+        document.addEventListener('securitypolicyviolation', (e) => {
+            const log = document.getElementById('violation-log');
+            const violation = `CSP Violation Detected:
+- Directive: ${e.violatedDirective}
+- Blocked URI: ${e.blockedURI}
+- Original Policy: ${e.originalPolicy}
+- Time: ${new Date().toLocaleTimeString()}
+---
+`;
+            log.textContent = violation + log.textContent;
+        });
+
+        // Test functions
+        function testInlineScript() {
+            try {
+                eval('console.log("Inline script executed")');
+                document.getElementById('inline-script-result').innerHTML = 
+                    '<span class="warning">⚠️ Inline script executed (eval allowed in dev)</span>';
+            } catch (e) {
+                document.getElementById('inline-script-result').innerHTML = 
+                    '<span class="success">✅ Inline script blocked by CSP</span>';
+            }
+        }
+
+        function testExternalScript() {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/axios/dist/axios.min.js';
+            script.onload = () => {
+                document.getElementById('external-script-result').innerHTML = 
+                    '<span class="error">❌ External script loaded (should be blocked)</span>';
+            };
+            script.onerror = () => {
+                document.getElementById('external-script-result').innerHTML = 
+                    '<span class="success">✅ External script blocked by CSP</span>';
+            };
+            document.head.appendChild(script);
+        }
+
+        function testInlineStyle() {
+            const div = document.createElement('div');
+            div.style.backgroundColor = 'red';
+            div.style.padding = '10px';
+            div.textContent = 'This has inline styles';
+            document.getElementById('inline-style-result').appendChild(div);
+            document.getElementById('inline-style-result').innerHTML += 
+                '<br><span class="warning">⚠️ Inline styles are allowed (required for React)</span>';
+        }
+
+        function testImageLoad() {
+            // Test data URL
+            const dataImg = document.createElement('img');
+            dataImg.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+PGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNDAiIGZpbGw9ImdyZWVuIi8+PC9zdmc+';
+            dataImg.width = 50;
+            
+            // Test external image
+            const extImg = document.createElement('img');
+            extImg.src = 'https://via.placeholder.com/50';
+            extImg.onerror = () => {
+                document.getElementById('image-result').innerHTML += 
+                    '<br><span class="success">✅ External image blocked by CSP</span>';
+            };
+            extImg.onload = () => {
+                document.getElementById('image-result').innerHTML += 
+                    '<br><span class="error">❌ External image loaded (should be blocked)</span>';
+            };
+            
+            const result = document.getElementById('image-result');
+            result.innerHTML = '<span class="success">✅ Data URL image allowed:</span><br>';
+            result.appendChild(dataImg);
+            result.appendChild(extImg);
+        }
+
+        function testIframe() {
+            const iframe = document.createElement('iframe');
+            iframe.src = 'https://example.com';
+            iframe.width = '300';
+            iframe.height = '200';
+            iframe.onload = () => {
+                document.getElementById('iframe-result').innerHTML = 
+                    '<span class="error">❌ Iframe loaded (should be blocked)</span>';
+            };
+            iframe.onerror = () => {
+                document.getElementById('iframe-result').innerHTML = 
+                    '<span class="success">✅ Iframe blocked by CSP</span>';
+            };
+            
+            try {
+                document.getElementById('iframe-result').appendChild(iframe);
+                // If frame-ancestors is working, the iframe won't load
+                setTimeout(() => {
+                    if (!iframe.contentDocument) {
+                        document.getElementById('iframe-result').innerHTML = 
+                            '<span class="success">✅ Iframe blocked by X-Frame-Options/CSP</span>';
+                    }
+                }, 1000);
+            } catch (e) {
+                document.getElementById('iframe-result').innerHTML = 
+                    '<span class="success">✅ Iframe blocked by browser</span>';
+            }
+        }
+
+        // Display current environment
+        fetch('/api/v1/status')
+            .then(res => {
+                const headers = [];
+                res.headers.forEach((value, key) => {
+                    if (key.toLowerCase().includes('security') || 
+                        key.toLowerCase().includes('content-security') ||
+                        key.toLowerCase().includes('x-')) {
+                        headers.push(`${key}: ${value}`);
+                    }
+                });
+                
+                if (headers.length > 0) {
+                    document.getElementById('headers-display').innerHTML = 
+                        '<pre>' + headers.join('\n') + '</pre>';
+                } else {
+                    document.getElementById('headers-display').innerHTML = 
+                        '<p class="warning">Security headers not visible in JavaScript. Check Developer Tools.</p>';
+                }
+            })
+            .catch(err => {
+                document.getElementById('headers-display').innerHTML = 
+                    '<p class="error">Failed to fetch headers. Is the backend running?</p>';
+            });
+    </script>
+</body>
+</html>
