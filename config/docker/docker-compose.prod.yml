@@ -1,0 +1,371 @@
+# FossaWork V2 Production Docker Compose Override
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+version: '3.9'
+
+services:
+  # Production Database with replication
+  postgres:
+    image: postgres:15-alpine
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.db == primary
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_REPLICATION_MODE: master
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD_FILE: /run/secrets/db_replication_password
+    secrets:
+      - db_password
+      - db_replication_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  # PostgreSQL Read Replica
+  postgres-replica:
+    image: postgres:15-alpine
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.labels.db == replica
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    environment:
+      POSTGRES_REPLICATION_MODE: slave
+      POSTGRES_MASTER_HOST: postgres
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD_FILE: /run/secrets/db_replication_password
+    secrets:
+      - db_replication_password
+    networks:
+      - fossawork_network
+
+  # Redis Cluster
+  redis:
+    image: redis:7-alpine
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass-file /run/secrets/redis_password
+      --maxmemory 2gb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    secrets:
+      - redis_password
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+
+  # Production Backend with Gunicorn
+  backend:
+    image: ${DOCKER_REGISTRY}/fossawork-backend:${VERSION:-latest}
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - REDIS_URL_FILE=/run/secrets/redis_url
+      - SECRET_KEY_FILE=/run/secrets/secret_key
+      - FOSSAWORK_MASTER_KEY_FILE=/run/secrets/master_key
+    secrets:
+      - database_url
+      - redis_url
+      - secret_key
+      - master_key
+      - jwt_private_key
+      - jwt_public_key
+    volumes:
+      - backend_data:/app/data:rw
+      - backend_logs:/app/logs:rw
+      - ./gunicorn.conf.py:/app/gunicorn.conf.py:ro
+    command: >
+      gunicorn app.main:app
+      --config /app/gunicorn.conf.py
+      --worker-class uvicorn.workers.UvicornWorker
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Production Frontend with CDN
+  frontend:
+    image: ${DOCKER_REGISTRY}/fossawork-frontend:${VERSION:-latest}
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        delay: 10s
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    environment:
+      - NODE_ENV=production
+      - VITE_API_URL=${API_URL}
+      - VITE_CDN_URL=${CDN_URL}
+    volumes:
+      - frontend_static:/usr/share/nginx/html:ro
+
+  # Production Nginx with SSL
+  nginx:
+    image: nginx:alpine
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.labels.edge == true
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+    volumes:
+      - ./nginx-prod.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx:rw
+      - nginx_logs:/var/log/nginx:rw
+      - ./modsecurity:/etc/nginx/modsecurity:ro
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+
+  # Celery Worker for Background Jobs
+  celery-worker:
+    image: ${DOCKER_REGISTRY}/fossawork-backend:${VERSION:-latest}
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - REDIS_URL_FILE=/run/secrets/redis_url
+    secrets:
+      - database_url
+      - redis_url
+      - secret_key
+      - master_key
+    command: celery -A app.celery worker --loglevel=info --concurrency=4
+    networks:
+      - fossawork_network
+
+  # Celery Beat for Scheduled Tasks
+  celery-beat:
+    image: ${DOCKER_REGISTRY}/fossawork-backend:${VERSION:-latest}
+    deploy:
+      replicas: 1
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL_FILE=/run/secrets/database_url
+      - REDIS_URL_FILE=/run/secrets/redis_url
+    secrets:
+      - database_url
+      - redis_url
+    command: celery -A app.celery beat --loglevel=info
+    networks:
+      - fossawork_network
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:latest
+    deploy:
+      placement:
+        constraints:
+          - node.labels.monitoring == true
+    volumes:
+      - ./prometheus-prod.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - fossawork_network
+      - monitoring_network
+
+  grafana:
+    image: grafana/grafana:latest
+    deploy:
+      placement:
+        constraints:
+          - node.labels.monitoring == true
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD_FILE=/run/secrets/grafana_password
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    secrets:
+      - grafana_password
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana-datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - monitoring_network
+
+  # Logging Stack
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    deploy:
+      placement:
+        constraints:
+          - node.labels.logging == true
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD_FILE=/run/secrets/elastic_password
+    secrets:
+      - elastic_password
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - logging_network
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    deploy:
+      placement:
+        constraints:
+          - node.labels.logging == true
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+    networks:
+      - fossawork_network
+      - logging_network
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    deploy:
+      placement:
+        constraints:
+          - node.labels.logging == true
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_PASSWORD_FILE=/run/secrets/elastic_password
+    secrets:
+      - elastic_password
+    networks:
+      - logging_network
+
+secrets:
+  db_password:
+    external: true
+  db_replication_password:
+    external: true
+  redis_password:
+    external: true
+  database_url:
+    external: true
+  redis_url:
+    external: true
+  secret_key:
+    external: true
+  master_key:
+    external: true
+  jwt_private_key:
+    external: true
+  jwt_public_key:
+    external: true
+  grafana_password:
+    external: true
+  elastic_password:
+    external: true
+
+volumes:
+  postgres_data:
+    driver: rexray/ebs
+    driver_opts:
+      size: 100
+      volumeType: gp3
+      encrypted: "true"
+  redis_data:
+    driver: rexray/ebs
+    driver_opts:
+      size: 20
+      volumeType: gp3
+  backend_data:
+    driver: rexray/ebs
+    driver_opts:
+      size: 50
+      volumeType: gp3
+      encrypted: "true"
+  nginx_cache:
+    driver: local
+  prometheus_data:
+    driver: rexray/ebs
+    driver_opts:
+      size: 50
+      volumeType: gp3
+  grafana_data:
+    driver: rexray/ebs
+    driver_opts:
+      size: 20
+      volumeType: gp3
+  elasticsearch_data:
+    driver: rexray/ebs
+    driver_opts:
+      size: 100
+      volumeType: gp3
+      encrypted: "true"
+
+networks:
+  fossawork_network:
+    driver: overlay
+    attachable: true
+    ipam:
+      config:
+        - subnet: 10.0.1.0/24
+  monitoring_network:
+    driver: overlay
+    internal: true
+  logging_network:
+    driver: overlay
+    internal: true

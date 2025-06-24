@@ -1,0 +1,147 @@
+# FossaWork V2 Development Docker Compose Override
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+version: '3.9'
+
+services:
+  # Development Database with exposed ports
+  postgres:
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: devpassword123  # Simple password for dev
+    volumes:
+      - ./dev-init-scripts:/docker-entrypoint-initdb.d:ro
+
+  # Development Redis with monitoring
+  redis:
+    command: redis-server --appendonly yes  # No password in dev
+    ports:
+      - "6379:6379"
+
+  # Development Backend with hot reload
+  backend:
+    build:
+      target: development
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - DATABASE_URL=postgresql://fossawork:devpassword123@postgres:5432/fossawork
+      - REDIS_URL=redis://redis:6379/0
+      - BROWSER_HEADLESS=false
+      - API_RELOAD=true
+    volumes:
+      - ../../backend:/app:rw  # Read-write for hot reload
+      - backend_venv:/app/venv  # Persist virtual environment
+    ports:
+      - "8000:8000"
+      - "8001:8001"  # Debug port
+    command: >
+      sh -c "
+        pip install -e . &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app
+      "
+
+  # Development Frontend with hot reload
+  frontend:
+    build:
+      target: development
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8000
+    volumes:
+      - ../../frontend:/app:rw
+      - /app/node_modules  # Anonymous volume for node_modules
+    ports:
+      - "5173:5173"  # Vite dev server
+    command: npm run dev -- --host
+
+  # Development tools container
+  devtools:
+    image: fossawork/devtools:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.devtools
+    container_name: fossawork_devtools
+    volumes:
+      - ../../:/workspace:rw
+    networks:
+      - fossawork_network
+    profiles:
+      - tools
+
+  # MailHog for email testing
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: fossawork_mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - fossawork_network
+    profiles:
+      - email
+
+  # pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fossawork_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@fossawork.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - fossawork_network
+    profiles:
+      - database
+
+  # RedisInsight for Redis management
+  redisinsight:
+    image: redislabs/redisinsight:latest
+    container_name: fossawork_redisinsight
+    ports:
+      - "8010:8001"
+    networks:
+      - fossawork_network
+    profiles:
+      - cache
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: fossawork_prometheus
+    volumes:
+      - ./prometheus-dev.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - fossawork_network
+    profiles:
+      - monitoring
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fossawork_grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - fossawork_network
+    profiles:
+      - monitoring
+
+volumes:
+  backend_venv:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

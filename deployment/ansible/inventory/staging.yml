@@ -1,0 +1,108 @@
+---
+all:
+  vars:
+    environment: staging
+    aws_region: us-east-1
+    cluster_name: fossawork-staging
+    certificate_arn: "arn:aws:acm:us-east-1:{{ ansible_account_id }}:certificate/{{ certificate_id }}"
+    
+    # Application configuration
+    app_replicas: 2
+    enable_autoscaling: true
+    min_replicas: 1
+    max_replicas: 5
+    
+    # Resource limits for staging
+    backend_resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+        
+    frontend_resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "250m"
+        memory: "256Mi"
+    
+    # Database configuration
+    database_host: "fossawork-staging-db.cluster-xyz.us-east-1.rds.amazonaws.com"
+    database_port: 5432
+    database_name: fossawork
+    
+    # Redis configuration
+    redis_host: "fossawork-staging-redis.xyz.cache.amazonaws.com"
+    redis_port: 6379
+    
+    # Monitoring and logging
+    log_level: INFO
+    enable_debug: false
+    metrics_enabled: true
+    
+    # Security settings
+    enable_network_policies: true
+    enable_pod_security_policies: true
+    enable_runtime_security: true
+    
+    # Feature flags
+    enable_new_features: true
+    enable_experimental_features: false
+    
+    # External integrations
+    slack_webhook_url: "{{ vault_slack_webhook_staging }}"
+    email_notifications_enabled: true
+    
+    # Backup and retention
+    backup_retention_days: 7
+    log_retention_days: 14
+    
+    # Performance settings
+    cache_ttl: 300
+    connection_pool_size: 20
+    worker_processes: 2
+
+# Group specific variables can be defined here if needed
+webservers:
+  hosts: {}
+  vars: {}
+
+databases:
+  hosts: {}
+  vars: {}
+
+# Environment-specific overrides
+staging:
+  vars:
+    domain_name: staging.fossawork.com
+    tls_enabled: true
+    cors_origins:
+      - https://staging.fossawork.com
+      - http://localhost:3000
+      - http://localhost:5173
+    
+    # Staging-specific resource limits
+    node_pool_size: 2
+    storage_class: gp2
+    storage_size: 20Gi
+    
+    # Security relaxed for staging
+    strict_security: false
+    allow_dev_access: true
+    
+    # Integration endpoints
+    api_base_url: https://staging.fossawork.com/api
+    websocket_url: wss://staging.fossawork.com/ws
+    
+    # Third-party service endpoints (staging)
+    external_api_endpoints:
+      workfossa: https://staging-api.workfossa.com
+      notifications: https://staging-notifications.fossawork.com
+    
+    # Development tools enabled
+    enable_debug_tools: true
+    enable_profiler: true
+    enable_swagger_ui: true

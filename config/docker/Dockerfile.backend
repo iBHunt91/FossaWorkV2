@@ -1,0 +1,133 @@
+# FossaWork V2 Backend Dockerfile
+# Multi-stage build for Python/FastAPI application
+
+ARG PYTHON_VERSION=3.11
+ARG DEBIAN_VERSION=slim-bookworm
+
+# Build stage
+FROM python:${PYTHON_VERSION}-${DEBIAN_VERSION} AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    make \
+    libpq-dev \
+    libssl-dev \
+    libffi-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up Python environment
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=100
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies
+COPY requirements.txt /tmp/
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r /tmp/requirements.txt
+
+# Development stage
+FROM python:${PYTHON_VERSION}-${DEBIAN_VERSION} AS development
+
+# Install runtime dependencies and development tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    vim \
+    htop \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set up non-root user
+RUN groupadd -r fossawork && useradd -r -g fossawork fossawork
+
+# Create application directories
+RUN mkdir -p /app/data /app/logs /app/screenshots && \
+    chown -R fossawork:fossawork /app
+
+WORKDIR /app
+
+# Copy application code
+COPY --chown=fossawork:fossawork . /app/
+
+# Install additional dev dependencies
+RUN pip install pytest pytest-asyncio pytest-cov black flake8 mypy
+
+USER fossawork
+
+# Development server
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# Production stage
+FROM python:${PYTHON_VERSION}-${DEBIAN_VERSION} AS production
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    chromium \
+    chromium-driver \
+    && rm -rf /var/lib/apt/lists/*
+
+# Security: Create non-root user
+RUN groupadd -r fossawork && \
+    useradd -r -g fossawork -u 1001 fossawork && \
+    mkdir -p /app/data /app/logs /app/screenshots && \
+    chown -R fossawork:fossawork /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Set Python environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PYTHONPATH=/app
+
+# Copy application code
+WORKDIR /app
+COPY --chown=fossawork:fossawork app/ /app/app/
+COPY --chown=fossawork:fossawork alembic.ini /app/
+COPY --chown=fossawork:fossawork alembic/ /app/alembic/
+
+# Security hardening
+RUN chmod -R 755 /app && \
+    chmod -R 700 /app/data && \
+    find /app -type f -name "*.py" -exec chmod 644 {} \;
+
+# Install Playwright browsers
+RUN playwright install chromium
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Switch to non-root user
+USER fossawork
+
+# Expose port
+EXPOSE 8000
+
+# Production server with Gunicorn
+CMD ["gunicorn", "app.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8000", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--log-level", "info", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--max-requests", "1000", \
+     "--max-requests-jitter", "100"]

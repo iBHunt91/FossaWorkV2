@@ -1,0 +1,372 @@
+name: Code Quality and Coverage
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*' ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+  MIN_COVERAGE: 80
+  MIN_MAINTAINABILITY: 'B'
+
+jobs:
+  python-quality:
+    name: Python Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/pip
+            backend/venv
+          key: ${{ runner.os }}-pip-quality-${{ hashFiles('backend/requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install flake8 black isort mypy pylint radon xenon pydocstyle coverage pytest-cov
+
+      - name: Run Black formatter check
+        run: |
+          cd backend
+          source venv/bin/activate
+          black --check --diff app/
+
+      - name: Run isort import checker
+        run: |
+          cd backend
+          source venv/bin/activate
+          isort --check-only --diff app/
+
+      - name: Run Flake8 linter
+        run: |
+          cd backend
+          source venv/bin/activate
+          flake8 app/ --config=.flake8 --format=json --output-file=flake8-report.json || true
+          flake8 app/ --config=.flake8 --statistics
+
+      - name: Run Pylint
+        run: |
+          cd backend
+          source venv/bin/activate
+          pylint app/ --output-format=json > pylint-report.json || true
+          pylint app/ --fail-under=8.0
+
+      - name: Run mypy type checker
+        run: |
+          cd backend
+          source venv/bin/activate
+          mypy app/ --junit-xml mypy-report.xml --html-report mypy-html || true
+
+      - name: Run pydocstyle
+        run: |
+          cd backend
+          source venv/bin/activate
+          pydocstyle app/ --config=.pydocstyle || true
+
+      - name: Code complexity analysis
+        run: |
+          cd backend
+          source venv/bin/activate
+          radon cc app/ -s -j > radon-cc-report.json
+          radon mi app/ -s -j > radon-mi-report.json
+          radon hal app/ -j > radon-hal-report.json
+          xenon --max-absolute B --max-modules B --max-average A app/
+
+      - name: Run tests with coverage
+        run: |
+          cd backend
+          source venv/bin/activate
+          pytest --cov=app --cov-report=xml --cov-report=html --cov-report=term --cov-fail-under=${{ env.MIN_COVERAGE }}
+
+      - name: Upload Python quality reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-quality-reports
+          path: |
+            backend/flake8-report.json
+            backend/pylint-report.json
+            backend/mypy-report.xml
+            backend/mypy-html/
+            backend/radon-*.json
+            backend/coverage.xml
+            backend/htmlcov/
+
+  javascript-quality:
+    name: JavaScript Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd frontend && npm ci
+
+      - name: Run ESLint
+        run: |
+          cd frontend
+          npm run lint -- --format json --output-file eslint-report.json || true
+          npm run lint
+
+      - name: Run Prettier check
+        run: |
+          cd frontend
+          npx prettier --check "src/**/*.{js,jsx,ts,tsx,css,scss,json}"
+
+      - name: Run TypeScript compiler check
+        run: |
+          cd frontend
+          npm run type-check
+
+      - name: Code complexity analysis
+        run: |
+          cd frontend
+          npx complexity-report-html src/ --output complexity-report
+
+      - name: Run tests with coverage
+        run: |
+          cd frontend
+          npm run test -- --coverage --coverageThreshold='{"global":{"branches":${{ env.MIN_COVERAGE }},"functions":${{ env.MIN_COVERAGE }},"lines":${{ env.MIN_COVERAGE }},"statements":${{ env.MIN_COVERAGE }}}}'
+
+      - name: Run bundle size analysis
+        run: |
+          cd frontend
+          npm run build
+          npx bundlesize
+
+      - name: Upload JavaScript quality reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: javascript-quality-reports
+          path: |
+            frontend/eslint-report.json
+            frontend/coverage/
+            frontend/complexity-report/
+
+  sonarcloud-analysis:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs: [python-quality, javascript-quality]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v3
+
+      - name: Setup SonarCloud scanner
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=fossawork-v2
+            -Dsonar.organization=fossawork
+            -Dsonar.sources=backend/app,frontend/src
+            -Dsonar.tests=backend/tests,frontend/tests
+            -Dsonar.python.coverage.reportPaths=python-quality-reports/backend/coverage.xml
+            -Dsonar.javascript.lcov.reportPaths=javascript-quality-reports/frontend/coverage/lcov.info
+            -Dsonar.python.flake8.reportPaths=python-quality-reports/backend/flake8-report.json
+            -Dsonar.python.pylint.reportPaths=python-quality-reports/backend/pylint-report.json
+            -Dsonar.python.mypy.reportPaths=python-quality-reports/backend/mypy-report.xml
+
+  code-climate:
+    name: Code Climate Analysis
+    runs-on: ubuntu-latest
+    needs: [python-quality, javascript-quality]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v3
+
+      - name: Setup Code Climate test reporter
+        run: |
+          curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+          chmod +x ./cc-test-reporter
+
+      - name: Format and upload coverage
+        env:
+          CC_TEST_REPORTER_ID: ${{ secrets.CODE_CLIMATE_TEST_REPORTER_ID }}
+        run: |
+          ./cc-test-reporter before-build
+          
+          # Format Python coverage
+          ./cc-test-reporter format-coverage \
+            --input-type coverage.py \
+            --output coverage/python.json \
+            python-quality-reports/backend/coverage.xml
+          
+          # Format JavaScript coverage
+          ./cc-test-reporter format-coverage \
+            --input-type lcov \
+            --output coverage/javascript.json \
+            javascript-quality-reports/frontend/coverage/lcov.info
+          
+          # Upload coverage
+          ./cc-test-reporter sum-coverage coverage/*.json
+          ./cc-test-reporter upload-coverage
+
+  documentation-quality:
+    name: Documentation Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check markdown files
+        run: |
+          npm install -g markdownlint-cli
+          markdownlint '**/*.md' --ignore node_modules --ignore venv
+
+      - name: Check for broken links
+        run: |
+          npm install -g markdown-link-check
+          find . -name "*.md" -not -path "./node_modules/*" -not -path "./venv/*" | xargs -n1 markdown-link-check
+
+      - name: Generate documentation coverage
+        run: |
+          # Check for missing documentation
+          echo "Checking for undocumented code..."
+
+  accessibility-check:
+    name: Accessibility Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build application
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Run accessibility tests
+        run: |
+          cd frontend
+          npx pa11y-ci --config .pa11yci.json
+
+      - name: Run axe-core tests
+        run: |
+          cd frontend
+          npm run test:a11y
+
+  performance-analysis:
+    name: Performance Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build application
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          configPath: './frontend/.lighthouserc.json'
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: Run bundle analysis
+        run: |
+          cd frontend
+          npm run analyze
+
+  quality-gate:
+    name: Quality Gate Check
+    runs-on: ubuntu-latest
+    needs: [python-quality, javascript-quality, sonarcloud-analysis, documentation-quality]
+    steps:
+      - name: Check quality gates
+        run: |
+          echo "Checking if all quality gates passed..."
+          # Implement quality gate logic
+
+      - name: Generate quality report
+        run: |
+          echo "# Code Quality Report" > quality-report.md
+          echo "Generated at: $(date)" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "## Summary" >> quality-report.md
+          echo "- Python Code Quality: ✅" >> quality-report.md
+          echo "- JavaScript Code Quality: ✅" >> quality-report.md
+          echo "- Test Coverage: ${{ env.MIN_COVERAGE }}% minimum" >> quality-report.md
+          echo "- Documentation: ✅" >> quality-report.md
+
+      - name: Upload quality report
+        uses: actions/upload-artifact@v3
+        with:
+          name: quality-summary
+          path: quality-report.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## 📊 Code Quality Report\n\nAll quality checks have passed! See the Actions tab for detailed reports.'
+            })

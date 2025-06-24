@@ -1,0 +1,418 @@
+pipeline {
+    agent {
+        label 'security-scanner'
+    }
+
+    triggers {
+        cron('H 2 * * *') // Daily security scan at 2 AM
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        timeout(time: 120, unit: 'MINUTES')
+        timestamps()
+        ansiColor('xterm')
+    }
+
+    parameters {
+        choice(
+            name: 'SCAN_TYPE',
+            choices: ['full', 'quick', 'dependencies', 'containers', 'infrastructure'],
+            description: 'Type of security scan to perform'
+        )
+        string(
+            name: 'TARGET_BRANCH',
+            defaultValue: 'main',
+            description: 'Branch to scan'
+        )
+        booleanParam(
+            name: 'FAIL_ON_HIGH',
+            defaultValue: true,
+            description: 'Fail build on HIGH severity findings'
+        )
+    }
+
+    environment {
+        SONAR_TOKEN = credentials('sonar-token')
+        SNYK_TOKEN = credentials('snyk-token')
+        DEPENDENCY_CHECK_API = credentials('nvd-api-key')
+        GITHUB_TOKEN = credentials('github-token')
+        SECURITY_REPORT_BUCKET = 'fossawork-security-reports'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: "${params.TARGET_BRANCH}"]],
+                    userRemoteConfigs: [[url: 'https://github.com/fossawork/fossawork-v2.git']]
+                ])
+            }
+        }
+
+        stage('Secret Detection') {
+            steps {
+                sh '''
+                    # TruffleHog scan
+                    docker run --rm -v "$PWD:/pwd" trufflesecurity/trufflehog:latest \
+                        git file:///pwd --json > trufflehog-report.json
+
+                    # Gitleaks scan
+                    docker run --rm -v "$PWD:/path" zricethezav/gitleaks:latest \
+                        detect --source="/path" -f json -r gitleaks-report.json
+
+                    # Custom pattern matching
+                    grep -r -E "(api[_-]?key|password|secret|token)" . \
+                        --exclude-dir=node_modules \
+                        --exclude-dir=venv \
+                        --exclude="*.lock" \
+                        > pattern-matches.txt || true
+                '''
+            }
+        }
+
+        stage('SAST Analysis') {
+            parallel {
+                stage('Python SAST') {
+                    steps {
+                        sh '''
+                            cd backend
+                            
+                            # Bandit
+                            python -m venv venv
+                            . venv/bin/activate
+                            pip install bandit[toml]
+                            bandit -r app/ -f json -o ../bandit-report.json
+                            
+                            # Semgrep
+                            docker run --rm -v "$PWD:/src" \
+                                returntocorp/semgrep:latest \
+                                --config=auto \
+                                --json \
+                                --output=/src/semgrep-python.json \
+                                /src/app
+                        '''
+                    }
+                }
+
+                stage('JavaScript SAST') {
+                    steps {
+                        sh '''
+                            cd frontend
+                            
+                            # ESLint security plugin
+                            npm install --save-dev eslint-plugin-security
+                            npx eslint src/ --ext .js,.jsx,.ts,.tsx \
+                                --format json \
+                                --output-file ../eslint-security.json
+                            
+                            # NodeJsScan
+                            docker run --rm -v "$PWD:/src" \
+                                opensecurity/nodejsscan:latest \
+                                -o /src/nodejsscan-report.json \
+                                /src
+                        '''
+                    }
+                }
+
+                stage('Infrastructure as Code Scan') {
+                    steps {
+                        sh '''
+                            # Checkov for Terraform/CloudFormation
+                            docker run --rm -v "$PWD:/tf" \
+                                bridgecrew/checkov:latest \
+                                -d /tf \
+                                --framework all \
+                                -o json \
+                                --output-file /tf/checkov-report.json
+                            
+                            # Terrascan
+                            docker run --rm -v "$PWD:/src" \
+                                accurics/terrascan:latest \
+                                scan -d /src \
+                                -o json > terrascan-report.json
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Dependency Vulnerability Scan') {
+            when {
+                expression { params.SCAN_TYPE in ['full', 'dependencies'] }
+            }
+            parallel {
+                stage('Python Dependencies') {
+                    steps {
+                        sh '''
+                            cd backend
+                            
+                            # Safety
+                            pip install safety
+                            safety check --json > ../safety-report.json
+                            
+                            # Pip-audit
+                            pip install pip-audit
+                            pip-audit --format json --output ../pip-audit-report.json
+                            
+                            # Snyk
+                            snyk test --json > ../snyk-python.json || true
+                        '''
+                    }
+                }
+
+                stage('JavaScript Dependencies') {
+                    steps {
+                        sh '''
+                            # NPM audit
+                            npm audit --json > npm-audit-root.json || true
+                            cd frontend
+                            npm audit --json > ../npm-audit-frontend.json || true
+                            
+                            # Snyk
+                            snyk test --json > ../snyk-javascript.json || true
+                            
+                            # RetireJS
+                            npx retire --outputformat json --outputpath ../retirejs-report.json
+                        '''
+                    }
+                }
+
+                stage('OWASP Dependency Check') {
+                    steps {
+                        dependencyCheck additionalArguments: """
+                            --project 'FossaWork Security Scan'
+                            --scan .
+                            --enableRetired
+                            --enableExperimental
+                            --format ALL
+                            --nvdApiKey ${DEPENDENCY_CHECK_API}
+                            --dataDirectory ./owasp-data
+                            --out .
+                        """, odcInstallation: 'dependency-check'
+                    }
+                }
+            }
+        }
+
+        stage('Container Security Scan') {
+            when {
+                expression { params.SCAN_TYPE in ['full', 'containers'] }
+            }
+            steps {
+                sh '''
+                    # Build test images
+                    docker build -t fossawork-backend:security-test ./backend
+                    docker build -t fossawork-frontend:security-test ./frontend
+                    
+                    # Trivy scan
+                    trivy image --format json \
+                        --output trivy-backend.json \
+                        fossawork-backend:security-test
+                    
+                    trivy image --format json \
+                        --output trivy-frontend.json \
+                        fossawork-frontend:security-test
+                    
+                    # Grype scan
+                    grype fossawork-backend:security-test \
+                        -o json > grype-backend.json
+                    
+                    grype fossawork-frontend:security-test \
+                        -o json > grype-frontend.json
+                    
+                    # Docker Bench Security
+                    docker run --rm --net host --pid host --userns host \
+                        --cap-add audit_control \
+                        -e DOCKER_CONTENT_TRUST=$DOCKER_CONTENT_TRUST \
+                        -v /var/lib:/var/lib \
+                        -v /var/run/docker.sock:/var/run/docker.sock \
+                        -v /etc:/etc --label docker_bench_security \
+                        docker/docker-bench-security \
+                        -l docker-bench-security.log
+                '''
+            }
+        }
+
+        stage('DAST Analysis') {
+            when {
+                expression { params.SCAN_TYPE == 'full' }
+            }
+            steps {
+                sh '''
+                    # Start application in test mode
+                    docker-compose -f docker-compose.test.yml up -d
+                    sleep 30
+                    
+                    # OWASP ZAP scan
+                    docker run --rm -v $(pwd):/zap/wrk/:rw \
+                        --network=host \
+                        owasp/zap2docker-stable:latest \
+                        zap-baseline.py \
+                        -t http://localhost:8000 \
+                        -J zap-report.json \
+                        -r zap-report.html
+                    
+                    # Nuclei scan
+                    docker run --rm -v $(pwd):/nuclei \
+                        projectdiscovery/nuclei:latest \
+                        -u http://localhost:8000 \
+                        -as -j -o /nuclei/nuclei-report.json
+                    
+                    # Cleanup
+                    docker-compose -f docker-compose.test.yml down
+                '''
+            }
+        }
+
+        stage('Compliance Check') {
+            steps {
+                sh '''
+                    # GDPR compliance check
+                    python3 scripts/compliance/gdpr-check.py > gdpr-compliance.json
+                    
+                    # PCI-DSS compliance check
+                    python3 scripts/compliance/pci-dss-check.py > pci-compliance.json
+                    
+                    # HIPAA compliance check
+                    python3 scripts/compliance/hipaa-check.py > hipaa-compliance.json
+                    
+                    # Custom security policy check
+                    python3 scripts/compliance/security-policy-check.py > policy-compliance.json
+                '''
+            }
+        }
+
+        stage('Generate Reports') {
+            steps {
+                script {
+                    // Aggregate all reports
+                    sh '''
+                        python3 ci/scripts/aggregate-security-reports.py \
+                            --output security-report.html \
+                            --format html
+                        
+                        python3 ci/scripts/aggregate-security-reports.py \
+                            --output security-report.json \
+                            --format json
+                        
+                        # Generate executive summary
+                        python3 ci/scripts/generate-executive-summary.py \
+                            --input security-report.json \
+                            --output executive-summary.pdf
+                    '''
+                    
+                    // Check thresholds
+                    def reportData = readJSON file: 'security-report.json'
+                    def criticalCount = reportData.summary.critical ?: 0
+                    def highCount = reportData.summary.high ?: 0
+                    
+                    if (criticalCount > 0) {
+                        error("Found ${criticalCount} CRITICAL security issues!")
+                    }
+                    
+                    if (highCount > 0 && params.FAIL_ON_HIGH) {
+                        error("Found ${highCount} HIGH security issues!")
+                    }
+                }
+            }
+        }
+
+        stage('Upload Reports') {
+            steps {
+                withAWS(credentials: 'aws-credentials', region: 'us-east-1') {
+                    s3Upload(
+                        bucket: "${SECURITY_REPORT_BUCKET}",
+                        path: "reports/${BUILD_NUMBER}/",
+                        includePathPattern: '**/*-report.*',
+                        workingDir: '.'
+                    )
+                }
+                
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: '.',
+                    reportFiles: 'security-report.html',
+                    reportName: 'Security Report'
+                ])
+                
+                archiveArtifacts artifacts: '**/*-report.*', fingerprint: true
+            }
+        }
+
+        stage('Create Issues') {
+            when {
+                expression { currentBuild.result != 'SUCCESS' }
+            }
+            steps {
+                script {
+                    def issues = readJSON file: 'security-report.json'
+                    
+                    issues.findings.each { finding ->
+                        if (finding.severity in ['CRITICAL', 'HIGH']) {
+                            withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                                sh """
+                                    gh issue create \
+                                        --title "Security: ${finding.title}" \
+                                        --body "${finding.description}\\n\\nSeverity: ${finding.severity}\\n\\nFound in: ${finding.location}" \
+                                        --label security,${finding.severity.toLowerCase()} \
+                                        --repo fossawork/fossawork-v2
+                                """
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Send notifications
+            emailext(
+                subject: "Security Scan Results: ${currentBuild.result}",
+                body: '''${FILE,path="executive-summary.txt"}''',
+                to: 'security-team@fossawork.com',
+                attachmentsPattern: 'executive-summary.pdf'
+            )
+            
+            // Update security dashboard
+            sh '''
+                curl -X POST https://security-dashboard.fossawork.com/api/scan-results \
+                    -H "Authorization: Bearer ${SECURITY_DASHBOARD_TOKEN}" \
+                    -H "Content-Type: application/json" \
+                    -d @security-report.json
+            '''
+        }
+        
+        failure {
+            slackSend(
+                channel: '#security-alerts',
+                color: 'danger',
+                message: """
+                    🚨 Security Scan Failed!
+                    Job: ${env.JOB_NAME}
+                    Build: ${env.BUILD_NUMBER}
+                    Branch: ${params.TARGET_BRANCH}
+                    Report: ${env.BUILD_URL}
+                """
+            )
+        }
+        
+        cleanup {
+            sh '''
+                # Cleanup test containers
+                docker rm -f $(docker ps -aq --filter "label=security-test") || true
+                
+                # Remove test images
+                docker rmi fossawork-backend:security-test || true
+                docker rmi fossawork-frontend:security-test || true
+            '''
+            
+            cleanWs()
+        }
+    }
+}

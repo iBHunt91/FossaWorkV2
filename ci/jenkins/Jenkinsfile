@@ -1,0 +1,477 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: python
+    image: python:3.11
+    command: ['cat']
+    tty: true
+  - name: node
+    image: node:18
+    command: ['cat']
+    tty: true
+  - name: docker
+    image: docker:24-dind
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+  - name: security-scanner
+    image: aquasec/trivy:latest
+    command: ['cat']
+    tty: true
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+'''
+        }
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '10'))
+        timeout(time: 60, unit: 'MINUTES')
+        timestamps()
+        ansiColor('xterm')
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        DOCKER_REGISTRY = credentials('docker-registry')
+        SONAR_TOKEN = credentials('sonar-token')
+        SNYK_TOKEN = credentials('snyk-token')
+        AWS_CREDENTIALS = credentials('aws-credentials')
+        SLACK_WEBHOOK = credentials('slack-webhook')
+        
+        IMAGE_TAG = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
+        PYTHON_VERSION = '3.11'
+        NODE_VERSION = '18'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_MSG = sh(
+                        script: 'git log -1 --pretty=%B',
+                        returnStdout: true
+                    ).trim()
+                    env.GIT_AUTHOR = sh(
+                        script: 'git log -1 --pretty=%an',
+                        returnStdout: true
+                    ).trim()
+                }
+            }
+        }
+
+        stage('Validate') {
+            parallel {
+                stage('Validate Python') {
+                    steps {
+                        container('python') {
+                            dir('backend') {
+                                sh '''
+                                    python -m venv venv
+                                    . venv/bin/activate
+                                    pip install --upgrade pip
+                                    pip install -r requirements.txt
+                                    pip install -r requirements-dev.txt
+                                '''
+                            }
+                        }
+                    }
+                }
+
+                stage('Validate JavaScript') {
+                    steps {
+                        container('node') {
+                            sh 'npm ci'
+                            dir('frontend') {
+                                sh 'npm ci'
+                            }
+                        }
+                    }
+                }
+
+                stage('Security Pre-Check') {
+                    steps {
+                        container('security-scanner') {
+                            sh '''
+                                trivy fs --exit-code 1 --severity HIGH,CRITICAL .
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Quality Analysis') {
+            parallel {
+                stage('Python Quality') {
+                    steps {
+                        container('python') {
+                            dir('backend') {
+                                sh '''
+                                    . venv/bin/activate
+                                    
+                                    # Linting
+                                    flake8 app/ --max-line-length=120
+                                    black --check app/
+                                    isort --check-only app/
+                                    mypy app/ --ignore-missing-imports
+                                    
+                                    # Security
+                                    bandit -r app/ -f json -o bandit-report.json
+                                    safety check --json --output safety-report.json
+                                    
+                                    # Complexity
+                                    radon cc app/ -j > radon-cc.json
+                                    radon mi app/ -j > radon-mi.json
+                                '''
+                            }
+                        }
+                    }
+                }
+
+                stage('JavaScript Quality') {
+                    steps {
+                        container('node') {
+                            dir('frontend') {
+                                sh '''
+                                    npm run lint
+                                    npm run type-check
+                                    npx prettier --check "src/**/*.{js,jsx,ts,tsx}"
+                                '''
+                            }
+                        }
+                    }
+                }
+
+                stage('Dependency Check') {
+                    steps {
+                        script {
+                            // OWASP Dependency Check
+                            dependencyCheck additionalArguments: '''
+                                --enableRetired
+                                --enableExperimental
+                                --format ALL
+                                --failOnCVSS 7
+                            ''', odcInstallation: 'dependency-check'
+
+                            publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: '.',
+                                reportFiles: 'dependency-check-report.html',
+                                reportName: 'Dependency Check Report'
+                            ])
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Test') {
+            parallel {
+                stage('Backend Tests') {
+                    steps {
+                        container('python') {
+                            dir('backend') {
+                                sh '''
+                                    . venv/bin/activate
+                                    
+                                    # Unit tests
+                                    pytest tests/unit -v --junitxml=junit-unit.xml --cov=app --cov-report=xml
+                                    
+                                    # Integration tests
+                                    pytest tests/integration -v --junitxml=junit-integration.xml --cov=app --cov-append
+                                    
+                                    # API tests
+                                    pytest tests/api -v --junitxml=junit-api.xml --cov=app --cov-append
+                                '''
+                            }
+                        }
+                    }
+                }
+
+                stage('Frontend Tests') {
+                    steps {
+                        container('node') {
+                            dir('frontend') {
+                                sh '''
+                                    npm run test:unit -- --coverage --ci
+                                    npm run test:components -- --coverage --ci
+                                '''
+                            }
+                        }
+                    }
+                }
+
+                stage('Security Tests') {
+                    steps {
+                        container('python') {
+                            dir('backend') {
+                                sh '''
+                                    . venv/bin/activate
+                                    pytest tests/security -v --junitxml=junit-security.xml
+                                '''
+                            }
+                        }
+                    }
+                }
+            }
+            post {
+                always {
+                    junit '**/junit-*.xml'
+                    publishCoverage adapters: [
+                        coberturaAdapter('**/coverage.xml')
+                    ], sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
+                }
+            }
+        }
+
+        stage('Build') {
+            parallel {
+                stage('Build Backend') {
+                    steps {
+                        container('docker') {
+                            dir('backend') {
+                                sh """
+                                    docker build -t fossawork-backend:${IMAGE_TAG} \
+                                        --build-arg PYTHON_VERSION=${PYTHON_VERSION} \
+                                        --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                                        --build-arg VCS_REF=${GIT_COMMIT} \
+                                        .
+                                    
+                                    docker tag fossawork-backend:${IMAGE_TAG} ${DOCKER_REGISTRY}/fossawork-backend:${IMAGE_TAG}
+                                """
+                            }
+                        }
+                    }
+                }
+
+                stage('Build Frontend') {
+                    steps {
+                        container('node') {
+                            dir('frontend') {
+                                sh """
+                                    VITE_APP_VERSION=${IMAGE_TAG} \
+                                    VITE_BUILD_TIME=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                                    VITE_COMMIT_SHA=${GIT_COMMIT} \
+                                    npm run build
+                                """
+                            }
+                        }
+                        container('docker') {
+                            dir('frontend') {
+                                sh """
+                                    docker build -t fossawork-frontend:${IMAGE_TAG} \
+                                        --build-arg NODE_VERSION=${NODE_VERSION} \
+                                        .
+                                    
+                                    docker tag fossawork-frontend:${IMAGE_TAG} ${DOCKER_REGISTRY}/fossawork-frontend:${IMAGE_TAG}
+                                """
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Security Scan') {
+            parallel {
+                stage('Container Scan') {
+                    steps {
+                        container('security-scanner') {
+                            sh """
+                                trivy image --exit-code 1 --severity HIGH,CRITICAL \
+                                    --format sarif --output backend-scan.sarif \
+                                    fossawork-backend:${IMAGE_TAG}
+                                
+                                trivy image --exit-code 1 --severity HIGH,CRITICAL \
+                                    --format sarif --output frontend-scan.sarif \
+                                    fossawork-frontend:${IMAGE_TAG}
+                            """
+                        }
+                    }
+                }
+
+                stage('SAST Analysis') {
+                    steps {
+                        withSonarQubeEnv('SonarQube') {
+                            container('node') {
+                                sh """
+                                    npx sonar-scanner \
+                                        -Dsonar.projectKey=fossawork-v2 \
+                                        -Dsonar.sources=backend/app,frontend/src \
+                                        -Dsonar.tests=backend/tests,frontend/tests \
+                                        -Dsonar.python.coverage.reportPaths=backend/coverage.xml \
+                                        -Dsonar.javascript.lcov.reportPaths=frontend/coverage/lcov.info
+                                """
+                            }
+                        }
+                    }
+                }
+
+                stage('License Check') {
+                    steps {
+                        sh 'docker run -v $PWD:/scan licensefinder/license_finder'
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 1, unit: 'HOURS') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
+        stage('Publish') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'develop'
+                    tag pattern: "v\\d+\\.\\d+\\.\\d+.*", comparator: "REGEXP"
+                }
+            }
+            steps {
+                container('docker') {
+                    sh """
+                        docker push ${DOCKER_REGISTRY}/fossawork-backend:${IMAGE_TAG}
+                        docker push ${DOCKER_REGISTRY}/fossawork-frontend:${IMAGE_TAG}
+                        
+                        # Tag as latest for main branch
+                        if [ "${BRANCH_NAME}" = "main" ]; then
+                            docker tag fossawork-backend:${IMAGE_TAG} ${DOCKER_REGISTRY}/fossawork-backend:latest
+                            docker tag fossawork-frontend:${IMAGE_TAG} ${DOCKER_REGISTRY}/fossawork-frontend:latest
+                            docker push ${DOCKER_REGISTRY}/fossawork-backend:latest
+                            docker push ${DOCKER_REGISTRY}/fossawork-frontend:latest
+                        fi
+                    """
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                anyOf {
+                    branch 'develop'
+                    branch 'main'
+                }
+            }
+            stages {
+                stage('Deploy to Staging') {
+                    when {
+                        branch 'develop'
+                    }
+                    steps {
+                        script {
+                            deploy(
+                                environment: 'staging',
+                                imageTag: IMAGE_TAG
+                            )
+                        }
+                    }
+                }
+
+                stage('Deploy to Production') {
+                    when {
+                        branch 'main'
+                    }
+                    steps {
+                        input message: 'Deploy to Production?', ok: 'Deploy'
+                        script {
+                            deploy(
+                                environment: 'production',
+                                imageTag: IMAGE_TAG
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('E2E Tests') {
+            when {
+                anyOf {
+                    branch 'develop'
+                    branch 'main'
+                }
+            }
+            steps {
+                build job: 'fossawork-e2e-tests', parameters: [
+                    string(name: 'ENVIRONMENT', value: env.BRANCH_NAME == 'main' ? 'production' : 'staging'),
+                    string(name: 'IMAGE_TAG', value: IMAGE_TAG)
+                ]
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                def message = "✅ Build Success: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n" +
+                            "Branch: ${env.BRANCH_NAME}\n" +
+                            "Commit: ${env.GIT_COMMIT_MSG}\n" +
+                            "Author: ${env.GIT_AUTHOR}"
+                sendSlackNotification(message, 'good')
+            }
+        }
+
+        failure {
+            script {
+                def message = "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n" +
+                            "Branch: ${env.BRANCH_NAME}\n" +
+                            "Commit: ${env.GIT_COMMIT_MSG}\n" +
+                            "Author: ${env.GIT_AUTHOR}\n" +
+                            "Check: ${env.BUILD_URL}"
+                sendSlackNotification(message, 'danger')
+            }
+        }
+
+        always {
+            cleanWs()
+        }
+    }
+}
+
+def deploy(Map params) {
+    def kubeconfig = params.environment == 'production' ? 'prod-kubeconfig' : 'staging-kubeconfig'
+    
+    withCredentials([file(credentialsId: kubeconfig, variable: 'KUBECONFIG')]) {
+        sh """
+            kubectl set image deployment/fossawork-backend \
+                backend=${DOCKER_REGISTRY}/fossawork-backend:${params.imageTag} \
+                -n ${params.environment}
+            
+            kubectl set image deployment/fossawork-frontend \
+                frontend=${DOCKER_REGISTRY}/fossawork-frontend:${params.imageTag} \
+                -n ${params.environment}
+            
+            kubectl rollout status deployment/fossawork-backend -n ${params.environment}
+            kubectl rollout status deployment/fossawork-frontend -n ${params.environment}
+        """
+    }
+}
+
+def sendSlackNotification(String message, String color) {
+    if (env.SLACK_WEBHOOK) {
+        slackSend(
+            channel: '#ci-cd',
+            color: color,
+            message: message,
+            teamDomain: 'fossawork',
+            tokenCredentialId: 'slack-token'
+        )
+    }
+}

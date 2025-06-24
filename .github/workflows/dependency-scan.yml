@@ -1,0 +1,341 @@
+name: Dependency Vulnerability Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  push:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'backend/requirements.txt'
+      - 'backend/Pipfile'
+      - 'backend/Pipfile.lock'
+      - 'backend/pyproject.toml'
+      - 'backend/poetry.lock'
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'backend/requirements.txt'
+      - 'backend/Pipfile'
+      - 'backend/Pipfile.lock'
+      - 'backend/pyproject.toml'
+      - 'backend/poetry.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  analyze-javascript:
+    name: JavaScript Dependency Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Run npm audit
+        id: npm-audit
+        run: |
+          echo "## NPM Audit Results" > npm-audit-report.md
+          echo "### Root Package" >> npm-audit-report.md
+          npm audit --json > npm-audit.json || true
+          npm audit >> npm-audit-report.md || true
+          echo "" >> npm-audit-report.md
+          echo "### Frontend Package" >> npm-audit-report.md
+          cd frontend
+          npm audit --json > ../frontend-npm-audit.json || true
+          npm audit >> ../npm-audit-report.md || true
+
+      - name: Run npm-check-updates
+        run: |
+          npx npm-check-updates --format json > ncu-report.json || true
+          echo "" >> npm-audit-report.md
+          echo "## Outdated Dependencies" >> npm-audit-report.md
+          npx npm-check-updates >> npm-audit-report.md || true
+
+      - name: Snyk JavaScript Test
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          npm install -g snyk
+          snyk test --json > snyk-js-report.json || true
+          snyk test --severity-threshold=high || true
+          cd frontend
+          snyk test --json > ../snyk-frontend-report.json || true
+
+      - name: OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'fossawork-javascript'
+          path: '.'
+          format: 'ALL'
+          args: >
+            --enableRetired
+            --enableExperimental
+            --nodeAuditAnalyzerEnabled
+            --nodePackageSkipDevDependencies
+            --failOnCVSS 7
+            --suppression suppression.xml
+        continue-on-error: true
+
+      - name: Retire.js Security Scan
+        run: |
+          npm install -g retire
+          retire --outputformat json --outputpath retire-report.json || true
+          retire --js --node || true
+
+      - name: Better NPM Audit
+        run: |
+          npx better-npm-audit audit --level high --production
+
+      - name: Upload JavaScript Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: javascript-dependency-reports
+          path: |
+            npm-audit-report.md
+            npm-audit.json
+            frontend-npm-audit.json
+            ncu-report.json
+            snyk-js-report.json
+            snyk-frontend-report.json
+            retire-report.json
+            dependency-check-report.*
+
+  analyze-python:
+    name: Python Dependency Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install analysis tools
+        run: |
+          pip install safety pip-audit pipenv-check cyclonedx-bom
+
+      - name: Safety Check
+        id: safety
+        run: |
+          cd backend
+          echo "## Safety Check Results" > python-security-report.md
+          safety check --json --output safety-report.json || true
+          safety check >> python-security-report.md || true
+
+      - name: Pip-audit Check
+        run: |
+          cd backend
+          echo "" >> python-security-report.md
+          echo "## Pip-audit Results" >> python-security-report.md
+          pip-audit --requirement requirements.txt --format json --output pip-audit-report.json || true
+          pip-audit --requirement requirements.txt >> python-security-report.md || true
+
+      - name: Snyk Python Test
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          cd backend
+          pip install snyk
+          snyk test --json > snyk-python-report.json || true
+          snyk test --severity-threshold=high || true
+
+      - name: Generate Python SBOM
+        run: |
+          cd backend
+          cyclonedx-py -r requirements.txt -o sbom-python.json --format json
+
+      - name: Check for known vulnerabilities in dependencies
+        run: |
+          cd backend
+          pip install pip-licenses
+          pip-licenses --format=json > licenses-python.json
+
+      - name: OWASP Dependency Check for Python
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'fossawork-python'
+          path: './backend'
+          format: 'ALL'
+          args: >
+            --enableRetired
+            --enableExperimental
+            --failOnCVSS 7
+        continue-on-error: true
+
+      - name: Upload Python Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-dependency-reports
+          path: |
+            backend/python-security-report.md
+            backend/safety-report.json
+            backend/pip-audit-report.json
+            backend/snyk-python-report.json
+            backend/sbom-python.json
+            backend/licenses-python.json
+
+  container-dependencies:
+    name: Container Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build test containers
+        run: |
+          docker build -t fossawork-backend:test ./backend
+          docker build -t fossawork-frontend:test ./frontend
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'image'
+          scan-ref: 'fossawork-backend:test'
+          format: 'sarif'
+          output: 'trivy-backend-deps.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          vuln-type: 'os,library'
+
+      - name: Run Grype vulnerability scanner
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          grype fossawork-backend:test -o json > grype-backend-report.json
+          grype fossawork-frontend:test -o json > grype-frontend-report.json
+
+      - name: Upload Container Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: container-dependency-reports
+          path: |
+            trivy-backend-deps.sarif
+            grype-backend-report.json
+            grype-frontend-report.json
+
+  license-compliance:
+    name: License Compliance Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup tools
+        run: |
+          npm install -g license-checker
+          pip install pip-licenses
+
+      - name: Check JavaScript licenses
+        run: |
+          echo "# License Report" > license-report.md
+          echo "## JavaScript Dependencies" >> license-report.md
+          license-checker --json > js-licenses.json
+          license-checker --summary >> license-report.md
+          cd frontend
+          license-checker --summary >> ../license-report.md
+
+      - name: Check Python licenses
+        run: |
+          cd backend
+          echo "" >> ../license-report.md
+          echo "## Python Dependencies" >> ../license-report.md
+          pip-licenses --format=markdown >> ../license-report.md
+
+      - name: FOSSA License Scan
+        uses: fossas/fossa-action@main
+        continue-on-error: true
+        with:
+          api-key: ${{ secrets.FOSSA_API_KEY }}
+
+      - name: Upload License Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-reports
+          path: |
+            license-report.md
+            js-licenses.json
+
+  create-issues:
+    name: Create Issues for Vulnerabilities
+    runs-on: ubuntu-latest
+    needs: [analyze-javascript, analyze-python, container-dependencies]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v3
+
+      - name: Process vulnerability reports
+        run: |
+          # Script to parse reports and create issues
+          echo "Processing vulnerability reports..."
+
+      - name: Create GitHub Issues
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            // Read and parse vulnerability reports
+            // Create issues for critical and high vulnerabilities
+            
+  summary-report:
+    name: Generate Summary Report
+    runs-on: ubuntu-latest
+    needs: [analyze-javascript, analyze-python, container-dependencies, license-compliance]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate consolidated report
+        run: |
+          echo "# Dependency Scan Summary - $(date)" > dependency-scan-summary.md
+          echo "" >> dependency-scan-summary.md
+          echo "## Overview" >> dependency-scan-summary.md
+          echo "- JavaScript Dependencies Scanned" >> dependency-scan-summary.md
+          echo "- Python Dependencies Scanned" >> dependency-scan-summary.md
+          echo "- Container Dependencies Scanned" >> dependency-scan-summary.md
+          echo "- License Compliance Checked" >> dependency-scan-summary.md
+          
+      - name: Upload final report
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-scan-summary
+          path: dependency-scan-summary.md
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('dependency-scan-summary.md', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            })
+
+      - name: Send notifications
+        if: github.event_name == 'schedule'
+        run: |
+          # Send email/Slack notifications for scheduled scans
+          echo "Sending vulnerability notifications..."

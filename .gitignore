@@ -143,4 +143,22 @@ dev-debug.log
 # OS specific
 # Task files
 tasks.json
-tasks/ 
+tasks/
+
+# Security and cache files
+.serena/
+.claude/cache/
+*.pkl
+*.cache
+
+# Training simulation data
+training/exercises/*.db
+training/exercises/scores/
+
+# Security audit temporary files
+security/audit/temp/
+security/reports/temp/
+
+# CI/CD temporary files
+ci/temp/
+deployment/temp/ 
