@@ -14,7 +14,7 @@ from functools import wraps
 
 from ..database import get_db
 from ..models import User
-from ..auth.dependencies import get_current_user_optional, get_current_user
+from ..auth.dependencies import get_optional_current_user, get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def log_security_event(
 
 async def require_auth(
     request: Request,
-    current_user: Optional[User] = Depends(get_current_user_optional)
+    current_user: Optional[User] = Depends(get_optional_current_user)
 ) -> User:
     """
     Enhanced authentication requirement that logs failures

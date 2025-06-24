@@ -13,7 +13,7 @@ import json
 
 from app.services.logging_service import get_logger
 logger = get_logger("monitoring.alert_manager")
-from app.services.notification_service import NotificationService
+from app.services.notification_manager import NotificationManager
 
 
 class AlertRule:
@@ -55,7 +55,7 @@ class AlertRule:
 class AlertManager:
     """Manages alert rules and notifications"""
     
-    def __init__(self, notification_service: Optional[NotificationService] = None):
+    def __init__(self, notification_service: Optional[NotificationManager] = None):
         self.notification_service = notification_service
         self.rules: List[AlertRule] = []
         self.alert_history = defaultdict(list)
