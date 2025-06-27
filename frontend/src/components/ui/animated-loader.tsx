@@ -22,16 +22,31 @@ export const Spinner: React.FC<SpinnerProps> = ({ size = 'md', className }) => {
 }
 
 interface DotsLoaderProps {
+  size?: 'xs' | 'sm' | 'md' | 'lg'
   className?: string
 }
 
-export const DotsLoader: React.FC<DotsLoaderProps> = ({ className }) => {
+export const DotsLoader: React.FC<DotsLoaderProps> = ({ size = 'md', className }) => {
+  const sizeClasses = {
+    xs: 'h-2 w-2',
+    sm: 'h-2.5 w-2.5',
+    md: 'h-3 w-3',
+    lg: 'h-4 w-4'
+  }
+  
+  const gapClasses = {
+    xs: 'space-x-1',
+    sm: 'space-x-1.5',
+    md: 'space-x-2',
+    lg: 'space-x-2.5'
+  }
+  
   return (
-    <div className={cn("flex space-x-2", className)}>
+    <div className={cn("flex", gapClasses[size], className)}>
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="h-3 w-3 animate-bounce rounded-full bg-primary"
+          className={cn("animate-bounce rounded-full bg-primary", sizeClasses[size])}
           style={{
             animationDelay: `${i * 0.1}s`
           }}

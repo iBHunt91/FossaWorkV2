@@ -454,19 +454,18 @@ class UserManagementService:
             existing_pref = db.query(UserPreference).filter(
                 and_(
                     UserPreference.user_id == user_id,
-                    UserPreference.preference_type == preference_type
+                    UserPreference.category == preference_type  # Fixed: use 'category' instead of 'preference_type'
                 )
             ).first()
             
             if existing_pref:
-                existing_pref.preference_data = preference_data
+                existing_pref.settings = preference_data  # Fixed: use 'settings' instead of 'preference_data'
                 existing_pref.updated_at = datetime.now()
             else:
                 new_pref = UserPreference(
-                    id=str(uuid.uuid4()),
                     user_id=user_id,
-                    preference_type=preference_type,
-                    preference_data=preference_data
+                    category=preference_type,  # Fixed: use 'category' instead of 'preference_type'
+                    settings=preference_data   # Fixed: use 'settings' instead of 'preference_data'
                 )
                 db.add(new_pref)
             
@@ -532,6 +531,17 @@ class UserManagementService:
             logger.error(f"Failed to log activity for user {user_id}: {e}")
             return False
 
+    def track_activity(self, user_id: str, user_email: str, activity_type: str, activity_data: Dict[str, Any]) -> None:
+        """
+        Track user activity (simple wrapper for background task compatibility)
+        """
+        try:
+            # For now, just log the activity - could be enhanced to store in database
+            logger.info(f"User activity tracked - User: {user_email} ({user_id}), Activity: {activity_type}, Data: {activity_data}")
+        except Exception as e:
+            logger.error(f"Failed to track activity for user {user_id}: {e}")
+            pass  # Don't fail the main operation if activity tracking fails
+
 # Global user management service instance
 user_management_service = UserManagementService()
 
@@ -568,6 +578,64 @@ async def test_user_management():
     except Exception as e:
         print(f"❌ User management test failed: {e}")
         return False
+    
+    def get_user_preference(self, user_id: str, preference_type: str, db: Session = None) -> Dict[str, Any]:
+        """
+        Synchronous wrapper for get_user_preferences (for backward compatibility)
+        """
+        try:
+            if not db:
+                db = next(get_db())
+            
+            pref = db.query(UserPreference).filter(
+                and_(
+                    UserPreference.user_id == user_id,
+                    UserPreference.preference_type == preference_type
+                )
+            ).first()
+            
+            return pref.preference_data if pref else {}
+            
+        except Exception as e:
+            logger.error(f"Failed to get preference {preference_type} for user {user_id}: {e}")
+            return {}
+    
+    def set_user_preference(self, user_id: str, preference_type: str, 
+                           preference_data: Dict[str, Any], db: Session = None) -> bool:
+        """
+        Synchronous wrapper for update_user_preferences (for backward compatibility)
+        """
+        try:
+            if not db:
+                db = next(get_db())
+            
+            existing_pref = db.query(UserPreference).filter(
+                and_(
+                    UserPreference.user_id == user_id,
+                    UserPreference.preference_type == preference_type
+                )
+            ).first()
+            
+            if existing_pref:
+                existing_pref.preference_data = preference_data
+                existing_pref.updated_at = datetime.now()
+            else:
+                new_pref = UserPreference(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    preference_type=preference_type,
+                    preference_data=preference_data
+                )
+                db.add(new_pref)
+            
+            db.commit()
+            return True
+            
+        except Exception as e:
+            if db:
+                db.rollback()
+            logger.error(f"Failed to set preference {preference_type} for user {user_id}: {e}")
+            return False
 
 if __name__ == "__main__":
     import asyncio

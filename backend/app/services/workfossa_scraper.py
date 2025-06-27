@@ -201,6 +201,16 @@ class WorkFossaScraper:
             if not page:
                 raise Exception("No active browser session found")
             
+            # Check if we're authenticated before attempting to scrape
+            logger.info("🔐 [DEBUG] Checking authentication status...")
+            current_url_before = page.url
+            logger.info(f"📍 [DEBUG] Current URL before navigation: {current_url_before}")
+            
+            # If we're on login page, that means authentication failed
+            if "login" in current_url_before.lower():
+                logger.error("❌ [DEBUG] Browser session is not authenticated - on login page")
+                raise Exception("Authentication required - please log in first")
+            
             # Navigate to work orders page
             await self._emit_progress(ScrapingProgress(
                 session_id=session_id,
@@ -212,11 +222,41 @@ class WorkFossaScraper:
             # Navigate to work orders page (all work orders, not just incomplete)
             # This allows the cleanup logic to properly identify completed work orders
             work_orders_url = "https://app.workfossa.com/app/work/list?work_visit_completion=none%7C%7CNo%20visits%20completed%7C%7CWork%20Visits%20Completed&order_direction=asc"
-            logger.info(f"Navigating to work orders URL (all work orders): {work_orders_url}")
+            logger.info(f"🌐 [DEBUG] Navigating to work orders URL: {work_orders_url}")
             
             # Optimized page loading with smart content detection
             logger.info(f"🔄 [DEBUG] Starting page navigation with optimized loading...")
             await page.goto(work_orders_url, wait_until="domcontentloaded", timeout=self.config['page_load_timeout'])
+            
+            # Log initial page state
+            current_url = page.url
+            page_title = await page.title()
+            logger.info(f"📍 [DEBUG] Current URL after navigation: {current_url}")
+            logger.info(f"📝 [DEBUG] Page title: {page_title}")
+            
+            # Check if we're actually logged in and on the right page
+            if "login" in current_url.lower():
+                logger.error(f"❌ [DEBUG] Still on login page! Navigation failed - URL: {current_url}")
+                raise Exception("Login required - not authenticated")
+            
+            # Log page content summary
+            page_content = await page.content()
+            logger.info(f"📄 [DEBUG] Page content length: {len(page_content)} characters")
+            
+            # Check for common elements that indicate successful loading
+            common_elements = {
+                "table": await page.query_selector("table"),
+                "tbody": await page.query_selector("tbody"),
+                "div.work-list-item": await page.query_selector_all("div.work-list-item"),
+                "tr": await page.query_selector_all("tr"),
+                "pagination": await page.query_selector(".pagination, .page-controls")
+            }
+            
+            for element_type, element in common_elements.items():
+                if isinstance(element, list):
+                    logger.info(f"🔍 [DEBUG] Found {len(element)} {element_type} elements")
+                else:
+                    logger.info(f"🔍 [DEBUG] {element_type} element: {'Found' if element else 'Not found'}")
             
             # Smart wait for essential content to be available
             logger.info(f"🔍 [DEBUG] Waiting for table content to appear...")
@@ -227,6 +267,15 @@ class WorkFossaScraper:
                 logger.warning(f"⚠️ [DEBUG] Table selector timeout, using fallback wait: {e}")
                 # Fallback to a short wait if selector not found
                 await page.wait_for_timeout(2000)
+                
+                # Log what we actually found instead
+                all_selectors = ["table", "tbody", "tr", "div", ".work-list-item", ".list-item"]
+                for selector in all_selectors:
+                    try:
+                        elements = await page.query_selector_all(selector)
+                        logger.info(f"🔍 [DEBUG] Fallback check - {selector}: {len(elements)} elements")
+                    except:
+                        pass
             
             # Additional stabilization wait (reduced from 3000ms)
             await page.wait_for_timeout(1000)
@@ -667,7 +716,43 @@ class WorkFossaScraper:
             except Exception as e:
                 logger.debug(f"Pagination controls approach failed: {e}")
             
-            logger.warning("Could not find page size dropdown with any method")
+            logger.warning("❌ [DEBUG] Could not find page size dropdown with any method")
+            
+            # Enhanced debugging for page size dropdown failure
+            try:
+                logger.info("🔍 [DEBUG] Analyzing page for pagination elements...")
+                
+                # Take screenshot of current state
+                await page.screenshot(path="page_size_search_failed.png")
+                logger.info("📸 [DEBUG] Screenshot saved: page_size_search_failed.png")
+                
+                # Look for any element that might contain "25" or pagination info
+                all_text_elements = await page.query_selector_all("*")
+                logger.info(f"📊 [DEBUG] Found {len(all_text_elements)} total elements on page")
+                
+                elements_with_numbers = []
+                for i, elem in enumerate(all_text_elements[:100]):  # Check first 100 elements
+                    try:
+                        text = await elem.text_content()
+                        if text and any(num in text for num in ["25", "50", "100", "per page", "results"]):
+                            tag_name = await elem.evaluate("el => el.tagName.toLowerCase()")
+                            class_name = await elem.get_attribute("class") or ""
+                            elements_with_numbers.append({
+                                "index": i,
+                                "tag": tag_name,
+                                "class": class_name,
+                                "text": text.strip()[:100]
+                            })
+                    except:
+                        continue
+                
+                logger.info(f"🔍 [DEBUG] Found {len(elements_with_numbers)} elements with pagination numbers:")
+                for elem_info in elements_with_numbers:
+                    logger.info(f"📋 [DEBUG] Element {elem_info['index']}: {elem_info['tag']}.{elem_info['class']} = '{elem_info['text']}'")
+                
+            except Exception as debug_error:
+                logger.warning(f"⚠️ [DEBUG] Error during page size debugging: {debug_error}")
+                
             return False
             
         except Exception as e:
@@ -714,21 +799,47 @@ class WorkFossaScraper:
     
     async def _find_work_order_elements(self, page) -> List:
         """Find work order elements using multiple selector strategies"""
+        logger.info("🔍 [DEBUG] Starting _find_work_order_elements method")
         work_order_elements = []
         
         # Wait for content to load
+        logger.info("⏱️ [DEBUG] Waiting 2 seconds for content to load...")
         await page.wait_for_timeout(2000)
         
         # Log page URL and title for debugging
         current_url = page.url
         page_title = await page.title()
-        logger.info(f"Current page URL: {current_url}")
-        logger.info(f"Page title: {page_title}")
+        logger.info(f"📍 [DEBUG] Current page URL: {current_url}")
+        logger.info(f"📝 [DEBUG] Page title: {page_title}")
         
         # Check if we're on the right page
         if "login" in current_url.lower():
-            logger.error("Still on login page - login may have failed")
+            logger.error("❌ [DEBUG] Still on login page - login may have failed")
             return []
+        
+        # Save current page HTML for debugging
+        try:
+            page_content = await page.content()
+            logger.info(f"📄 [DEBUG] Page content length: {len(page_content)} characters")
+            
+            # Save HTML to file for inspection
+            with open("current_page_content.html", "w", encoding="utf-8") as f:
+                f.write(page_content)
+            logger.info("📁 [DEBUG] Page content saved to current_page_content.html")
+            
+            # Check for key phrases that indicate the page loaded correctly
+            key_phrases = ["work order", "Work Order", "customer", "Customer", "visit", "Visit"]
+            found_phrases = [phrase for phrase in key_phrases if phrase in page_content]
+            logger.info(f"🔎 [DEBUG] Found key phrases: {found_phrases}")
+            
+            # Check for error messages
+            error_phrases = ["error", "Error", "not found", "unauthorized", "forbidden"]
+            found_errors = [phrase for phrase in error_phrases if phrase in page_content]
+            if found_errors:
+                logger.warning(f"⚠️ [DEBUG] Found potential error phrases: {found_errors}")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ [DEBUG] Could not save page content: {e}")
         
         # Primary strategy: div-based structure (based on actual WorkFossa structure)
         selectors_to_try = [
@@ -744,57 +855,142 @@ class WorkFossaScraper:
             ".work-order, .job, .visit"
         ]
         
-        logger.info("Starting element search...")
+        logger.info("🔍 [DEBUG] Starting element search with multiple selectors...")
         
-        for selector in selectors_to_try:
+        for i, selector in enumerate(selectors_to_try, 1):
             try:
+                logger.info(f"🎯 [DEBUG] Testing selector {i}/{len(selectors_to_try)}: '{selector}'")
                 elements = await page.query_selector_all(selector)
-                logger.info(f"Selector '{selector}' found {len(elements)} elements")
+                logger.info(f"📊 [DEBUG] Selector '{selector}' found {len(elements)} elements")
                 
                 if elements and len(elements) > 0:
+                    # Log details about found elements for debugging
+                    logger.info(f"✅ [DEBUG] Found {len(elements)} elements with selector '{selector}', analyzing content...")
+                    
                     # For work-list-item selector, use elements directly if found
                     if "work-list-item" in selector and len(elements) > 0:
-                        logger.info(f"Found {len(elements)} work order elements with work-list-item selector")
+                        logger.info(f"🎯 [DEBUG] Using work-list-item selector directly: {len(elements)} elements")
                         work_order_elements = elements
                         break
                     
                     # Filter out header rows or empty rows for other selectors
                     valid_elements = []
-                    for i, element in enumerate(elements):
-                        # Check if row has actual content
-                        text_content = await element.text_content()
-                        if text_content and len(text_content.strip()) > 10:
-                            # Log first few elements for debugging
-                            if i < 3:
-                                logger.info(f"Element {i} text (first 200 chars): {text_content[:200].strip()}")
+                    for j, element in enumerate(elements):
+                        try:
+                            # Check if row has actual content
+                            text_content = await element.text_content()
+                            logger.info(f"📝 [DEBUG] Element {j} text length: {len(text_content) if text_content else 0}")
                             
-                            # Check if it's not a header row by looking for common header text
-                            header_indicators = ["Customer", "Items", "Visits", "Work Order", "Actions"]
-                            is_header = any(header in text_content for header in header_indicators)
-                            
-                            # Also check if it contains a work order ID pattern (W-xxxxx)
-                            has_work_id = "W-" in text_content
-                            
-                            if not is_header and has_work_id:
-                                valid_elements.append(element)
+                            if text_content and len(text_content.strip()) > 10:
+                                # Log first few elements for debugging
+                                if j < 5:  # Log more elements for better debugging
+                                    logger.info(f"📋 [DEBUG] Element {j} text (first 200 chars): {text_content[:200].strip()}")
+                                
+                                # Check if it's not a header row by looking for common header text
+                                header_indicators = ["Customer", "Items", "Visits", "Work Order", "Actions"]
+                                is_header = any(header in text_content for header in header_indicators)
+                                
+                                # Also check if it contains a work order ID pattern (W-xxxxx)
+                                has_work_id = "W-" in text_content
+                                
+                                logger.info(f"🔍 [DEBUG] Element {j} analysis: is_header={is_header}, has_work_id={has_work_id}")
+                                
+                                if not is_header and has_work_id:
+                                    valid_elements.append(element)
+                                    logger.info(f"✅ [DEBUG] Element {j} added to valid list")
+                                else:
+                                    logger.info(f"❌ [DEBUG] Element {j} rejected (header or no work ID)")
+                            else:
+                                logger.info(f"❌ [DEBUG] Element {j} rejected (too short or empty)")
+                        except Exception as element_error:
+                            logger.warning(f"⚠️ [DEBUG] Error analyzing element {j}: {element_error}")
+                            continue
                     
                     if valid_elements:
-                        logger.info(f"Found {len(valid_elements)} valid work orders using selector: {selector}")
+                        logger.info(f"🎉 [DEBUG] Found {len(valid_elements)} valid work orders using selector: {selector}")
                         work_order_elements = valid_elements
                         break
                     else:
-                        logger.info(f"No valid work orders found with selector: {selector}")
+                        logger.info(f"❌ [DEBUG] No valid work orders found with selector: {selector} (found {len(elements)} total elements)")
+                else:
+                    logger.info(f"❌ [DEBUG] No elements found with selector: {selector}")
             except Exception as e:
-                logger.debug(f"Selector {selector} failed: {e}")
+                logger.warning(f"⚠️ [DEBUG] Selector {selector} failed with error: {e}")
+                import traceback
+                logger.debug(f"📋 [DEBUG] Selector error traceback: {traceback.format_exc()}")
                 continue
         
         if not work_order_elements:
-            logger.warning("No work order elements found with any selector")
-            # Get page content for debugging
-            page_content = await page.content()
-            logger.debug(f"Page content length: {len(page_content)}")
-            if len(page_content) < 1000:
-                logger.warning(f"Page seems empty or too small: {page_content[:500]}")
+            logger.error("❌ [DEBUG] No work order elements found with any selector!")
+            
+            # Enhanced debugging for empty results
+            try:
+                page_content = await page.content()
+                logger.info(f"📄 [DEBUG] Final page content length: {len(page_content)}")
+                
+                if len(page_content) < 1000:
+                    logger.error(f"❌ [DEBUG] Page seems empty or too small: {page_content[:500]}")
+                
+                # Try to find ANY content on the page to understand what we're dealing with
+                logger.info("🔍 [DEBUG] Attempting broader content analysis...")
+                
+                # Check for basic HTML elements
+                basic_checks = {
+                    "body": await page.query_selector("body"),
+                    "main": await page.query_selector("main"),
+                    "div": await page.query_selector_all("div"),
+                    "span": await page.query_selector_all("span"),
+                    "p": await page.query_selector_all("p"),
+                    "button": await page.query_selector_all("button"),
+                    "input": await page.query_selector_all("input"),
+                    "a": await page.query_selector_all("a")
+                }
+                
+                for element_type, result in basic_checks.items():
+                    if isinstance(result, list):
+                        logger.info(f"🔍 [DEBUG] Found {len(result)} {element_type} elements")
+                        if element_type == "div" and len(result) > 0:
+                            # Log some div classes to understand page structure
+                            for i, div in enumerate(result[:10]):  # First 10 divs
+                                try:
+                                    class_name = await div.get_attribute("class")
+                                    logger.info(f"📋 [DEBUG] Div {i} class: {class_name}")
+                                except:
+                                    pass
+                    else:
+                        logger.info(f"🔍 [DEBUG] {element_type}: {'Found' if result else 'Not found'}")
+                
+                # Check for specific WorkFossa elements or error messages
+                workfossa_indicators = [
+                    ".navbar", ".header", ".sidebar", ".content", ".main",
+                    ".work-list", ".work-orders", ".dashboard", ".app",
+                    "[class*='work']", "[class*='order']", "[class*='list']"
+                ]
+                
+                for indicator in workfossa_indicators:
+                    try:
+                        elements = await page.query_selector_all(indicator)
+                        if len(elements) > 0:
+                            logger.info(f"🎯 [DEBUG] Found {len(elements)} elements matching '{indicator}'")
+                            # Log class names of found elements
+                            for i, elem in enumerate(elements[:5]):
+                                try:
+                                    class_name = await elem.get_attribute("class")
+                                    logger.info(f"🔍 [DEBUG] {indicator} element {i} class: {class_name}")
+                                except:
+                                    pass
+                    except:
+                        pass
+                
+                # Save detailed HTML for manual inspection
+                with open("failed_scrape_debug.html", "w", encoding="utf-8") as f:
+                    f.write(page_content)
+                logger.info("📁 [DEBUG] Failed scrape HTML saved to failed_scrape_debug.html")
+                
+            except Exception as debug_error:
+                logger.error(f"❌ [DEBUG] Error during debugging analysis: {debug_error}")
+        else:
+            logger.info(f"🎉 [DEBUG] Successfully found {len(work_order_elements)} work order elements!")
         
         return work_order_elements
     

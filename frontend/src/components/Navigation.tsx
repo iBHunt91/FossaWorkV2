@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Calendar, Settings, Activity, FileText, Zap, LogOut, Sparkles, Moon, Sun, MapPin, Filter } from 'lucide-react'
+import { Home, Calendar, Settings, Activity, FileText, Zap, LogOut, Sparkles, Moon, Sun, MapPin, Filter, FlaskConical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text'
@@ -21,6 +21,7 @@ const Navigation: React.FC = () => {
     { path: '/job-map', label: 'Job Map', icon: MapPin, gradient: 'from-emerald-600 to-teal-600' },
     { path: '/filters', label: 'Filters', icon: Filter, gradient: 'from-yellow-600 to-orange-600' },
     { path: '/automation', label: 'Automation', icon: Zap, gradient: 'from-orange-600 to-red-600' },
+    { path: '/testing', label: 'Testing', icon: FlaskConical, gradient: 'from-indigo-600 to-purple-600' },
     { path: '/settings', label: 'Settings', icon: Settings, gradient: 'from-green-600 to-teal-600' },
   ]
 

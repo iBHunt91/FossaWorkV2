@@ -225,11 +225,17 @@ async def get_work_orders(
     user_id: str = Query(..., description="User ID to fetch work orders for"),
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(100, ge=1, le=500, description="Number of records to return (max 500)"),
+    start_date: str = Query(None, description="Filter work orders from this date (ISO 8601 format)"),
+    end_date: str = Query(None, description="Filter work orders until this date (ISO 8601 format)"),
     profile_queries: bool = Query(False, description="Enable query profiling (dev mode only)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_auth)
 ):
     """Get all work orders for a user with pagination"""
+    logger.info(f"[WORK_ORDERS] Getting work orders for user {user_id}")
+    logger.info(f"[WORK_ORDERS] Pagination: skip={skip}, limit={limit}")
+    logger.info(f"[WORK_ORDERS] Date filters: start_date={start_date}, end_date={end_date}")
+    
     # Enhanced security check with logging
     await require_user_access(user_id, request, current_user)
     
@@ -254,15 +260,41 @@ async def get_work_orders(
             .filter(WorkOrder.user_id == user_id)\
             .options(joinedload(WorkOrder.dispensers))
         
+        logger.debug(f"[WORK_ORDERS] Base query built for user {user_id}")
+        
+        # Apply date filtering if provided
+        if start_date:
+            try:
+                start_datetime = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                query = query.filter(WorkOrder.scheduled_date >= start_datetime)
+                logger.info(f"[WORK_ORDERS] Applied start date filter: {start_datetime}")
+            except ValueError:
+                logger.error(f"[WORK_ORDERS] Invalid start_date format: {start_date}")
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use ISO 8601 format.")
+        
+        if end_date:
+            try:
+                end_datetime = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                query = query.filter(WorkOrder.scheduled_date <= end_datetime)
+                logger.info(f"[WORK_ORDERS] Applied end date filter: {end_datetime}")
+            except ValueError:
+                logger.error(f"[WORK_ORDERS] Invalid end_date format: {end_date}")
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use ISO 8601 format.")
+        
         # Get total count for pagination info
+        logger.debug("[WORK_ORDERS] Counting total work orders...")
         total_count = query.count()
+        logger.info(f"[WORK_ORDERS] Total work orders matching query: {total_count}")
         
         # Apply pagination
+        logger.debug(f"[WORK_ORDERS] Applying pagination and ordering...")
         work_orders = query\
             .order_by(WorkOrder.scheduled_date.desc(), WorkOrder.created_at.desc())\
             .offset(skip)\
             .limit(limit)\
             .all()
+        
+        logger.info(f"[WORK_ORDERS] Retrieved {len(work_orders)} work orders from database")
         
         result = []
         for wo in work_orders:
@@ -370,9 +402,18 @@ async def get_work_orders(
                 for candidate in profiling_results['n_plus_one_candidates'][:3]:
                     logger.warning(f"  - Pattern executed {candidate['count']} times: {candidate['pattern'][:80]}...")
         
+        # Log final results
+        logger.info(f"[WORK_ORDERS] Successfully returned {len(result)} work orders")
+        if result:
+            # Log sample work order for debugging
+            sample_wo = result[0]
+            logger.debug(f"[WORK_ORDERS] Sample work order: ID={sample_wo.get('id')}, Store={sample_wo.get('external_id')}, Date={sample_wo.get('scheduled_date')}")
+            logger.debug(f"[WORK_ORDERS] Sample has {len(sample_wo.get('dispensers', []))} dispensers")
+        
         return result
         
     except Exception as e:
+        logger.error(f"[WORK_ORDERS] Failed to fetch work orders: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch work orders: {str(e)}")
 
 @router.get("/{work_order_id}", response_model=Dict[str, Any])
@@ -468,7 +509,7 @@ async def get_work_order(
                     "progress_percentage": d.progress_percentage,
                     "automation_completed": d.automation_completed,
                     "created_at": d.created_at.isoformat(),
-                    "updated_at": d.updated_at.isoformat(),
+                        "updated_at": d.updated_at.isoformat(),
                     # Add fields from the dispenser model directly
                     "make": d.make,
                     "model": d.model,
@@ -1050,6 +1091,9 @@ async def scrape_dispensers(
     current_user: User = Depends(require_auth)
 ):
     """Trigger dispenser scraping for a specific work order"""
+    logger.info(f"[DISPENSER_SCRAPE] Starting dispenser scraping for work order {work_order_id}")
+    logger.info(f"[DISPENSER_SCRAPE] User: {user_id}, Force refresh: {force_refresh}")
+    
     try:
         # Verify work order exists and belongs to user
         work_order = db.query(WorkOrder).filter(
@@ -1058,7 +1102,10 @@ async def scrape_dispensers(
         ).first()
         
         if not work_order:
+            logger.error(f"[DISPENSER_SCRAPE] Work order {work_order_id} not found for user {user_id}")
             raise HTTPException(status_code=404, detail="Work order not found")
+        
+        logger.info(f"[DISPENSER_SCRAPE] Found work order: {work_order.external_id}, Customer URL: {getattr(work_order, 'customer_url', 'None')}")
         
         # Check if dispensers already exist (unless force_refresh is True)
         if not force_refresh:
@@ -1066,8 +1113,10 @@ async def scrape_dispensers(
                 Dispenser.work_order_id == work_order_id
             ).count()
             
+            logger.info(f"[DISPENSER_SCRAPE] Found {existing_dispensers} existing dispensers for work order {work_order.external_id}")
+            
             if existing_dispensers > 0:
-                logger.info(f"Skipping dispenser scrape for {work_order.external_id} - already has {existing_dispensers} dispensers")
+                logger.info(f"[DISPENSER_SCRAPE] Skipping dispenser scrape for {work_order.external_id} - already has {existing_dispensers} dispensers")
                 return {
                     "status": "skipped",
                     "message": f"Work order {work_order.external_id} already has {existing_dispensers} dispensers. Use force_refresh=true to re-scrape.",
@@ -1075,6 +1124,8 @@ async def scrape_dispensers(
                     "dispenser_count": existing_dispensers,
                     "timestamp": datetime.now().isoformat()
                 }
+        else:
+            logger.info(f"[DISPENSER_SCRAPE] Force refresh enabled - will re-scrape dispensers")
         
         # Get user credentials
         from ..models.user_models import UserCredential
@@ -1129,6 +1180,9 @@ async def scrape_dispensers(
             customer_url
         )
         
+        logger.info(f"[DISPENSER_SCRAPE] Initiated background scraping for work order {work_order.external_id}")
+        logger.info(f"[DISPENSER_SCRAPE] Customer URL: {customer_url}")
+        
         return {
             "status": "scraping_started",
             "message": f"Dispenser scraping initiated for work order {work_order.external_id}",
@@ -1140,11 +1194,15 @@ async def scrape_dispensers(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"[DISPENSER_SCRAPE] Failed to start dispenser scraping: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to start dispenser scraping: {str(e)}")
 
 
 async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials: dict, customer_url: str):
     """Background task to scrape dispensers for a work order"""
+    logger.info(f"[DISPENSER_SCRAPE_BG] Starting background dispenser scrape for work order {work_order_id}")
+    logger.info(f"[DISPENSER_SCRAPE_BG] User: {user_id}, Customer URL: {customer_url}")
+    
     # Import the database session
     from ..database import SessionLocal
     db = SessionLocal()
@@ -1160,6 +1218,8 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
         "work_order_id": work_order_id,
         "started_at": datetime.now().isoformat()
     }
+    
+    logger.info(f"[DISPENSER_SCRAPE_BG] Progress tracking initialized with key: {progress_key}")
     
     def update_progress(phase: str, percentage: float, message: str, error: str = None):
         if progress_key in scraping_progress:
@@ -1372,7 +1432,8 @@ async def perform_dispenser_scrape(work_order_id: str, user_id: str, credentials
         await workfossa_automation.close_session(session_id)
         
     except Exception as e:
-        logger.error(f"Dispenser scraping failed for work order {work_order_id}: {e}", exc_info=True)
+        logger.error(f"[DISPENSER_SCRAPE_BG] Dispenser scraping failed for work order {work_order_id}: {e}", exc_info=True)
+        logger.error(f"[DISPENSER_SCRAPE_BG] Failure details - User: {user_id}, Customer URL: {customer_url}")
         update_progress("error", 0, f"Scraping failed: {str(e)}", error=str(e))
         if progress_key in scraping_progress:
             scraping_progress[progress_key]["status"] = "failed"

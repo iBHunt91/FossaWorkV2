@@ -35,7 +35,7 @@ export default function FilterSummaryPanel({
   const filterTypes = [
     { value: 'all', label: 'All Filters', color: 'bg-gray-500' },
     { value: 'gas', label: 'Gas Filters', color: 'bg-blue-500' },
-    { value: 'diesel', label: 'Diesel Filters', color: 'bg-green-500' }
+    { value: 'diesel', label: 'Diesel Filters', color: 'bg-emerald-500' }
   ];
 
   const handleExportSummary = () => {
@@ -157,12 +157,30 @@ export default function FilterSummaryPanel({
             {sortedFilters.map((filter, index) => (
               <div 
                 key={filter.partNumber}
-                className="group flex items-center justify-between p-4 bg-gradient-to-r from-muted/30 to-muted/50 rounded-lg hover:from-muted/60 hover:to-muted/80 transition-all duration-300 hover:shadow-md hover:scale-[1.02] border border-transparent hover:border-primary/20"
+                className={cn(
+                  "group flex items-center justify-between p-4 rounded-lg transition-all duration-300 hover:shadow-md hover:scale-[1.02] border border-transparent",
+                  filter.filterType === 'gas' 
+                    ? "bg-gradient-to-r from-blue-500/5 to-blue-500/10 hover:from-blue-500/10 hover:to-blue-500/20 hover:border-blue-500/20"
+                    : filter.filterType === 'diesel'
+                    ? "bg-gradient-to-r from-emerald-500/5 to-emerald-500/10 hover:from-emerald-500/10 hover:to-emerald-500/20 hover:border-emerald-500/20"
+                    : filter.filterType === 'def'
+                    ? "bg-gradient-to-r from-purple-500/5 to-purple-500/10 hover:from-purple-500/10 hover:to-purple-500/20 hover:border-purple-500/20"
+                    : "bg-gradient-to-r from-gray-500/5 to-gray-500/10 hover:from-gray-500/10 hover:to-gray-500/20 hover:border-gray-500/20"
+                )}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-3">
-                    <span className="font-mono font-bold text-lg group-hover:text-primary transition-colors">
+                    <span className={cn(
+                      "font-mono font-bold text-lg transition-colors",
+                      filter.filterType === 'gas' 
+                        ? "group-hover:text-blue-600"
+                        : filter.filterType === 'diesel'
+                        ? "group-hover:text-emerald-600"
+                        : filter.filterType === 'def'
+                        ? "group-hover:text-purple-600"
+                        : "group-hover:text-gray-600"
+                    )}>
                       {filter.partNumber}
                     </span>
                     <Badge 
@@ -170,11 +188,12 @@ export default function FilterSummaryPanel({
                       className={cn(
                         'text-xs font-semibold transition-all group-hover:scale-105',
                         filter.filterType === 'gas' && 'border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/20',
-                        filter.filterType === 'diesel' && 'border-green-500 text-green-600 bg-green-50 dark:bg-green-900/20',
-                        filter.filterType === 'def' && 'border-purple-500 text-purple-600 bg-purple-50 dark:bg-purple-900/20'
+                        filter.filterType === 'diesel' && 'border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20',
+                        filter.filterType === 'def' && 'border-purple-500 text-purple-600 bg-purple-50 dark:bg-purple-900/20',
+                        !filter.filterType && 'border-gray-500 text-gray-600 bg-gray-50 dark:bg-gray-900/20'
                       )}
                     >
-                      {filter.filterType.toUpperCase()}
+                      {filter.filterType?.toUpperCase() || 'FILTER'}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -184,7 +203,16 @@ export default function FilterSummaryPanel({
                 </div>
                 
                 <div className="text-right space-y-1">
-                  <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent group-hover:scale-110 transition-transform">
+                  <div className={cn(
+                    "text-3xl font-bold bg-gradient-to-r bg-clip-text text-transparent group-hover:scale-110 transition-transform",
+                    filter.filterType === 'gas' 
+                      ? "from-blue-600 to-indigo-600"
+                      : filter.filterType === 'diesel'
+                      ? "from-emerald-600 to-green-600"
+                      : filter.filterType === 'def'
+                      ? "from-purple-600 to-pink-600"
+                      : "from-gray-600 to-slate-600"
+                  )}>
                     {filter.quantity}
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-1">

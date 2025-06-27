@@ -43,6 +43,13 @@ class WorkOrder(Base):
     created_by = Column(String(200), nullable=True)  # User who created the work order
     customer_url = Column(Text, nullable=True)  # URL to customer location page
     
+    # Sync-related fields
+    last_synced_at = Column(DateTime, nullable=True)
+    sync_status = Column(String(50), nullable=True)  # pending, syncing, synced, failed
+    sync_error_message = Column(Text, nullable=True)
+    sync_retry_count = Column(Integer, default=0)
+    sync_session_id = Column(String, nullable=True)
+    
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     

@@ -16,6 +16,7 @@ from ..auth.security import (
     AuthenticationService,
     create_access_token,
     get_current_user,
+    get_optional_current_user,
     ACCESS_TOKEN_EXPIRE_HOURS
 )
 from ..models.user_models import User
@@ -226,6 +227,25 @@ async def check_auth_status(db: Session = Depends(get_db)):
         "has_users": user_count > 0,
         "user_count": user_count,
         "requires_setup": user_count == 0
+    }
+
+@router.get("/status")
+async def auth_status(
+    current_user: Optional[User] = Depends(get_optional_current_user)
+):
+    """
+    Check authentication status - returns whether a user is currently authenticated
+    This endpoint does not require authentication
+    """
+    is_authenticated = current_user is not None
+    
+    return {
+        "authenticated": is_authenticated,
+        "user": {
+            "id": current_user.id,
+            "username": current_user.label or current_user.email,
+            "email": current_user.email
+        } if is_authenticated else None
     }
 
 @router.get("/verification-status/{verification_id}", response_model=VerificationStatus)

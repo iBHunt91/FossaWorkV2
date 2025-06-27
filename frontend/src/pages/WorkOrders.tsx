@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Search, Filter, MapPin, Calendar, Wrench, AlertTriangle, CheckCircle, Clock, XCircle, List, Eye, Fuel, Sparkles, Trash2, ChevronDown, ChevronUp, Settings, Bug, Eraser, Download, CheckSquare, Square, CalendarDays, Database, ChevronLeft, ChevronRight, Hash, ArrowRight } from 'lucide-react'
-import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder, getUserPreferences, clearAllWorkOrders } from '../services/api'
+import { fetchWorkOrders, triggerScrape, updateWorkOrderStatus, openWorkOrderVisit, getScrapingProgress, triggerBatchDispenserScrape, getDispenserScrapingProgress, scrapeDispensersForWorkOrder, clearDispensersForWorkOrder, getUserPreferences, clearAllWorkOrders, apiClient as api } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { useDebouncedCallback } from 'use-debounce'
 import { useWorkOrderScrapingProgress, useDispenserScrapingProgress, useSingleDispenserProgress } from '../hooks/useProgressPolling'
@@ -486,6 +486,8 @@ const WorkOrders: React.FC = () => {
   // Dispenser modal state
   const [showDispenserModal, setShowDispenserModal] = useState(false)
   const [selectedWorkOrderForModal, setSelectedWorkOrderForModal] = useState<EnhancedWorkOrder | null>(null)
+  const [modalFilterData, setModalFilterData] = useState<any>(null)
+  const [loadingFilters, setLoadingFilters] = useState(false)
   
   // Debug modal state
   const [showDebugModal, setShowDebugModal] = useState(false)
@@ -543,9 +545,30 @@ const WorkOrders: React.FC = () => {
 
   // Get work days from preferences or use default
   const workDays = useMemo(() => {
-    if (userPreferences?.workWeek?.workDays && Array.isArray(userPreferences.workWeek.workDays)) {
-      return userPreferences.workWeek.workDays
+    // Map numeric day indices to day names
+    const dayMap: { [key: number]: string } = {
+      0: 'Sunday',
+      1: 'Monday',
+      2: 'Tuesday',
+      3: 'Wednesday',
+      4: 'Thursday',
+      5: 'Friday',
+      6: 'Saturday'
     }
+    
+    // Get work days from preferences (they come as numeric indices)
+    if (userPreferences?.work_week?.days && Array.isArray(userPreferences.work_week.days)) {
+      const dayNames = userPreferences.work_week.days
+        .map((dayIndex: number) => dayMap[dayIndex])
+        .filter(Boolean) // Remove any undefined values
+      
+      // Sort days properly - Monday first, Sunday last
+      return dayNames.sort((a: string, b: string) => {
+        const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+        return dayOrder.indexOf(a) - dayOrder.indexOf(b)
+      })
+    }
+    
     return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] // Default work week
   }, [userPreferences])
 
@@ -1625,10 +1648,76 @@ const WorkOrders: React.FC = () => {
     // You can add additional click handling here if needed
   }, [])
 
-  const handleViewDispensers = useCallback((workOrder: EnhancedWorkOrder) => {
+  const handleViewDispensers = useCallback(async (workOrder: EnhancedWorkOrder) => {
     console.log('Opening dispenser modal for work order:', workOrder)
     setSelectedWorkOrderForModal(workOrder)
+    setModalFilterData(null) // Reset previous filter data
+    setLoadingFilters(true)
     setShowDispenserModal(true)
+    
+    // Fetch filter data for this specific work order
+    try {
+      // Transform work order to match backend expected format
+      const transformedWorkOrder = {
+        id: workOrder.id,
+        jobId: workOrder.external_id || workOrder.id,
+        storeNumber: workOrder.store_number ? workOrder.store_number.replace('#', '') : '', // Remove # prefix if present
+        storeName: workOrder.site_name,
+        customerName: workOrder.customer_name || workOrder.site_name || '', // Use customer_name if available, fallback to site_name
+        serviceCode: workOrder.service_code || '',
+        serviceName: workOrder.service_name || '',
+        scheduledDate: workOrder.scheduled_date || '',
+        address: workOrder.address || ''
+      }
+      
+      // Transform dispensers to match backend expected format
+      const transformedDispensers = (workOrder.dispensers || []).map(d => {
+        // Convert fuel_grades to array format
+        let fuelGradesArray: any[] = []
+        
+        if (d.fuel_grades && typeof d.fuel_grades === 'object' && !Array.isArray(d.fuel_grades)) {
+          fuelGradesArray = Object.entries(d.fuel_grades).map(([position, gradeInfo]: [string, any]) => ({
+            position: parseInt(position),
+            grade: gradeInfo.grade || gradeInfo.name || gradeInfo
+          }))
+        } else if (Array.isArray(d.fuel_grades)) {
+          fuelGradesArray = d.fuel_grades
+        }
+        
+        return {
+          ...d,
+          fuelGrades: fuelGradesArray,
+          dispenserNumber: d.dispenser_number,
+          dispenserType: d.dispenser_type,
+          meterType: d.meter_type || 'Electronic',
+          storeNumber: transformedWorkOrder.storeNumber // Use the cleaned store number
+        }
+      })
+      
+      console.log('Fetching filters for work order:', transformedWorkOrder)
+      
+      const response = await api.post(`/api/v1/filters/calculate`, {
+        workOrders: [transformedWorkOrder],
+        dispensers: transformedDispensers,
+        overrides: {}
+      })
+      
+      console.log('Filter calculation response:', response.data)
+      
+      // Extract filters for this specific work order
+      if (response.data && response.data.details && response.data.details.length > 0) {
+        const filterDetail = response.data.details.find((d: any) => d.jobId === workOrder.external_id)
+        if (filterDetail && filterDetail.filters) {
+          setModalFilterData(filterDetail.filters)
+          console.log('Set modal filter data:', filterDetail.filters)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch filter data:', error)
+      // Continue showing modal even if filter fetch fails
+    } finally {
+      setLoadingFilters(false)
+    }
   }, [])
 
   // Calculate group statistics for all groups at once to avoid hooks in loops
@@ -2748,7 +2837,30 @@ const WorkOrders: React.FC = () => {
             />
           ) : (
           <div className="space-y-8">
-            {Object.entries(viewMode === 'list' ? groupedByDay : groupedByWeek).map(([groupLabel, groupOrders]) => {
+            {Object.entries(viewMode === 'list' ? groupedByDay : groupedByWeek)
+              .sort(([labelA], [labelB]) => {
+                // Sort groups chronologically (ascending order)
+                if (labelA === 'Unscheduled') return 1
+                if (labelB === 'Unscheduled') return -1
+                
+                // Extract dates from group labels for proper chronological sorting
+                // Handle both day format ("Monday - January 27, 2025") and week format ("Jan 27 - Feb 2, 2025")
+                const extractDate = (label: string) => {
+                  const parts = label.split(' - ')
+                  if (parts.length >= 2) {
+                    // For day format, use the date part directly
+                    // For week format, use the first date part
+                    const datePart = parts[1].includes(',') ? parts[1] : parts[0]
+                    return new Date(datePart)
+                  }
+                  return new Date(label)
+                }
+                
+                const dateA = extractDate(labelA)
+                const dateB = extractDate(labelB)
+                return dateA.getTime() - dateB.getTime()
+              })
+              .map(([groupLabel, groupOrders]) => {
               // Get pre-calculated group statistics
               const currentGroupStats = groupStats[groupLabel] || { totalDispensers: 0, hasDispensers: false }
               
@@ -2962,9 +3074,7 @@ const WorkOrders: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation() // Prevent work order card click
-                              console.log('Opening dispenser modal for work order:', workOrder)
-                              setSelectedWorkOrderForModal(workOrder)
-                              setShowDispenserModal(true)
+                              handleViewDispensers(workOrder)
                             }}
                             className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/50 border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-md font-medium shadow-sm hover:shadow-lg hover:from-blue-100 hover:to-blue-150 dark:hover:from-blue-900/50 dark:hover:to-blue-800/60 hover:scale-105 transition-all duration-200 flex items-center gap-2 cursor-pointer"
                             title="Click to view dispenser details"
@@ -3149,12 +3259,7 @@ const WorkOrders: React.FC = () => {
                     <RippleButton
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        console.log('Opening dispenser modal for work order:', workOrder)
-                        console.log('Dispensers:', workOrder.dispensers)
-                        setSelectedWorkOrderForModal(workOrder)
-                        setShowDispenserModal(true)
-                      }}
+                      onClick={() => handleViewDispensers(workOrder)}
                       title="View Dispensers"
                     >
                       <Fuel className="w-4 h-4" />
@@ -3249,10 +3354,13 @@ const WorkOrders: React.FC = () => {
         onClose={() => {
           setShowDispenserModal(false)
           setSelectedWorkOrderForModal(null)
+          setModalFilterData(null)
         }}
         dispenserData={selectedWorkOrderForModal && selectedWorkOrderForModal.dispensers ? {
           workOrder: selectedWorkOrderForModal,
-          dispensers: selectedWorkOrderForModal.dispensers
+          dispensers: selectedWorkOrderForModal.dispensers,
+          filters: modalFilterData,
+          loadingFilters: loadingFilters
         } : null}
       />
       

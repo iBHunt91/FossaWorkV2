@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Timezone Utilities Test Suite</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2 {
+            color: #4CAF50;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+            background-color: #2a2a2a;
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 10px;
+            border-left: 4px solid #666;
+            background-color: #333;
+        }
+        .pass {
+            border-left-color: #4CAF50;
+            background-color: #1a4a1a;
+        }
+        .fail {
+            border-left-color: #f44336;
+            background-color: #4a1a1a;
+        }
+        .warn {
+            border-left-color: #ff9800;
+            background-color: #4a3a1a;
+        }
+        .result-summary {
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px solid #4CAF50;
+            border-radius: 10px;
+            background-color: #2a4a2a;
+            text-align: center;
+            font-size: 18px;
+        }
+        .debug-info {
+            background-color: #1a1a2a;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Frontend Timezone Utilities Test Suite</h1>
+        <p>Comprehensive testing of frontend date formatting and timezone handling utilities</p>
+        
+        <div class="controls">
+            <button onclick="runAllTests()">Run All Tests</button>
+            <button onclick="clearResults()">Clear Results</button>
+            <button onclick="toggleDebugMode()">Toggle Debug Mode</button>
+        </div>
+        
+        <div id="results-container"></div>
+        
+        <div id="summary-container"></div>
+    </div>
+
+    <script type="module">
+        // Import the date utilities (simulated - in real app would import from actual file)
+        // For testing, we'll inline the utilities here
+        
+        /**
+         * Ensure date string is interpreted as UTC by adding 'Z' suffix if missing
+         */
+        const ensureUTCFormat = (dateString) => {
+            // If already has timezone info (Z, +XX:XX, -XX:XX), return as-is
+            if (dateString.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateString)) {
+                return dateString;
+            }
+            
+            // If it looks like an ISO string without timezone, add 'Z' to force UTC interpretation
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(dateString)) {
+                return dateString + 'Z';
+            }
+            
+            return dateString;
+        };
+
+        /**
+         * Format a UTC datetime string to local time
+         */
+        const formatUTCToLocal = (dateString) => {
+            if (!dateString) return 'Never';
+            
+            try {
+                // Ensure proper UTC interpretation
+                const utcDateString = ensureUTCFormat(dateString);
+                
+                // Add debug logging for timezone verification
+                if (utcDateString !== dateString) {
+                    console.debug(`[formatUTCToLocal] Fixed timezone: "${dateString}" → "${utcDateString}"`);
+                }
+                
+                // Parse the UTC date string
+                const date = new Date(utcDateString);
+                
+                // Check if date is valid
+                if (isNaN(date.getTime())) {
+                    console.error(`[formatUTCToLocal] Invalid date: "${dateString}"`);
+                    return 'Invalid date';
+                }
+                
+                // Format to local time with clear timezone indication
+                return date.toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                    timeZoneName: 'short'
+                });
+            } catch (error) {
+                console.error('[formatUTCToLocal] Error formatting date:', error, 'Input:', dateString);
+                return 'Invalid date';
+            }
+        };
+
+        /**
+         * Get relative time string (e.g., "in 5 minutes", "2 hours ago")
+         */
+        const getRelativeTime = (dateString) => {
+            if (!dateString) return null;
+            
+            try {
+                // Ensure proper UTC interpretation
+                const utcDateString = ensureUTCFormat(dateString);
+                
+                // Add debug logging for timezone verification
+                if (utcDateString !== dateString) {
+                    console.debug(`[dateFormat] Fixed timezone: "${dateString}" → "${utcDateString}"`);
+                }
+                
+                const date = new Date(utcDateString);
+                
+                // Validate date
+                if (isNaN(date.getTime())) {
+                    console.error(`[dateFormat] Invalid date: "${dateString}"`);
+                    return null;
+                }
+                
+                const now = new Date();
+                const diffMs = date.getTime() - now.getTime();
+                const diffMinutes = Math.abs(diffMs) / (1000 * 60);
+                
+                // Debug logging for timezone verification
+                console.debug(`[dateFormat] Time calculation:`, {
+                    input: dateString,
+                    processed: utcDateString,
+                    parsed: date.toISOString(),
+                    now: now.toISOString(),
+                    diffMs,
+                    diffMinutes
+                });
+                
+                if (diffMs < 0) {
+                    // Past
+                    if (diffMinutes < 1) return 'just now';
+                    if (diffMinutes < 60) return `${Math.floor(diffMinutes)} minutes ago`;
+                    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)} hours ago`;
+                    return `${Math.floor(diffMinutes / 1440)} days ago`;
+                } else {
+                    // Future
+                    if (diffMinutes < 1) return 'due now';
+                    if (diffMinutes < 60) return `in ${Math.floor(diffMinutes)} minutes`;
+                    if (diffMinutes < 1440) return `in about ${Math.floor(diffMinutes / 60)} hour${Math.floor(diffMinutes / 60) === 1 ? '' : 's'}`;
+                    return `in ${Math.floor(diffMinutes / 1440)} days`;
+                }
+            } catch (error) {
+                console.error('[dateFormat] Error calculating relative time:', error, 'Input:', dateString);
+                return null;
+            }
+        };
+
+        /**
+         * Validate and warn about potential timezone issues
+         */
+        const validateTimezoneFormat = (dateString) => {
+            if (!dateString) return true; // null/empty is fine
+            
+            try {
+                // Check if it has timezone information
+                const hasTimezone = dateString.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateString);
+                
+                // Check if it looks like an ISO string
+                const isISOFormat = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?/.test(dateString);
+                
+                if (isISOFormat && !hasTimezone) {
+                    console.warn(`[dateFormat] ISO date string without timezone detected: "${dateString}". This may cause timezone interpretation issues. Consider adding 'Z' suffix for UTC.`);
+                    return false;
+                }
+                
+                return true;
+            } catch (error) {
+                console.error('[dateFormat] Error validating timezone format:', error);
+                return false;
+            }
+        };
+
+        // Test Suite Implementation
+        class FrontendTimezoneTests {
+            constructor() {
+                this.testResults = [];
+                this.debugMode = false;
+            }
+
+            createTestCase(name, passed, details, debugInfo = null) {
+                return {
+                    name,
+                    passed,
+                    details,
+                    debugInfo,
+                    timestamp: new Date().toISOString()
+                };
+            }
+
+            log(message, type = 'info') {
+                if (this.debugMode || type === 'error') {
+                    console.log(`[${type.toUpperCase()}] ${message}`);
+                }
+            }
+
+            testEnsureUTCFormat() {
+                const testCases = [
+                    {
+                        input: '2025-01-26T15:30:00',
+                        expected: '2025-01-26T15:30:00Z',
+                        description: 'ISO string without timezone should get Z suffix'
+                    },
+                    {
+                        input: '2025-01-26T15:30:00Z',
+                        expected: '2025-01-26T15:30:00Z',
+                        description: 'ISO string with Z should remain unchanged'
+                    },
+                    {
+                        input: '2025-01-26T15:30:00+05:00',
+                        expected: '2025-01-26T15:30:00+05:00',
+                        description: 'ISO string with timezone offset should remain unchanged'
+                    },
+                    {
+                        input: '2025-01-26T15:30:00.123',
+                        expected: '2025-01-26T15:30:00.123Z',
+                        description: 'ISO string with milliseconds should get Z suffix'
+                    },
+                    {
+                        input: 'not-a-date',
+                        expected: 'not-a-date',
+                        description: 'Non-ISO string should remain unchanged'
+                    }
+                ];
+
+                const results = [];
+                let passed = 0;
+
+                testCases.forEach((testCase, index) => {
+                    const result = ensureUTCFormat(testCase.input);
+                    const success = result === testCase.expected;
+                    
+                    if (success) passed++;
+                    
+                    results.push(this.createTestCase(
+                        `Case ${index + 1}: ${testCase.description}`,
+                        success,
+                        `Input: "${testCase.input}" → Output: "${result}" (Expected: "${testCase.expected}")`,
+                        { input: testCase.input, output: result, expected: testCase.expected }
+                    ));
+                });
+
+                return {
+                    name: 'ensureUTCFormat() Function',
+                    passed: passed === testCases.length,
+                    summary: `${passed}/${testCases.length} test cases passed`,
+                    results
+                };
+            }
+
+            testGetRelativeTime() {
+                const now = new Date();
+                const testCases = [
+                    {
+                        input: new Date(now.getTime() + 60 * 60 * 1000).toISOString().replace('Z', ''),
+                        expectedPattern: /^in about 1 hours?$/,
+                        description: 'ISO without Z, 1 hour in future should show "in about 1 hour"'
+                    },
+                    {
+                        input: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+                        expectedPattern: /^in about 1 hours?$/,
+                        description: 'ISO with Z, 1 hour in future should show "in about 1 hour"'
+                    },
+                    {
+                        input: new Date(now.getTime() + 30 * 60 * 1000).toISOString(),
+                        expectedPattern: /^in \d+ minutes$/,
+                        description: '30 minutes in future should show "in X minutes"'
+                    },
+                    {
+                        input: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+                        expectedPattern: /^\d+ minutes ago$/,
+                        description: '30 minutes in past should show "X minutes ago"'
+                    },
+                    {
+                        input: null,
+                        expectedPattern: null,
+                        description: 'null input should return null'
+                    },
+                    {
+                        input: 'invalid-date',
+                        expectedPattern: null,
+                        description: 'Invalid date should return null'
+                    }
+                ];
+
+                const results = [];
+                let passed = 0;
+
+                testCases.forEach((testCase, index) => {
+                    const result = getRelativeTime(testCase.input);
+                    let success = false;
+                    
+                    if (testCase.expectedPattern === null) {
+                        success = result === null;
+                    } else {
+                        success = result !== null && testCase.expectedPattern.test(result);
+                    }
+                    
+                    if (success) passed++;
+                    
+                    results.push(this.createTestCase(
+                        `Case ${index + 1}: ${testCase.description}`,
+                        success,
+                        `Input: "${testCase.input}" → Output: "${result}" (Pattern: ${testCase.expectedPattern})`,
+                        { 
+                            input: testCase.input, 
+                            output: result, 
+                            pattern: testCase.expectedPattern?.toString(),
+                            currentTime: now.toISOString()
+                        }
+                    ));
+                });
+
+                return {
+                    name: 'getRelativeTime() Function',
+                    passed: passed === testCases.length,
+                    summary: `${passed}/${testCases.length} test cases passed`,
+                    results
+                };
+            }
+
+            testFormatUTCToLocal() {
+                const testCases = [
+                    {
+                        input: '2025-01-26T15:30:00Z',
+                        description: 'Valid UTC timestamp should format to local time'
+                    },
+                    {
+                        input: '2025-01-26T15:30:00',
+                        description: 'ISO without Z should be auto-fixed and formatted'
+                    },
+                    {
+                        input: null,
+                        description: 'null input should return "Never"'
+                    },
+                    {
+                        input: 'invalid-date',
+                        description: 'Invalid date should return "Invalid date"'
+                    }
+                ];
+
+                const results = [];
+                let passed = 0;
+
+                testCases.forEach((testCase, index) => {
+                    const result = formatUTCToLocal(testCase.input);
+                    let success = false;
+                    
+                    if (testCase.input === null) {
+                        success = result === 'Never';
+                    } else if (testCase.input === 'invalid-date') {
+                        success = result === 'Invalid date';
+                    } else {
+                        // Should return a formatted date string with timezone
+                        success = result !== 'Invalid date' && result !== 'Never' && 
+                                 result.includes('/') && (result.includes('AM') || result.includes('PM'));
+                    }
+                    
+                    if (success) passed++;
+                    
+                    results.push(this.createTestCase(
+                        `Case ${index + 1}: ${testCase.description}`,
+                        success,
+                        `Input: "${testCase.input}" → Output: "${result}"`,
+                        { input: testCase.input, output: result }
+                    ));
+                });
+
+                return {
+                    name: 'formatUTCToLocal() Function',
+                    passed: passed === testCases.length,
+                    summary: `${passed}/${testCases.length} test cases passed`,
+                    results
+                };
+            }
+
+            testValidateTimezoneFormat() {
+                const testCases = [
+                    {
+                        input: '2025-01-26T15:30:00Z',
+                        expected: true,
+                        description: 'UTC timestamp with Z should be valid'
+                    },
+                    {
+                        input: '2025-01-26T15:30:00+05:00',
+                        expected: true,
+                        description: 'Timestamp with timezone offset should be valid'
+                    },
+                    {
+                        input: '2025-01-26T15:30:00',
+                        expected: false,
+                        description: 'ISO timestamp without timezone should warn (return false)'
+                    },
+                    {
+                        input: null,
+                        expected: true,
+                        description: 'null input should be considered valid'
+                    },
+                    {
+                        input: 'not-a-date',
+                        expected: true,
+                        description: 'Non-ISO string should be considered valid (no warning needed)'
+                    }
+                ];
+
+                const results = [];
+                let passed = 0;
+
+                testCases.forEach((testCase, index) => {
+                    const result = validateTimezoneFormat(testCase.input);
+                    const success = result === testCase.expected;
+                    
+                    if (success) passed++;
+                    
+                    results.push(this.createTestCase(
+                        `Case ${index + 1}: ${testCase.description}`,
+                        success,
+                        `Input: "${testCase.input}" → Output: ${result} (Expected: ${testCase.expected})`,
+                        { input: testCase.input, output: result, expected: testCase.expected }
+                    ));
+                });
+
+                return {
+                    name: 'validateTimezoneFormat() Function',
+                    passed: passed === testCases.length,
+                    summary: `${passed}/${testCases.length} test cases passed`,
+                    results
+                };
+            }
+
+            testCriticalScenarios() {
+                // Test the specific 1-hour scenario that was problematic
+                const now = new Date();
+                const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+                const oneHourLaterNoZ = oneHourLater.toISOString().replace('Z', '');
+                const oneHourLaterWithZ = oneHourLater.toISOString();
+
+                const criticalTests = [
+                    {
+                        name: '1-hour future without Z suffix',
+                        input: oneHourLaterNoZ,
+                        test: () => {
+                            const result = getRelativeTime(oneHourLaterNoZ);
+                            return result && result.includes('1 hour');
+                        }
+                    },
+                    {
+                        name: '1-hour future with Z suffix',
+                        input: oneHourLaterWithZ,
+                        test: () => {
+                            const result = getRelativeTime(oneHourLaterWithZ);
+                            return result && result.includes('1 hour');
+                        }
+                    },
+                    {
+                        name: 'Backend format compatibility',
+                        input: '2025-01-26T16:30:00Z',
+                        test: () => {
+                            const relative = getRelativeTime('2025-01-26T16:30:00Z');
+                            const formatted = formatUTCToLocal('2025-01-26T16:30:00Z');
+                            const valid = validateTimezoneFormat('2025-01-26T16:30:00Z');
+                            return relative !== null && formatted !== 'Invalid date' && valid === true;
+                        }
+                    }
+                ];
+
+                const results = [];
+                let passed = 0;
+
+                criticalTests.forEach((testCase, index) => {
+                    try {
+                        const success = testCase.test();
+                        if (success) passed++;
+                        
+                        results.push(this.createTestCase(
+                            testCase.name,
+                            success,
+                            `Input: "${testCase.input}" → Test: ${success ? 'PASSED' : 'FAILED'}`,
+                            { 
+                                input: testCase.input,
+                                relative: getRelativeTime(testCase.input),
+                                formatted: formatUTCToLocal(testCase.input),
+                                valid: validateTimezoneFormat(testCase.input)
+                            }
+                        ));
+                    } catch (error) {
+                        results.push(this.createTestCase(
+                            testCase.name,
+                            false,
+                            `Error: ${error.message}`,
+                            { input: testCase.input, error: error.message }
+                        ));
+                    }
+                });
+
+                return {
+                    name: 'Critical Scenarios',
+                    passed: passed === criticalTests.length,
+                    summary: `${passed}/${criticalTests.length} critical scenarios passed`,
+                    results
+                };
+            }
+
+            runAllTests() {
+                console.log('🧪 Starting Frontend Timezone Utilities Test Suite...');
+                
+                this.testResults = [
+                    this.testEnsureUTCFormat(),
+                    this.testGetRelativeTime(),
+                    this.testFormatUTCToLocal(),
+                    this.testValidateTimezoneFormat(),
+                    this.testCriticalScenarios()
+                ];
+
+                this.displayResults();
+                return this.testResults;
+            }
+
+            displayResults() {
+                const container = document.getElementById('results-container');
+                const summaryContainer = document.getElementById('summary-container');
+                
+                let html = '';
+                let totalPassed = 0;
+                let totalTests = 0;
+
+                this.testResults.forEach(testGroup => {
+                    totalTests++;
+                    if (testGroup.passed) totalPassed++;
+
+                    html += `
+                        <div class="test-section">
+                            <h2>${testGroup.passed ? '✓' : '✗'} ${testGroup.name}</h2>
+                            <p><strong>Summary:</strong> ${testGroup.summary}</p>
+                            
+                            ${testGroup.results.map(result => `
+                                <div class="test-case ${result.passed ? 'pass' : 'fail'}">
+                                    <strong>${result.passed ? '✓' : '✗'} ${result.name}</strong>
+                                    <div>${result.details}</div>
+                                    ${this.debugMode && result.debugInfo ? `
+                                        <div class="debug-info">
+                                            <strong>Debug Info:</strong>
+                                            <pre>${JSON.stringify(result.debugInfo, null, 2)}</pre>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+
+                // Display summary
+                const summaryClass = totalPassed === totalTests ? 'pass' : 'fail';
+                summaryContainer.innerHTML = `
+                    <div class="result-summary ${summaryClass}">
+                        <h2>📊 Test Results Summary</h2>
+                        <p><strong>Total Test Groups:</strong> ${totalTests}</p>
+                        <p><strong>Passed:</strong> ${totalPassed}</p>
+                        <p><strong>Failed:</strong> ${totalTests - totalPassed}</p>
+                        <p><strong>Success Rate:</strong> ${((totalPassed / totalTests) * 100).toFixed(1)}%</p>
+                        ${totalPassed === totalTests ? 
+                            '<p>🎉 <strong>ALL FRONTEND TIMEZONE TESTS PASSED!</strong></p>' : 
+                            '<p>⚠️ <strong>Some tests failed. Review the details above.</strong></p>'
+                        }
+                    </div>
+                `;
+            }
+        }
+
+        // Global functions for the UI
+        window.frontendTests = new FrontendTimezoneTests();
+        
+        window.runAllTests = () => {
+            window.frontendTests.runAllTests();
+        };
+
+        window.clearResults = () => {
+            document.getElementById('results-container').innerHTML = '';
+            document.getElementById('summary-container').innerHTML = '';
+        };
+
+        window.toggleDebugMode = () => {
+            window.frontendTests.debugMode = !window.frontendTests.debugMode;
+            console.log(`Debug mode: ${window.frontendTests.debugMode ? 'ON' : 'OFF'}`);
+            if (window.frontendTests.testResults.length > 0) {
+                window.frontendTests.displayResults();
+            }
+        };
+
+        // Auto-run tests when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                window.runAllTests();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

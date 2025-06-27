@@ -181,7 +181,7 @@ export default function FiltersContent({
               meter_type: d.meter_type || d.meterType || 'Electronic',
               number_of_nozzles: d.number_of_nozzles || '',
               workOrderId: wo.id,
-              storeNumber: wo.storeNumber || wo.store_number || wo.site_name?.match(/#(\d+)/)?.[1] || ''
+              storeNumber: wo.store_number ? wo.store_number.replace('#', '') : ''
             };
             allDispensers.push(dispenser);
           });
@@ -211,10 +211,10 @@ export default function FiltersContent({
       
       // Transform work orders to include filter-specific fields
       const transformedWorkOrders = workOrders.map(wo => {
-        // Extract store number and customer name from site_name
-        const storeMatch = wo.site_name?.match(/#(\d+)/);
-        const storeNumber = storeMatch?.[1] || wo.store_number || '';
-        const customerName = wo.site_name?.split('#')[0]?.trim() || wo.site_name || '';
+        // Extract store number - use store_number field and remove # prefix
+        const storeNumber = wo.store_number ? wo.store_number.replace('#', '') : '';
+        // Use customer_name if available, otherwise fallback to site_name
+        const customerName = wo.customer_name || wo.site_name || '';
         
         return {
           ...wo,
@@ -256,7 +256,7 @@ export default function FiltersContent({
       
       // Use backend endpoint for complex calculations
       
-      const response = await api.post(`/filters/calculate`, {
+      const response = await api.post(`/api/v1/filters/calculate`, {
         workOrders: transformedWorkOrders,
         dispensers: transformedDispensers,
         overrides: editedValues

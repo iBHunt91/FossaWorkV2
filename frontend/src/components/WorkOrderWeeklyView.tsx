@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { Calendar, CalendarDays, MapPin, Clock, Fuel, Wrench, AlertCircle, CheckCircle, XCircle, ExternalLink, Eye, Hash, Sparkles } from 'lucide-react'
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isWithinInterval, parseISO, startOfDay } from 'date-fns'
+import { parseScheduledDate } from '@/utils/dateUtils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -104,8 +105,9 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
   
   // Get the days to display based on work week preferences
   const displayDays = useMemo(() => {
-    // Always show current week days structure
-    return workDays.map(dayName => {
+    // The workDays array should already be sorted properly from the parent component
+    // Map each day name to its date in the current week
+    const days = workDays.map(dayName => {
       const dayIndex = dayNameToIndex[dayName]
       // Calculate the date for this day in the current week
       // If Monday is day 1, and weekStart is Monday, then:
@@ -116,12 +118,10 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
         date: addDays(weekStart, daysSinceMonday),
         index: dayIndex
       }
-    }).sort((a, b) => {
-      // Sort by day index, but put Sunday at the end if it exists
-      if (a.index === 0) return 1
-      if (b.index === 0) return -1
-      return a.index - b.index
     })
+    
+    // Sort days by their actual date to ensure proper order
+    return days.sort((a, b) => a.date.getTime() - b.date.getTime())
   }, [weekStart, workDays])
   
   // Group work orders by day
@@ -137,7 +137,8 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
     workOrders.forEach(wo => {
       if (!wo.scheduled_date) return
       
-      const scheduledDate = new Date(wo.scheduled_date)
+      const scheduledDate = parseScheduledDate(wo.scheduled_date)
+      if (!scheduledDate) return
       
       // Check if this work order should be included
       const shouldInclude = showAllJobs || isWithinInterval(scheduledDate, { start: weekStart, end: weekEnd })
@@ -155,8 +156,8 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
     // Sort work orders within each day by time if available
     Object.keys(grouped).forEach(key => {
       grouped[key].sort((a, b) => {
-        const dateA = new Date(a.scheduled_date!)
-        const dateB = new Date(b.scheduled_date!)
+        const dateA = parseScheduledDate(a.scheduled_date) || new Date(0)
+        const dateB = parseScheduledDate(b.scheduled_date) || new Date(0)
         return dateA.getTime() - dateB.getTime()
       })
     })
@@ -226,7 +227,8 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
     workOrders.forEach(wo => {
       if (!wo.scheduled_date) return
       
-      const date = new Date(wo.scheduled_date)
+      const date = parseScheduledDate(wo.scheduled_date)
+      if (!date) return
       const weekStart = startOfWeek(date, { weekStartsOn: 1 })
       const weekEnd = endOfWeek(date, { weekStartsOn: 1 })
       const weekKey = format(weekStart, 'yyyy-MM-dd')
@@ -320,19 +322,27 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                 
                 {/* Days grid for this week */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                  {workDays.map((dayName, dayIndex) => {
-                    const dayOfWeek = dayNameToIndex[dayName]
-                    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
-                    const dayDate = addDays(group.weekStart, daysSinceMonday)
-                    const dateKey = format(dayDate, 'yyyy-MM-dd')
+                  {/* Calculate display days for this specific week */}
+                  {workDays.map(dayName => {
+                    const dayIndex = dayNameToIndex[dayName]
+                    const daysSinceMonday = dayIndex === 0 ? 6 : dayIndex - 1
+                    return {
+                      name: dayName,
+                      date: addDays(group.weekStart, daysSinceMonday),
+                      index: dayIndex
+                    }
+                  })
+                  .sort((a, b) => a.date.getTime() - b.date.getTime()) // Sort by date to ensure proper order
+                  .map((day, dayIndex) => {
+                    const dateKey = format(day.date, 'yyyy-MM-dd')
                     const dayOrders = group.workOrders.filter(wo => 
-                      wo.scheduled_date && format(new Date(wo.scheduled_date), 'yyyy-MM-dd') === dateKey
+                      wo.scheduled_date && format(parseScheduledDate(wo.scheduled_date) || new Date(0), 'yyyy-MM-dd') === dateKey
                     )
-                    const isToday = isSameDay(dayDate, new Date())
+                    const isToday = isSameDay(day.date, new Date())
                     
                     return (
                       <AnimatedCard
-                        key={`${dateKey}-${dayName}`}
+                        key={`${dateKey}-${day.name}`}
                         className={`h-full min-h-[400px] ${isToday ? 'ring-2 ring-primary shadow-lg' : ''} backdrop-blur-sm`}
                         hover="glow"
                         animate="slide"
@@ -341,7 +351,7 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                         <CardHeader className="pb-3 bg-gradient-to-b from-card to-transparent">
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="font-bold text-lg">
-                              {dayName}
+                              {day.name}
                             </h3>
                             {isToday && (
                               <Badge variant="default" className="text-xs animate-pulse">
@@ -352,7 +362,7 @@ const WorkOrderWeeklyView: React.FC<WorkOrderWeeklyViewProps> = ({
                           </div>
                           <div className="flex items-center justify-between">
                             <p className="text-sm font-medium text-muted-foreground">
-                              {format(dayDate, 'MMMM d')}
+                              {format(day.date, 'MMMM d')}
                             </p>
                             <Badge variant={dayOrders.length > 0 ? "secondary" : "outline"} className="text-xs">
                               {dayOrders.length} {dayOrders.length === 1 ? 'job' : 'jobs'}

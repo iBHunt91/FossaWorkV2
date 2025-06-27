@@ -69,6 +69,17 @@ echo "Backend started with PID: $BACKEND_PID"
 echo "Waiting for backend to initialize..."
 sleep 5
 
+# Start the scheduler daemon
+echo ""
+echo "Starting scheduler daemon..."
+if [ -f "scheduler_daemon.py" ]; then
+    python scheduler_daemon.py &
+    SCHEDULER_PID=$!
+    echo "Scheduler daemon started with PID: $SCHEDULER_PID"
+else
+    echo "Warning: scheduler_daemon.py not found. Scheduling features will not be available."
+fi
+
 # Start the frontend
 echo ""
 echo "Starting frontend..."
@@ -90,6 +101,10 @@ cleanup() {
     echo "Shutting down FossaWork..."
     if [ ! -z "$BACKEND_PID" ]; then
         kill $BACKEND_PID 2>/dev/null
+    fi
+    if [ ! -z "$SCHEDULER_PID" ]; then
+        echo "Stopping scheduler daemon..."
+        kill $SCHEDULER_PID 2>/dev/null
     fi
     exit 0
 }

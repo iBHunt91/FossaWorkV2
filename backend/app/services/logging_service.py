@@ -305,6 +305,27 @@ class LoggingService:
                 
         return stats
 
+    async def log_info(self, message: str, **kwargs):
+        """Log info message asynchronously"""
+        self.main_logger.info(message)
+        
+    async def log_error(self, message: str, **kwargs):
+        """Log error message asynchronously"""
+        self.main_logger.error(message)
+        self.error_logger.error(message)
+        
+    async def log_warning(self, message: str, **kwargs):
+        """Log warning message asynchronously"""
+        self.main_logger.warning(message)
+        
+    async def log_debug(self, message: str, **kwargs):
+        """Log debug message asynchronously"""
+        self.main_logger.debug(message)
+        
+    async def log_event(self, message: str, **kwargs):
+        """Log event message asynchronously"""
+        self.main_logger.info(f"[EVENT] {message}")
+
 # Global logging service instance
 logging_service = LoggingService()
 

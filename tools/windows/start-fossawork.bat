@@ -10,7 +10,7 @@ echo.
 cd /d "%~dp0..\..\backend"
 
 :: Check Python installation
-echo [1/7] Checking Python installation...
+echo [1/8] Checking Python installation...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Python is not installed or not in PATH
@@ -20,7 +20,7 @@ if errorlevel 1 (
 )
 
 :: Check/Create virtual environment
-echo [2/7] Checking virtual environment...
+echo [2/8] Checking virtual environment...
 if not exist "venv" (
     echo Creating virtual environment...
     python -m venv venv
@@ -32,7 +32,7 @@ if not exist "venv" (
 )
 
 :: Activate and check dependencies
-echo [3/7] Checking dependencies...
+echo [3/8] Checking dependencies...
 call venv\Scripts\activate.bat
 pip show uvicorn >nul 2>&1
 if errorlevel 1 (
@@ -49,7 +49,7 @@ if errorlevel 1 (
 )
 
 :: Clean up existing processes
-echo [4/7] Cleaning up existing processes...
+echo [4/8] Cleaning up existing processes...
 cd /d "%~dp0"
 if exist "force-kill-ports.bat" (
     call force-kill-ports.bat >nul 2>&1
@@ -60,16 +60,26 @@ if exist "force-kill-ports.bat" (
 )
 
 :: Start backend with full authentication
-echo [5/7] Starting backend server...
+echo [5/8] Starting backend server...
 cd /d "%~dp0..\..\backend"
 start "FossaWork Backend" cmd /c "venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 :: Wait for backend
-echo [6/7] Waiting for backend to start...
+echo [6/8] Waiting for backend to start...
 timeout /t 8 /nobreak >nul
 
+:: Start scheduler daemon
+echo [7/8] Starting scheduler daemon...
+cd /d "%~dp0..\..\backend"
+if exist "scheduler_daemon.py" (
+    start "FossaWork Scheduler" cmd /c "venv\Scripts\python.exe scheduler_daemon.py"
+    echo Scheduler daemon started successfully
+) else (
+    echo Warning: scheduler_daemon.py not found. Scheduling features will not be available.
+)
+
 :: Check if frontend exists and has dependencies
-echo [7/7] Starting frontend server...
+echo [8/8] Starting frontend server...
 cd /d "%~dp0..\..\frontend"
 if exist "package.json" (
     if not exist "node_modules" (

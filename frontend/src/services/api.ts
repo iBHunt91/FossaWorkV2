@@ -779,3 +779,4 @@ export const updateNotificationDisplaySettings = async (userId: string, settings
 
 // Export axios instance for custom requests
 export { apiClient }
+export default apiClient

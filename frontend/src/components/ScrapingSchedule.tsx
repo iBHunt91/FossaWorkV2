@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Play, Pause, RefreshCw, Calendar, AlertCircle, CheckCircle, LogIn, Trash2 } from 'lucide-react';
+import { Clock, Play, Pause, RefreshCw, Calendar, AlertCircle, CheckCircle } from 'lucide-react';
 import { apiClient } from '../services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
@@ -9,16 +9,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { useScrapingStatus } from '../contexts/ScrapingStatusContext';
-import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
+import { formatUTCToLocal, formatDuration, getRelativeTime } from '../utils/dateFormat';
 
 interface Schedule {
-  job_id: string;
+  id: number;
   user_id: string;
-  type: string;
+  schedule_type: string;
+  interval_hours: number;
+  active_hours: { start: number; end: number } | null;
   enabled: boolean;
+  last_run: string | null;
   next_run: string | null;
-  pending: boolean;
+  consecutive_failures: number;
+  created_at: string;
+  updated_at: string;
+  status: string; // "active", "paused", "failed"
 }
 
 interface ScrapingHistoryItem {
@@ -29,12 +34,11 @@ interface ScrapingHistoryItem {
   items_processed: number;
   error_message: string | null;
   duration_seconds: number | null;
-  trigger_type?: string; // "manual" or "scheduled"
+  trigger_type?: string;
 }
 
 const ScrapingSchedule: React.FC = () => {
-  const { isAuthenticated, token, user } = useAuth();
-  const { refreshStatus } = useScrapingStatus();
+  const { isAuthenticated, token } = useAuth();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [history, setHistory] = useState<ScrapingHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,350 +49,234 @@ const ScrapingSchedule: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isTriggering, setIsTriggering] = useState(false);
-  const [authError, setAuthError] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<number | null>(null);
+  const [daemonStatus, setDaemonStatus] = useState<any>(null);
 
   useEffect(() => {
     if (!isAuthenticated || !token) {
-      setAuthError(true);
       setLoading(false);
       return;
     }
     
     fetchSchedule();
     fetchHistory();
+    fetchDaemonStatus();
+    
+    // Refresh data every 30 seconds
+    const interval = setInterval(() => {
+      fetchSchedule();
+      fetchHistory();
+      fetchDaemonStatus();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [isAuthenticated, token]);
 
   const fetchSchedule = async () => {
     try {
-      console.log('=== FRONTEND FETCHING SCHEDULE ===');
-      console.log('Auth status:', { isAuthenticated, token: !!token, user: user?.email });
-      
       const response = await apiClient.get('/api/scraping-schedules/');
-      console.log('API Response:', JSON.stringify(response.data, null, 2));
-      
-      setAuthError(false); // Clear auth error if request succeeds
       
       if (response.data && response.data.length > 0) {
-        const schedule = response.data[0];
-        console.log('Using schedule:', JSON.stringify(schedule, null, 2));
-        setSchedule(schedule);
+        const scheduleData = response.data[0];
+        setSchedule(scheduleData);
         
-        // Set interval hours
-        setIntervalHours(schedule.interval_hours || 1);
-        console.log('Set interval hours to:', schedule.interval_hours || 1);
+        setIntervalHours(scheduleData.interval_hours || 1);
         
-        // Set active hours
-        if (schedule.active_hours && typeof schedule.active_hours === 'object' && 
-            'start' in schedule.active_hours && 'end' in schedule.active_hours) {
-          console.log('Schedule has active hours:', schedule.active_hours);
+        if (scheduleData.active_hours) {
           setUseActiveHours(true);
-          setActiveHoursStart(schedule.active_hours.start);
-          setActiveHoursEnd(schedule.active_hours.end);
+          setActiveHoursStart(scheduleData.active_hours.start || 6);
+          setActiveHoursEnd(scheduleData.active_hours.end || 22);
         } else {
-          console.log('Schedule has NO active hours, active_hours:', schedule.active_hours);
           setUseActiveHours(false);
         }
       }
     } catch (error: any) {
-      console.error('Failed to fetch schedule:', error);
-      
-      // Check for authentication errors
-      if (error.response?.status === 401) {
-        setAuthError(true);
-        setErrorMessage('Authentication required. Please log in again.');
-      } else if (error.code === 'ERR_NETWORK') {
-        setErrorMessage('Network error. Please check your connection and backend server.');
-      } else {
-        setErrorMessage(error.response?.data?.detail || 'Failed to fetch schedule');
-      }
+      console.error('Error fetching schedule:', error);
+      setErrorMessage('Failed to load schedule');
     } finally {
       setLoading(false);
     }
   };
 
   const fetchHistory = async () => {
+    if (!schedule) return;
+    
     try {
-      const response = await apiClient.get('/api/scraping-schedules/history/work_orders');
-      setHistory(response.data);
-    } catch (error: any) {
-      console.error('Failed to fetch history:', error);
-      
-      // Check for authentication errors
-      if (error.response?.status === 401) {
-        setAuthError(true);
-      }
-      // Don't show history errors as prominently since it's secondary data
+      const response = await apiClient.get(`/api/scraping-schedules/${schedule.id}/history`);
+      setHistory(response.data || []);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+    }
+  };
+
+  const fetchDaemonStatus = async () => {
+    try {
+      const response = await apiClient.get('/api/scraping-schedules/status/daemon');
+      setDaemonStatus(response.data);
+    } catch (error) {
+      console.error('Error fetching daemon status:', error);
     }
   };
 
   const createSchedule = async () => {
     try {
       setLoading(true);
-      const activeHours = useActiveHours ? { start: activeHoursStart, end: activeHoursEnd } : null;
+      setErrorMessage(null);
       
-      const response = await apiClient.post('/api/scraping-schedules/', {
+      const data = {
         schedule_type: 'work_orders',
         interval_hours: intervalHours,
-        active_hours: activeHours,
+        active_hours: useActiveHours ? { start: activeHoursStart, end: activeHoursEnd } : null,
         enabled: true
-      });
+      };
       
-      if (response.data.success) {
-        // Dispatch custom event to refresh ScrapingStatus component immediately
-        window.dispatchEvent(new Event('scraping-schedule-updated'));
-        
-        setStatusMessage('✅ Hourly scraping schedule created successfully');
-        setTimeout(() => setStatusMessage(null), 3000);
-        await fetchSchedule();
-        // Refresh the scraping status to update the navbar indicator
-        await refreshStatus();
-      }
+      const response = await apiClient.post('/api/scraping-schedules/', data);
+      setSchedule(response.data);
+      setStatusMessage('Schedule created successfully');
+      
+      await fetchHistory();
     } catch (error: any) {
-      console.error('Failed to create schedule:', error);
-      
-      if (error.response?.status === 401) {
-        setAuthError(true);
-        setErrorMessage('Authentication required. Please log in again.');
-      } else {
-        setErrorMessage(error.response?.data?.detail || 'Failed to create schedule');
-      }
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(error.response?.data?.detail || 'Failed to create schedule');
     } finally {
       setLoading(false);
     }
   };
 
-  const updateSchedule = async (enabled?: boolean) => {
+  const updateSchedule = async (enabled: boolean) => {
     if (!schedule) return;
     
     try {
       setLoading(true);
+      setErrorMessage(null);
       
-      // Update local state immediately for instant UI feedback
-      if (enabled !== undefined) {
-        console.log('Updating local schedule state immediately');
-        setSchedule(prev => prev ? { ...prev, enabled } : null);
-      }
-      
-      // Dispatch event immediately for instant UI feedback with updated data
-      console.log('Dispatching immediate event for UI update');
-      const updatedSchedule = enabled !== undefined ? { ...schedule, enabled } : schedule;
-      window.dispatchEvent(new CustomEvent('scraping-schedule-updated', { 
-        detail: { schedule: updatedSchedule }
-      }));
-      
-      const activeHours = useActiveHours ? { start: activeHoursStart, end: activeHoursEnd } : null;
-      
-      const requestData = {
+      const data = {
         interval_hours: intervalHours,
-        active_hours: activeHours,
-        enabled: enabled !== undefined ? enabled : schedule.enabled
+        active_hours: useActiveHours ? { start: activeHoursStart, end: activeHoursEnd } : null,
+        enabled: enabled
       };
       
-      console.log('=== FRONTEND SENDING UPDATE ===');
-      console.log('URL:', `/api/scraping-schedules/${schedule.job_id}`);
-      console.log('Request data:', JSON.stringify(requestData, null, 2));
-      console.log('useActiveHours:', useActiveHours);
-      console.log('activeHours:', activeHours);
+      console.log('=== FRONTEND SCHEDULE UPDATE ===');
+      console.log('Schedule ID:', schedule.id);
+      console.log('Request Data:', JSON.stringify(data, null, 2));
+      console.log('Current time (local):', new Date().toLocaleString());
+      console.log('Current time (UTC):', new Date().toUTCString());
       
-      const response = await apiClient.put(`/api/scraping-schedules/${schedule.job_id}`, requestData);
+      const response = await apiClient.put(`/api/scraping-schedules/${schedule.id}`, data);
+      setSchedule(response.data);
+      setStatusMessage(enabled ? 'Schedule enabled' : 'Schedule paused');
       
-      if (response.data.success) {
-        // Dispatch custom event to refresh ScrapingStatus component immediately
-        window.dispatchEvent(new Event('scraping-schedule-updated'));
+      console.log('=== UPDATE RESPONSE ===');
+      console.log('Next Run:', response.data.next_run);
+      console.log('Enabled:', response.data.enabled);
+      console.log('Interval:', response.data.interval_hours, 'hours');
+      
+      // Calculate time difference for verification
+      if (response.data.next_run) {
+        const nextRunDate = new Date(response.data.next_run);
+        const now = new Date();
+        const diffHours = (nextRunDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+        console.log('Time until next run:', diffHours.toFixed(2), 'hours');
+        console.log('Expected interval:', response.data.interval_hours, 'hours');
         
-        setStatusMessage('✅ Schedule updated successfully');
-        setTimeout(() => setStatusMessage(null), 3000);
-        await fetchSchedule();
-        // Refresh the scraping status to update the navbar indicator
-        await refreshStatus();
+        if (Math.abs(diffHours - response.data.interval_hours) > 0.1) {
+          console.warn('WARNING: Next run time does not match expected interval!');
+        } else {
+          console.log('✓ Next run time matches expected interval');
+        }
       }
-    } catch (error: any) {
-      console.error('Failed to update schedule:', error);
       
-      if (error.response?.status === 401) {
-        setAuthError(true);
-        setErrorMessage('Authentication required. Please log in again.');
-      } else {
-        setErrorMessage(error.response?.data?.detail || 'Failed to update schedule');
-      }
-      setTimeout(() => setErrorMessage(null), 5000);
+      // Dispatch event to notify other components
+      window.dispatchEvent(new CustomEvent('scraping-schedule-updated', {
+        detail: { schedule: response.data }
+      }));
+      
+      // Force refresh to get latest data
+      await fetchSchedule();
+    } catch (error: any) {
+      setErrorMessage(error.response?.data?.detail || 'Failed to update schedule');
+      console.error('Schedule update error:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const triggerManualScrape = async () => {
+  const triggerManualRun = async () => {
+    if (!schedule) return;
+    
     try {
       setIsTriggering(true);
-      setStatusMessage('🚀 Triggering manual scrape...');
+      setErrorMessage(null);
       
-      // Get user ID from auth context
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = user.id;
+      const response = await apiClient.post(`/api/scraping-schedules/${schedule.id}/run`);
+      setStatusMessage(response.data.message || 'Manual run triggered');
       
-      const response = await apiClient.post('/api/scraping-schedules/trigger', {
-        schedule_type: 'work_orders',
-        ignore_schedule: true
-      });
-      
-      if (response.data.success) {
-        // Set localStorage to trigger progress polling on Work Orders page
-        if (userId) {
-          localStorage.setItem(`wo_scraping_${userId}`, JSON.stringify({
-            status: 'scraping',
-            startedAt: new Date().toISOString()
-          }));
-        }
-        
-        setStatusMessage('✅ Manual scraping triggered successfully! Navigate to the Work Orders page to see the glowing progress card with live updates.');
-        setTimeout(() => {
-          setStatusMessage(null);
-          fetchHistory();
-        }, 7000);
-      }
+      // Refresh history after a delay
+      setTimeout(() => {
+        fetchHistory();
+        fetchSchedule();
+      }, 2000);
     } catch (error: any) {
-      console.error('Failed to trigger manual scrape:', error);
-      
-      if (error.response?.status === 401) {
-        setAuthError(true);
-        setErrorMessage('Authentication required. Please log in again.');
-      } else {
-        setErrorMessage(error.response?.data?.detail || 'Failed to trigger scraping');
-      }
-      setTimeout(() => setErrorMessage(null), 5000);
+      setErrorMessage(error.response?.data?.detail || 'Failed to trigger manual run');
     } finally {
       setIsTriggering(false);
     }
   };
 
+  const deleteSchedule = async () => {
+    if (!schedule) return;
+    
+    try {
+      setLoading(true);
+      await apiClient.delete(`/api/scraping-schedules/${schedule.id}`);
+      setSchedule(null);
+      setHistory([]);
+      setStatusMessage('Schedule deleted successfully');
+    } catch (error: any) {
+      setErrorMessage(error.response?.data?.detail || 'Failed to delete schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Use imported formatter from utils/dateFormat.ts
+  const formatDate = formatUTCToLocal;
+
   const formatDuration = (seconds: number | null) => {
-    if (!seconds) return 'N/A';
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    return `${Math.round(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+    if (!seconds) return '-';
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
   };
 
-  const formatDate = (dateString: string) => {
-    // The backend now sends UTC times with 'Z' suffix
-    const date = new Date(dateString);
-    return date.toLocaleString();
-  };
-
-  const handleDeleteClick = (historyId: number) => {
-    setItemToDelete(historyId);
-    setDeleteConfirmOpen(true);
-  };
-
-  const handleDeleteAllClick = () => {
-    setDeleteAllConfirmOpen(true);
-  };
-
-  const deleteHistoryItem = async () => {
-    if (!itemToDelete) return;
-    
-    try {
-      const response = await apiClient.delete(`/api/scraping-schedules/history/${itemToDelete}`);
-      
-      if (response.data.success) {
-        setStatusMessage('✅ History record deleted successfully');
-        setTimeout(() => setStatusMessage(null), 3000);
-        // Refresh history list
-        await fetchHistory();
-      }
-    } catch (error: any) {
-      console.error('Failed to delete history record:', error);
-      
-      if (error.response?.status === 401) {
-        setAuthError(true);
-        setErrorMessage('Authentication required. Please log in again.');
-      } else {
-        setErrorMessage(error.response?.data?.detail || 'Failed to delete history record');
-      }
-      setTimeout(() => setErrorMessage(null), 5000);
-    } finally {
-      setDeleteConfirmOpen(false);
-      setItemToDelete(null);
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge className="bg-green-500">Active</Badge>;
+      case 'paused':
+        return <Badge className="bg-yellow-500">Paused</Badge>;
+      case 'failed':
+        return <Badge className="bg-red-500">Failed</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
     }
   };
 
-  const deleteAllHistory = async () => {
-    try {
-      const response = await apiClient.delete('/api/scraping-schedules/history');
-      
-      if (response.data.success) {
-        setStatusMessage(`✅ ${response.data.message}`);
-        setTimeout(() => setStatusMessage(null), 3000);
-        // Clear the history list
-        setHistory([]);
-      }
-    } catch (error: any) {
-      console.error('Failed to delete all history records:', error);
-      
-      if (error.response?.status === 401) {
-        setAuthError(true);
-        setErrorMessage('Authentication required. Please log in again.');
-      } else {
-        setErrorMessage(error.response?.data?.detail || 'Failed to delete history records');
-      }
-      setTimeout(() => setErrorMessage(null), 5000);
-    } finally {
-      setDeleteAllConfirmOpen(false);
-    }
-  };
+  if (loading) {
+    return <Card><CardContent className="p-6">Loading schedule data...</CardContent></Card>;
+  }
 
-  const getRelativeTime = (dateString: string) => {
-    // Backend now sends proper UTC timestamps with 'Z'
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = date.getTime() - now.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 0) {
-      return 'overdue';
-    } else if (diffMins < 60) {
-      return `in ${diffMins} minutes`;
-    } else if (diffMins < 1440) {
-      const hours = Math.floor(diffMins / 60);
-      const mins = diffMins % 60;
-      return `in ${hours}h ${mins}m`;
-    } else {
-      const days = Math.floor(diffMins / 1440);
-      return `in ${days} days`;
-    }
-  };
-
-  // Show authentication error if not authenticated
-  if (authError || !isAuthenticated) {
+  if (!isAuthenticated) {
     return (
-      <div className="space-y-6">
-        <Alert className="border-red-500 bg-red-500/10">
-          <LogIn className="h-4 w-4 text-red-500" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>Authentication required to access scraping schedules.</span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => window.location.href = '/login'}
-              className="ml-4"
-            >
-              <LogIn className="h-4 w-4 mr-2" />
-              Login
-            </Button>
-          </AlertDescription>
-        </Alert>
-        
-        <Card>
-          <CardContent className="flex items-center justify-center h-48 text-muted-foreground">
-            <div className="text-center">
-              <LogIn className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Please log in to view and manage scraping schedules</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please log in to manage scraping schedules.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -396,325 +284,261 @@ const ScrapingSchedule: React.FC = () => {
     <div className="space-y-6">
       {/* Status Messages */}
       {statusMessage && (
-        <Alert className="border-green-500 bg-green-500/10">
-          <CheckCircle className="h-4 w-4 text-green-500" />
-          <AlertDescription>{statusMessage}</AlertDescription>
-        </Alert>
-      )}
-      {errorMessage && (
-        <Alert className="border-red-500 bg-red-500/10">
-          <AlertCircle className="h-4 w-4 text-red-500" />
-          <AlertDescription>{errorMessage}</AlertDescription>
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">{statusMessage}</AlertDescription>
         </Alert>
       )}
       
+      {errorMessage && (
+        <Alert className="bg-red-50 border-red-200">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">{errorMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Daemon Status */}
+      {daemonStatus && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Scheduler Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">Daemon Status:</span>
+                <span className="ml-2 font-medium">
+                  {daemonStatus.daemon_status === 'running' ? (
+                    <span className="text-green-600">Running</span>
+                  ) : (
+                    <span className="text-gray-500">Unknown</span>
+                  )}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-600">Last Execution:</span>
+                <span className="ml-2">{formatDate(daemonStatus.last_execution)}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Total Schedules:</span>
+                <span className="ml-2 font-medium">{daemonStatus.total_schedules}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Active Schedules:</span>
+                <span className="ml-2 font-medium">{daemonStatus.active_schedules}</span>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-4">{daemonStatus.message}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Schedule Configuration */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Hourly Work Order Scraping
-            </CardTitle>
-            {schedule && (
-              <Badge variant={schedule.enabled ? "default" : "secondary"}>
-                {schedule.enabled ? 'Active' : 'Paused'}
-              </Badge>
-            )}
-          </div>
+          <CardTitle className="text-xl flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Calendar className="w-5 h-5" />
+              Work Order Scraping Schedule
+            </span>
+            {schedule && getStatusBadge(schedule.status)}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Schedule Settings */}
           <div className="space-y-4">
-            <h3 className="font-medium">Schedule Settings</h3>
-            
-            <div className="space-y-2">
-              <Label htmlFor="interval">
-                Scraping Interval (hours)
-              </Label>
+            {/* Interval Configuration */}
+            <div>
+              <Label htmlFor="interval">Scraping Interval (hours)</Label>
               <Input
                 id="interval"
                 type="number"
-                min="0.25"
+                min="0.5"
                 max="24"
-                step="0.25"
+                step="0.5"
                 value={intervalHours}
                 onChange={(e) => setIntervalHours(parseFloat(e.target.value))}
+                className="w-32"
               />
             </div>
 
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="active-hours"
-                checked={useActiveHours}
-                onChange={(e) => setUseActiveHours(e.target.checked)}
-                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-              />
-              <Label htmlFor="active-hours" className="cursor-pointer">
-                Restrict to active hours
-              </Label>
-            </div>
-
-            {useActiveHours && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="start-hour">
-                    Start Hour
-                  </Label>
-                  <select
-                    id="start-hour"
-                    value={activeHoursStart}
-                    onChange={(e) => setActiveHoursStart(parseInt(e.target.value))}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {Array.from({ length: 24 }, (_, i) => (
-                      <option key={i} value={i}>
-                        {i.toString().padStart(2, '0')}:00
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end-hour">
-                    End Hour
-                  </Label>
-                  <select
-                    id="end-hour"
-                    value={activeHoursEnd}
-                    onChange={(e) => setActiveHoursEnd(parseInt(e.target.value))}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {Array.from({ length: 24 }, (_, i) => (
-                      <option key={i} value={i}>
-                        {i.toString().padStart(2, '0')}:00
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            {/* Active Hours Configuration */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="useActiveHours"
+                  checked={useActiveHours}
+                  onChange={(e) => setUseActiveHours(e.target.checked)}
+                  className="rounded"
+                />
+                <Label htmlFor="useActiveHours">Limit to specific hours</Label>
               </div>
-            )}
-          </div>
-
-          {/* Schedule Info & Actions */}
-          <div className="space-y-4">
-            <h3 className="font-medium">Schedule Information</h3>
-            
-            {schedule && (
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Next Run:</span>
-                  <span className="font-medium">
-                    {schedule.next_run ? (
-                      <>
-                        {formatDate(schedule.next_run)}
-                        <span className="text-sm text-muted-foreground ml-2">
-                          ({getRelativeTime(schedule.next_run)})
-                        </span>
-                      </>
-                    ) : 'Not scheduled'}
+              
+              {useActiveHours && (
+                <div className="flex items-center gap-4 ml-6">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="startHour" className="text-sm">Start:</Label>
+                    <Input
+                      id="startHour"
+                      type="number"
+                      min="0"
+                      max="23"
+                      value={activeHoursStart}
+                      onChange={(e) => setActiveHoursStart(parseInt(e.target.value))}
+                      className="w-20"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="endHour" className="text-sm">End:</Label>
+                    <Input
+                      id="endHour"
+                      type="number"
+                      min="0"
+                      max="23"
+                      value={activeHoursEnd}
+                      onChange={(e) => setActiveHoursEnd(parseInt(e.target.value))}
+                      className="w-20"
+                    />
+                  </div>
+                  <span className="text-sm text-gray-600">
+                    ({activeHoursStart}:00 - {activeHoursEnd}:00)
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Status:</span>
-                  <Badge variant={schedule.pending ? "default" : "secondary"}>
-                    {schedule.pending ? 'Running' : 'Idle'}
-                  </Badge>
+              )}
+            </div>
+
+            {/* Schedule Info */}
+            {schedule && (
+              <div className="border-t pt-4 space-y-2 text-sm">
+                <div>
+                  <span className="text-gray-600">Last Run:</span>
+                  <span className="ml-2">{formatDate(schedule.last_run)}</span>
                 </div>
+                <div>
+                  <span className="text-gray-600">Next Run:</span>
+                  <span className="ml-2">{formatDate(schedule.next_run)}</span>
+                </div>
+                {schedule.consecutive_failures > 0 && (
+                  <div className="text-red-600">
+                    <span>Consecutive Failures:</span>
+                    <span className="ml-2 font-medium">{schedule.consecutive_failures}</span>
+                  </div>
+                )}
               </div>
             )}
 
+            {/* Action Buttons */}
             <div className="flex gap-2 pt-4">
               {!schedule ? (
-                <Button
-                  onClick={createSchedule}
-                  disabled={loading}
-                  className="flex-1"
-                >
+                <Button onClick={createSchedule} disabled={loading}>
+                  <Play className="w-4 h-4 mr-2" />
                   Create Schedule
                 </Button>
               ) : (
                 <>
                   <Button
-                    onClick={() => updateSchedule()}
+                    onClick={() => updateSchedule(!schedule.enabled)}
                     disabled={loading}
-                    className="flex-1"
+                    variant={schedule.enabled ? 'outline' : 'default'}
                   >
-                    Update
+                    {schedule.enabled ? (
+                      <>
+                        <Pause className="w-4 h-4 mr-2" />
+                        Pause Schedule
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4 mr-2" />
+                        Enable Schedule
+                      </>
+                    )}
                   </Button>
-                  {schedule.enabled ? (
-                    <Button
-                      onClick={() => updateSchedule(false)}
-                      disabled={loading}
-                      variant="secondary"
-                      size="icon"
-                    >
-                      <Pause className="w-4 h-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={() => updateSchedule(true)}
-                      disabled={loading}
-                      variant="secondary"
-                      size="icon"
-                    >
-                      <Play className="w-4 h-4" />
-                    </Button>
-                  )}
+                  
+                  <Button
+                    onClick={() => updateSchedule(schedule.enabled)}
+                    disabled={loading}
+                    variant="outline"
+                    className="mr-2"
+                  >
+                    Save Settings
+                  </Button>
+                  
+                  <Button
+                    onClick={triggerManualRun}
+                    disabled={loading || isTriggering}
+                    variant="outline"
+                  >
+                    <RefreshCw className={cn("w-4 h-4 mr-2", isTriggering && "animate-spin")} />
+                    Run Now
+                  </Button>
+                  
+                  <Button
+                    onClick={deleteSchedule}
+                    disabled={loading}
+                    variant="outline"
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    Delete Schedule
+                  </Button>
                 </>
               )}
-              <Button
-                onClick={triggerManualScrape}
-                disabled={loading || !schedule || isTriggering}
-                variant="outline"
-                title="Manually trigger the scheduled scrape immediately for testing"
-              >
-                <RefreshCw className={cn("w-4 h-4 mr-2", isTriggering && "animate-spin")} />
-                {isTriggering ? "Triggering..." : "Test Now"}
-              </Button>
             </div>
           </div>
-        </div>
         </CardContent>
       </Card>
 
-      {/* Scraping History */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              Recent Scraping History
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              {history.length > 0 && (
-                <Button
-                  onClick={handleDeleteAllClick}
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
+      {/* Execution History */}
+      {schedule && history.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Recent Execution History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {history.map((item) => (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "p-3 rounded-lg border",
+                    item.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+                  )}
                 >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete All
-                </Button>
-              )}
-              <Button
-                onClick={fetchHistory}
-                variant="ghost"
-                size="icon"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b">
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Started
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Duration
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Items
-                </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-2 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {history.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    No scraping history yet
-                  </td>
-                </tr>
-              ) : (
-                history.map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm">
-                      {formatDate(item.started_at)}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap">
-                      <Badge variant="secondary" className="capitalize">
-                        {item.trigger_type || 'scheduled'}
-                      </Badge>
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm">
-                      {formatDuration(item.duration_seconds)}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-sm text-center">
-                      {item.items_processed}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
                       {item.success ? (
-                        <Badge variant="outline" className="text-green-600 border-green-600">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Success
-                        </Badge>
+                        <CheckCircle className="w-5 h-5 text-green-600" />
                       ) : (
-                        <Badge variant="outline" className="text-red-600 border-red-600">
-                          <AlertCircle className="w-3 h-3 mr-1" />
-                          Failed
-                        </Badge>
+                        <AlertCircle className="w-5 h-5 text-red-600" />
                       )}
-                    </td>
-                    <td className="px-2 py-3 whitespace-nowrap text-right">
-                      <Button
-                        onClick={() => handleDeleteClick(item.id)}
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        title="Delete this history record"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        </CardContent>
-      </Card>
-
-      {/* Confirmation Dialogs */}
-      <ConfirmationDialog
-        open={deleteConfirmOpen}
-        onOpenChange={setDeleteConfirmOpen}
-        title="Delete History Record"
-        description="Are you sure you want to delete this scraping history record? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        onConfirm={deleteHistoryItem}
-        variant="destructive"
-      />
-
-      <ConfirmationDialog
-        open={deleteAllConfirmOpen}
-        onOpenChange={setDeleteAllConfirmOpen}
-        title="Delete All History"
-        description="Are you sure you want to delete all scraping history? This action cannot be undone."
-        confirmText="Delete All"
-        cancelText="Cancel"
-        onConfirm={deleteAllHistory}
-        variant="destructive"
-      />
+                      <div>
+                        <p className="font-medium">
+                          {item.success ? 'Success' : 'Failed'}
+                          {item.trigger_type === 'manual' && (
+                            <Badge className="ml-2 text-xs" variant="outline">Manual</Badge>
+                          )}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {formatDate(item.started_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right text-sm">
+                      <p>{item.items_processed} items</p>
+                      <p className="text-gray-600">{formatDuration(item.duration_seconds)}</p>
+                    </div>
+                  </div>
+                  {item.error_message && (
+                    <p className="mt-2 text-sm text-red-600">{item.error_message}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

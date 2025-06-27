@@ -22,12 +22,15 @@ PUBLIC_ENDPOINTS = {
     "/docs",
     "/openapi.json",
     "/redoc",
+    "/api/test/health",
+    "/api/test/version",
 }
 
 # Semi-public endpoints that may need special handling
 CONDITIONAL_PUBLIC_ENDPOINTS = {
     "/api/auth/verify",  # Only during initial auth flow
     "/api/auth/check",   # Only for checking current auth status
+    "/api/auth/status",  # Check authentication status without requiring auth
     "/api/setup/status", # Only during initial setup
     "/api/setup/initialize",  # Only during initial setup
     "/api/v1/logs/write",  # Allow frontend logging but should be rate-limited

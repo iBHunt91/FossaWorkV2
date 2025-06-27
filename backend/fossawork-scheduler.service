@@ -1,0 +1,25 @@
+[Unit]
+Description=FossaWork V2 Scheduler Daemon
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=fossawork
+Group=fossawork
+WorkingDirectory=/opt/fossawork/backend
+Environment="PATH=/opt/fossawork/backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/fossawork/backend/venv/bin/python /opt/fossawork/backend/scheduler_daemon.py
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/fossawork/scheduler.log
+StandardError=append:/var/log/fossawork/scheduler.error.log
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/fossawork/backend/data /var/log/fossawork
+
+[Install]
+WantedBy=multi-user.target

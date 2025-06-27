@@ -14,7 +14,7 @@ from .database import get_db, create_tables
 from .models.user_models import User
 from .core_models import WorkOrder, Dispenser
 from .auth.dependencies import get_current_user
-from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters
+from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters, testing
 # monitoring temporarily disabled for merge
 # Temporarily disabled due to FastAPI validation errors: filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
 from .services.logging_service import get_logger, log_api_request
@@ -33,17 +33,23 @@ logger = get_logger("fossawork.main")
 
 # Try to import scheduler service, fall back to simple implementation
 scheduler_service = None
+scheduler_type = "none"
+
 try:
     from .services.scheduler_service import scheduler_service
-    logger.info("[SCHEDULER] Using full APScheduler-based scheduler service")
+    logger.info("[SCHEDULER] ✓ Using full APScheduler-based scheduler service")
+    scheduler_type = "full"
 except ImportError as e:
-    logger.warning(f"[SCHEDULER] APScheduler not available: {e}")
+    logger.warning(f"[SCHEDULER] APScheduler not available ({e.__class__.__name__}: {e})")
     try:
         from .services.simple_scheduler_service import simple_scheduler_service as scheduler_service
-        logger.info("[SCHEDULER] Using simple scheduler service (database-only)")
+        logger.info("[SCHEDULER] ✓ Using simple scheduler service (database-only mode)")
+        logger.warning("[SCHEDULER] ⚠️  Schedules will be stored but not automatically executed")
+        scheduler_type = "simple"
     except ImportError as e2:
-        logger.error(f"[SCHEDULER] Failed to import any scheduler service: {e2}")
+        logger.error(f"[SCHEDULER] ✗ Failed to import any scheduler service ({e2.__class__.__name__}: {e2})")
         scheduler_service = None
+        scheduler_type = "none"
 
 # Create FastAPI app
 app = FastAPI(
@@ -219,6 +225,7 @@ app.include_router(metrics.router)
 app.include_router(notifications.router)
 app.include_router(scraping_schedules.router)
 app.include_router(filters.router)
+app.include_router(testing.router)
 # app.include_router(monitoring.router)  # Temporarily disabled for merge
 # Temporarily disabled routes due to FastAPI validation errors:
 # app.include_router(filter_calculation.router, prefix="/api/filters", tags=["filters"])
@@ -269,20 +276,26 @@ async def startup_event():
     if scheduler_service:
         try:
             database_url = os.getenv("DATABASE_URL", "sqlite:///./fossawork_v2.db")
-            logger.info(f"[SCHEDULER] Initializing scheduler with database: {database_url}")
+            logger.info(f"[SCHEDULER] Initializing {scheduler_type} scheduler with database: {database_url}")
             await scheduler_service.initialize(database_url)
-            logger.info("[SCHEDULER] Background task scheduler initialized successfully")
             
-            # Log scheduler type and capabilities
-            if hasattr(scheduler_service, 'scheduler') and scheduler_service.scheduler:
-                logger.info("[SCHEDULER] Full APScheduler service active with automated job execution")
-            else:
-                logger.info("[SCHEDULER] Simple scheduler service active (manual execution only)")
+            # Log scheduler capabilities based on type
+            if scheduler_type == "full":
+                logger.info("[SCHEDULER] ✓ Full APScheduler service active - automated job execution enabled")
+                logger.info("[SCHEDULER] ✓ Schedules will run automatically in the background")
+            elif scheduler_type == "simple":
+                logger.info("[SCHEDULER] ✓ Simple scheduler service active - manual execution only")
+                logger.warning("[SCHEDULER] ⚠️  Schedules stored but require manual triggering (APScheduler not available)")
+            
+            # Test scheduler functionality
+            if hasattr(scheduler_service, 'is_initialized'):
+                logger.info(f"[SCHEDULER] Scheduler initialization status: {scheduler_service.is_initialized}")
+            
         except Exception as e:
-            logger.error(f"[SCHEDULER] Failed to initialize scheduler: {e}", exc_info=True)
-            logger.warning("[SCHEDULER] Continuing without scheduler - schedules will be database-only")
+            logger.error(f"[SCHEDULER] ✗ Failed to initialize {scheduler_type} scheduler: {e}", exc_info=True)
+            logger.warning("[SCHEDULER] ⚠️  Continuing without scheduler - schedules will be database-only")
     else:
-        logger.error("[SCHEDULER] No scheduler service available - scheduling features disabled")
+        logger.error("[SCHEDULER] ✗ No scheduler service available - scheduling features disabled")
     
     logger.info("[OK] FossaWork V2 API startup completed successfully")
 

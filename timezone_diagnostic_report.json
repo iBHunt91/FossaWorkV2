@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-06-26T16:49:50.756194",
+  "platform": "macOS-15.5-x86_64-i386-64bit-Mach-O",
+  "python_version": "3.13.4 (main, Jun 10 2025, 20:52:48) [Clang 13.1.6 (clang-1316.0.21.2.5)]",
+  "checks": {
+    "System Information": true,
+    "Python Dependencies": false,
+    "Timezone Functionality": false,
+    "Backend Modules": false,
+    "Critical Function": false,
+    "File Permissions": false,
+    "Database Connectivity": false
+  },
+  "summary": {
+    "passed": 1,
+    "total": 7,
+    "success_rate": 14.285714285714285
+  }
+}

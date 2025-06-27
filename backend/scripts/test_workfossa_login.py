@@ -1,103 +1,145 @@
-#!/usr/bin/env python3
+#\!/usr/bin/env python3
 """
-Test WorkFossa login to diagnose authentication issues
+Simple test to verify WorkFossa login is working
 """
-
 import asyncio
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pathlib import Path
 
-# Set required environment variables if not already set
-if not os.environ.get('FOSSAWORK_MASTER_KEY'):
-    os.environ['FOSSAWORK_MASTER_KEY'] = 'qghPNqYce-4lJMCIUoZnqunMAyusw4WSh85Dfm56nlI'
+# Add parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
 
-from app.services.workfossa_automation import WorkFossaAutomationService
-from app.database import SessionLocal
-from app.models import UserCredential
-import base64
-import logging
+from app.services.browser_automation import BrowserAutomationService
+from app.services.logging_service import get_logger
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.database import DATABASE_URL
+from app.models.user_models import UserCredential
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def simple_decrypt(encrypted_password: str) -> str:
-    """Simple decryption - check if it's base64 or plain text"""
-    try:
-        # Try base64 decode first
-        return base64.b64decode(encrypted_password.encode()).decode()
-    except:
-        # If that fails, it might be plain text
-        return encrypted_password
+logger = get_logger("test.login")
 
 async def test_login():
-    """Test WorkFossa login with stored credentials"""
-    
-    # User ID from the screenshot
-    user_id = "7bea3bdb7e8e303eacaba442bd824004"
-    
-    logger.info(f"Testing WorkFossa login for user: {user_id}")
-    
-    # Get credentials using CredentialManager
-    from app.services.credential_manager import CredentialManager
-    
-    credential_manager = CredentialManager()
-    workfossa_creds = credential_manager.retrieve_credentials(user_id)
-    
-    if not workfossa_creds:
-        logger.error("No WorkFossa credentials found")
-        return
-    
-    username = workfossa_creds.username
-    password = workfossa_creds.password
-    
-    logger.info(f"Found credentials for username: {username}")
-    logger.info(f"Password length: {len(password)}")
-    
-    # Create automation service with visible browser
-    logger.info("Creating WorkFossa automation service...")
-    automation = WorkFossaAutomationService(headless=False)
-    
-    session_id = f"test_{user_id}"
+    """Test WorkFossa login"""
+    # Create database session
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
     
     try:
-        # Test credential verification
-        logger.info("Testing credential verification...")
-        result = await automation.verify_credentials(
-            session_id,
-            username,
-            password
-        )
+        # Get user credentials (use the test user)
+        user_id = "7bea3bdb7e8e303eacaba442bd824004"
         
-        logger.info(f"Verification result: {result}")
+        user_credential = db.query(UserCredential).filter(
+            UserCredential.user_id == user_id,
+            UserCredential.service_name == 'workfossa'
+        ).first()
         
-        if result['success']:
-            logger.info("✅ Credentials verified successfully!")
+        if not user_credential:
+            logger.error("No WorkFossa credentials found")
+            return
+            
+        credentials = {
+            'username': user_credential.username,
+            'password': user_credential.password
+        }
+        
+        logger.info(f"Found credentials for user: {credentials['username']}")
+        
+        # Create browser automation instance with visible browser
+        browser_automation = BrowserAutomationService(headless=False)
+        
+        # Create session
+        session_id = "test_login"
+        
+        # Create browser session
+        logger.info("Creating browser session...")
+        await browser_automation.create_session(session_id)
+        
+        # Login to WorkFossa
+        logger.info("Attempting to login to WorkFossa...")
+        result = await browser_automation.navigate_to_workfossa(session_id, credentials)
+        
+        if result:
+            logger.info("✅ Login successful\!")
+            
+            # Get the page
+            page = browser_automation.sessions[session_id]["page"]
+            
+            # Check current URL
+            current_url = page.url
+            logger.info(f"Current URL: {current_url}")
+            
+            # Check page title
+            title = await page.title()
+            logger.info(f"Page title: {title}")
+            
+            # Take screenshot
+            await page.screenshot(path="/tmp/workfossa_login_success.png")
+            logger.info("Screenshot saved to /tmp/workfossa_login_success.png")
+            
+            # Wait a moment to see the page
+            await asyncio.sleep(5)
+            
+            # Try navigating to work orders
+            logger.info("Navigating to work orders list...")
+            await page.goto("https://app.workfossa.com/app/work/list", wait_until="networkidle")
+            
+            # Check if we made it to work orders
+            work_orders_url = page.url
+            logger.info(f"Work orders URL: {work_orders_url}")
+            
+            # Take another screenshot
+            await page.screenshot(path="/tmp/workfossa_work_orders.png")
+            logger.info("Screenshot saved to /tmp/workfossa_work_orders.png")
+            
+            # Check for work order elements
+            logger.info("Checking for work order elements...")
+            
+            # Wait for the page to load
+            await page.wait_for_timeout(3000)
+            
+            # Try basic selectors
+            selectors_to_try = [
+                "table",
+                "tbody",
+                "tr",
+                "[class*='table']",
+                "[class*='row']",
+                "[class*='work']",
+                "[class*='order']"
+            ]
+            
+            for selector in selectors_to_try:
+                elements = await page.query_selector_all(selector)
+                if elements:
+                    logger.info(f"Found {len(elements)} elements with selector: {selector}")
+            
+            # Get page content for debugging
+            page_content = await page.content()
+            logger.info(f"Page content length: {len(page_content)}")
+            
+            # Save page content
+            with open("/tmp/workfossa_work_orders.html", "w") as f:
+                f.write(page_content)
+            logger.info("Page content saved to /tmp/workfossa_work_orders.html")
+            
         else:
-            logger.error(f"❌ Credential verification failed: {result['message']}")
+            logger.error("❌ Login failed\!")
             
-            # Try creating a session and logging in to get more details
-            logger.info("\nTrying full login process...")
-            
-            await automation.create_session(
-                session_id=session_id,
-                user_id=user_id,
-                credentials={
-                    'email': username,
-                    'password': password
-                }
-            )
-            
-            login_success = await automation.login_to_workfossa(session_id)
-            logger.info(f"Login result: {login_success}")
-            
+        # Wait for user input
+        input("\nPress Enter to close browser and exit...")
+        
     except Exception as e:
-        logger.error(f"Error during testing: {e}", exc_info=True)
+        logger.error(f"Error during test: {e}", exc_info=True)
     finally:
-        # Clean up
-        if hasattr(automation, 'browser') and automation.browser:
-            await automation.browser.close()
-            logger.info("Browser closed")
+        # Cleanup
+        try:
+            await browser_automation.close_session(session_id)
+        except:
+            pass
+        db.close()
 
 if __name__ == "__main__":
     asyncio.run(test_login())
+EOF < /dev/null

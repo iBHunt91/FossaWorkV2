@@ -86,9 +86,16 @@ const Settings: React.FC = () => {
       if (sectionParam) {
         setExpandedSections(new Set([sectionParam]))
       } else {
-        // For direct tab navigation (like scraping), expand the main section
+        // For direct tab navigation, expand relevant sections
         if (tabParam === 'scraping') {
           setExpandedSections(new Set(['scraping-schedule']))
+        } else if (tabParam === 'notifications') {
+          // Expand all notification sections by default for better UX
+          setExpandedSections(new Set([
+            'email-notifications',
+            'pushover-notifications',
+            'notification-preferences'
+          ]))
         }
       }
     }
@@ -122,7 +129,7 @@ const Settings: React.FC = () => {
     queryFn: () => getWorkFossaCredentials(currentUserId),
   })
 
-  const { data: notificationPreferences, isLoading: notificationLoading, refetch: refetchNotifications } = useQuery({
+  const { data: notificationPreferences, isLoading: notificationLoading, refetch: refetchNotifications, error: notificationError } = useQuery({
     queryKey: ['notification-preferences', currentUserId],
     queryFn: () => getNotificationPreferences(currentUserId),
     onSuccess: (data) => {
@@ -132,6 +139,16 @@ const Settings: React.FC = () => {
       console.error('Failed to load notification preferences:', error)
     }
   })
+  
+  // Debug notification preferences
+  useEffect(() => {
+    if (notificationPreferences) {
+      console.log('Current notification preferences state:', notificationPreferences)
+    }
+    if (notificationError) {
+      console.error('Notification preferences error:', notificationError)
+    }
+  }, [notificationPreferences, notificationError])
 
   const { data: smtpSettings, isLoading: smtpLoading, refetch: refetchSMTP } = useQuery({
     queryKey: ['smtp-settings', currentUserId],
@@ -435,7 +452,25 @@ const Settings: React.FC = () => {
               return (
                 <MagneticButton
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id)
+                    // Automatically expand sections for better UX
+                    if (tab.id === 'notifications') {
+                      setExpandedSections(new Set([
+                        'email-notifications',
+                        'pushover-notifications',
+                        'notification-preferences'
+                      ]))
+                    } else if (tab.id === 'scraping') {
+                      setExpandedSections(new Set(['scraping-schedule']))
+                    } else if (tab.id === 'advanced') {
+                      // Optionally expand some advanced sections
+                      setExpandedSections(new Set(['smtp-settings']))
+                    } else {
+                      // Clear expanded sections for other tabs
+                      setExpandedSections(new Set())
+                    }
+                  }}
                   variant={activeTab === tab.id ? 'default' : 'ghost'}
                   className="w-full justify-start animate-slide-in-from-left"
                   style={{ animationDelay: `${index * 0.05}s` }}
@@ -521,6 +556,47 @@ const Settings: React.FC = () => {
 
             {activeTab === 'notifications' && (
               <div className="space-y-4">
+                {/* Show loading state if data is still loading */}
+                {notificationLoading && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>Loading notification settings...</AlertDescription>
+                  </Alert>
+                )}
+                
+                {/* Show error state if there's an error */}
+                {notificationError && (
+                  <Alert className="border-red-500 bg-red-50">
+                    <XCircle className="h-4 w-4 text-red-600" />
+                    <AlertDescription className="text-red-600">
+                      Failed to load notification settings. Please refresh the page.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {/* Debug helper - expand all sections button */}
+                <div className="flex justify-end mb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const allSections = [
+                        'email-notifications',
+                        'pushover-notifications', 
+                        'notification-preferences'
+                      ]
+                      const allExpanded = allSections.every(section => expandedSections.has(section))
+                      if (allExpanded) {
+                        setExpandedSections(new Set())
+                      } else {
+                        setExpandedSections(new Set(allSections))
+                      }
+                    }}
+                  >
+                    {expandedSections.size >= 3 ? 'Collapse All' : 'Expand All'}
+                  </Button>
+                </div>
+                
                 {/* Email Configuration */}
                 <CollapsibleSection
                   id="email-notifications"

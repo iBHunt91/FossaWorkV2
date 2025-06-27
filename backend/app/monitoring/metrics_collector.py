@@ -106,7 +106,7 @@ class MetricsCollector:
             }
             
             # Table sizes
-            tables = ["users", "work_orders", "dispensers", "automation_tasks"]
+            tables = ["users", "work_orders", "dispensers", "automation_jobs"]
             for table in tables:
                 result = db.execute(text(f"SELECT COUNT(*) FROM {table}"))
                 metrics[f"{table}_count"] = result.scalar()

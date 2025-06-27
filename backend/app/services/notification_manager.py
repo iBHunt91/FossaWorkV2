@@ -283,7 +283,11 @@ class NotificationManager:
                     raise ValueError("Invalid Pushover user key")
             
             # Store preferences
-            self.user_service.set_user_preference(user_id, "notification_preferences", preferences)
+            result = await self.user_service.update_user_preferences(user_id, "notification_preferences", preferences)
+            
+            if not result:
+                await self.logging_service.log_error(f"Failed to store notification preferences for user {user_id}")
+                return False
             
             await self.logging_service.log_info(
                 f"Notification preferences updated for user {user_id}"
@@ -543,18 +547,52 @@ def get_notification_manager(
     if db is None:
         db = next(get_db())
     
+    # PATCHED: Load user SMTP settings
     if email_settings is None:
-        email_settings = EmailSettings(
-            smtp_server="smtp.gmail.com",
-            smtp_port=587,
-            username="fossawork@example.com",
-            password="app_specific_password"
-        )
+        # Try to load from current request context or use default
+        import json
+        from pathlib import Path
+        
+        # Try to get user ID from somewhere (this is a simplified approach)
+        # In production, this should come from the request context
+        user_dirs = list(Path("data/users").glob("*/settings/smtp.json"))
+        if user_dirs:
+            # Use the first user's SMTP settings found
+            smtp_path = user_dirs[0]
+            try:
+                with open(smtp_path, 'r') as f:
+                    smtp_config = json.load(f)
+                
+                email_settings = EmailSettings(
+                    smtp_server=smtp_config.get('smtp_server', 'smtp.gmail.com'),
+                    smtp_port=smtp_config.get('smtp_port', 587),
+                    username=smtp_config.get('username', ''),
+                    password=smtp_config.get('password', ''),
+                    use_tls=smtp_config.get('use_tls', True),
+                    use_ssl=smtp_config.get('use_ssl', False),
+                    from_email=smtp_config.get('from_email', smtp_config.get('username', '')),
+                    from_name=smtp_config.get('from_name', 'FossaWork Automation')
+                )
+            except Exception as e:
+                print(f"Error loading SMTP settings: {e}")
+                email_settings = EmailSettings(
+                    smtp_server="smtp.gmail.com",
+                    smtp_port=587,
+                    username="fossawork@example.com",
+                    password="app_specific_password"
+                )
+        else:
+            email_settings = EmailSettings(
+                smtp_server="smtp.gmail.com",
+                smtp_port=587,
+                username="fossawork@example.com",
+                password="app_specific_password"
+            )
     
     if pushover_settings is None:
         pushover_settings = PushoverSettings(
-            api_token="your_pushover_app_token",
-            user_key="your_pushover_user_key"
+            api_token="azrfbwsp4w3mjnuxvuk9s96n6j2jg2",
+            user_key=""
         )
     
     return NotificationManager(db, email_settings, pushover_settings)

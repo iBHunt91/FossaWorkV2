@@ -451,8 +451,16 @@ export default function FilterDetailsPanel({
         setIsDispenserModalOpen(false);
         setSelectedWorkOrderId(null);
       }}
-      dispenserData={selectedWorkOrderId && filterDetails.find(d => d.jobId === selectedWorkOrderId) ? {
-        workOrder: {
+      dispenserData={selectedWorkOrderId && filterDetails.find(d => d.jobId === selectedWorkOrderId) ? (() => {
+        const detail = filterDetails.find(d => d.jobId === selectedWorkOrderId);
+        console.log('[FilterDetailsPanel] Opening modal with data:', {
+          jobId: selectedWorkOrderId,
+          filters: detail?.filters,
+          dispensers: detail?.dispensers,
+          detail: detail
+        });
+        return {
+          workOrder: {
           id: selectedWorkOrderId,
           external_id: selectedWorkOrderId,
           storeNumber: filterDetails.find(d => d.jobId === selectedWorkOrderId)?.storeNumber || '',
@@ -466,7 +474,8 @@ export default function FilterDetailsPanel({
         },
         dispensers: filterDetails.find(d => d.jobId === selectedWorkOrderId)?.dispensers || [],
         filters: filterDetails.find(d => d.jobId === selectedWorkOrderId)?.filters || {}
-      } : null}
+      };
+      })() : null}
     />
     </>
   );

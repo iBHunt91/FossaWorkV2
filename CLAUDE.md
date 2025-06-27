@@ -271,7 +271,7 @@ When sub-agents produce problematic results:
 **Development:**
 - `npm run electron:dev:start` - Primary dev command (starts frontend + electron)
 - `npm run dev` - Frontend development server (Vite)
-- **Backend:** `cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend && uvicorn app.main:app --reload --port 8000`
+- **Backend:** `cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend && python3 -m uvicorn app.main:app --reload --port 8000`
 - **Full Stack:** Run frontend and backend in separate terminals
 - `npm run fix-vite-cache` / `npm run fix-vite-full` - Fix Vite issues
 
@@ -283,6 +283,7 @@ When sub-agents produce problematic results:
 **Building:** `npm run build`, `npm run electron:build`
 
 **Testing:** 
+- **Testing Dashboard:** Navigate to `http://localhost:5173/testing` (comprehensive system tests)
 - Frontend: `npm test` (when tests exist)
 - Backend: `cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend && pytest` (requires test organization first)
 - **Note:** Most test files currently in backend root need organization
@@ -428,13 +429,42 @@ DELETE /api/v1/resources/{id}     # Delete
 - Virtual environment setup:
   ```bash
   cd backend
-  python -m venv venv
+  python3 -m venv venv  # Use python3 on macOS/Linux
   # Activate on Unix/macOS:
   source venv/bin/activate
   # Activate on Windows:
   venv\Scripts\activate
   # Install dependencies:
   pip install -r requirements.txt
+  ```
+
+**IMPORTANT Python Command Usage:**
+- **macOS/Linux:** Always use `python3` command (not `python`)
+- **Windows:** Use `python` command
+- **After venv activation:** `python` works on all platforms
+- **For backend scripts:** Always activate venv first to ensure dependencies are available
+
+**Running Backend Scripts (Correct Workflow):**
+  ```bash
+  # Navigate to backend directory
+  cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend
+  
+  # Activate virtual environment (REQUIRED for scripts with dependencies)
+  source venv/bin/activate  # macOS/Linux
+  # OR: venv\Scripts\activate  # Windows
+  
+  # Now run scripts with python (not python3)
+  python scripts/simple_schedule_test.py
+  
+  # Deactivate when done
+  deactivate
+  ```
+
+**Without venv (limited functionality):**
+  ```bash
+  # Only for scripts with no external dependencies
+  python3 /path/to/script.py  # macOS/Linux
+  python /path/to/script.py   # Windows
   ```
 
 **Database Setup:**
@@ -455,7 +485,7 @@ DELETE /api/v1/resources/{id}     # Delete
    ```bash
    cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend
    source venv/bin/activate  # or venv\Scripts\activate on Windows
-   uvicorn app.main:app --reload --port 8000
+   python -m uvicorn app.main:app --reload --port 8000  # python works after venv activation
    ```
 
 2. **Terminal 2 - Frontend:**
@@ -547,7 +577,7 @@ See `/ai_docs/reference/comprehensive-codebase-analysis-2025.md` for full securi
 
 **Testing:** Unit/Integration/Performance/Cross-platform tests in `/tests/` subdirectories (never root).
 
-**Recent Work:** Documentation consolidated (107→67 files, 37% reduction). Batch/AccuMeasure/Form automation unified.
+**Recent Work:** Documentation consolidated (107→67 files, 37% reduction). Batch/AccuMeasure/Form automation unified. Testing Dashboard implemented with 24 comprehensive system tests.
 
 ## Data Backup & Recovery
 
@@ -616,12 +646,381 @@ print(f'Backup created: {backup_dir}')
 **IMPORTANT: Command Guidelines:**
 - **ALWAYS provide full absolute paths** when giving file paths or test commands
 - **NEVER use relative paths** in commands (avoid `cd backend && python scripts/...`)
-- **Example:** Use `python3 /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend/scripts/test_dispenser_batch_quick.py`
-- **Not:** `cd backend && python3 scripts/test_dispenser_batch_quick.py`
+- **ALWAYS use `python3` on macOS/Linux** (not `python` which may not exist)
+- **Example (macOS/Linux):** `python3 /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend/scripts/test_dispenser_batch_quick.py`
+- **Example (Windows):** `python C:\Users\ibhunt\Documents\GitHub\FossaWorkV2\backend\scripts\test_dispenser_batch_quick.py`
+- **Not:** `cd backend && python scripts/test_dispenser_batch_quick.py`
+
+## Code Organization & Refactoring Best Practices
+
+### Avoid Over-Engineering
+
+**Principles:**
+- **KISS (Keep It Simple):** Start with the simplest solution that works
+- **YAGNI (You Aren't Gonna Need It):** Don't add features or complexity until actually needed
+- **Iterative Improvement:** Build working basics first, then enhance as requirements emerge
+- **Pragmatic Solutions:** Choose practical over perfect when it delivers value faster
+
+**When NOT to Over-Engineer:**
+- Building for imaginary future requirements
+- Creating abstractions with only one implementation
+- Adding layers of indirection without clear benefit
+- Optimizing before measuring actual performance needs
+- Building generic systems when specific solutions work fine
+
+### When to Refactor
+
+**Refactor When:**
+- **Files exceed 300-500 lines** and have multiple responsibilities
+- **Functions exceed 50 lines** or have complex nested logic
+- **Components have 5+ props** or manage multiple unrelated states
+- **Code duplication** appears in 3+ places
+- **Adding features becomes difficult** due to current structure
+- **Tests are hard to write** because of tight coupling
+- **Performance issues** are measured and traced to architecture
+
+**DON'T Refactor When:**
+- Code works fine and isn't actively being modified
+- Deadlines are tight and changes are risky
+- You don't fully understand the existing code
+- Just because you prefer a different style
+- Without tests to verify behavior preservation
+
+### When to Create New Files
+
+**Create New Files When:**
+- **Single Responsibility:** A class/module handles one clear concern
+- **File Length:** Existing file exceeds 500 lines of actual code
+- **Logical Grouping:** Related functions/components form a cohesive unit
+- **Reusability:** Code will be used in multiple places
+- **Testing:** Separate files make unit testing easier
+- **Team Collaboration:** Reduces merge conflicts on large files
+
+**File Organization Guidelines:**
+```typescript
+// ❌ BAD: Everything in one file
+// components/Dashboard.tsx (1000+ lines)
+export const Dashboard = () => {
+  // User management logic
+  // Analytics logic  
+  // Settings logic
+  // Notification logic
+}
+
+// ✅ GOOD: Separated by concern
+// components/Dashboard/index.tsx
+// components/Dashboard/UserManagement.tsx
+// components/Dashboard/Analytics.tsx
+// components/Dashboard/Settings.tsx
+// components/Dashboard/Notifications.tsx
+```
+
+### Best Practices for Our Tech Stack
+
+**React/TypeScript Frontend:**
+- **Component Size:** Keep components under 150 lines
+- **Custom Hooks:** Extract complex logic into reusable hooks
+- **Type Safety:** Define interfaces for all props and state
+- **Lazy Loading:** Use React.lazy() for route-based code splitting
+- **State Management:** Keep state as local as possible, lift only when needed
+
+**Python/FastAPI Backend:**
+- **Service Layer:** Separate business logic from route handlers
+- **Dependency Injection:** Use FastAPI's dependency system for shared resources
+- **Async First:** Use async/await for all I/O operations
+- **Type Hints:** Always use type hints for better IDE support and validation
+- **Error Handling:** Create custom exception classes for different error types
+
+**Database/SQLAlchemy:**
+- **Repository Pattern:** Isolate database queries in repository classes
+- **Migrations:** Always use Alembic for schema changes
+- **Query Optimization:** Use eager loading to prevent N+1 queries
+- **Connection Management:** Let SQLAlchemy handle connection pooling
+
+**General Patterns:**
+- **Configuration:** Centralize config in environment-specific files
+- **Logging:** Use structured logging with appropriate levels
+- **Testing:** Aim for 80% coverage on critical paths
+- **Documentation:** Document WHY, not WHAT (code shows what)
+- **Comments:** Update or remove outdated comments immediately
 
 ## Testing Approach
 
-**Dual Testing Strategy:** When creating automation tests, ALWAYS create two versions:
+### Testing Dashboard
+
+**Comprehensive System Testing:** The Testing Dashboard provides centralized access to all system tests with real-time execution and result tracking.
+
+**Access:** Navigate to `http://localhost:5173/testing` when running the development server.
+
+**Available Test Categories:**
+1. **Authentication (4 tests)**
+   - Login validation with WorkFossa
+   - JWT token generation and validation
+   - User session management
+   - Logout functionality
+
+2. **Database (3 tests)**
+   - Connection verification
+   - Table existence checks
+   - Basic CRUD operations
+
+3. **Web Scraping (3 tests)**
+   - WorkFossa authentication
+   - Work order data extraction
+   - Dispenser data retrieval
+
+4. **Form Automation (3 tests)**
+   - Playwright browser initialization
+   - Page navigation capabilities
+   - Form interaction testing
+
+5. **Notifications (3 tests)**
+   - Email configuration validation
+   - Pushover service testing
+   - Desktop notification system
+
+6. **API Endpoints (4 tests)**
+   - Health check endpoint
+   - Protected route authentication
+   - Work order API functionality
+   - Settings API operations
+
+7. **Filter System (2 tests)**
+   - Filter calculation logic
+   - Update detection mechanisms
+
+8. **User Management (2 tests)**
+   - User creation and validation
+   - Multi-user data isolation
+
+**Features:**
+- **Real-time Execution:** Watch tests run with live status updates
+- **Detailed Results:** View success/failure messages for each test
+- **Copy Results:** One-click copying of all test results for sharing
+- **Category Filtering:** Run specific test categories independently
+- **Visual Indicators:** Clear pass/fail status with color coding
+
+### Testing Guidelines
+
+**When to Write Tests:**
+1. **New Features:** Create tests before implementing functionality (TDD approach)
+2. **Bug Fixes:** Add regression tests to prevent reoccurrence
+3. **Refactoring:** Ensure behavior preservation with comprehensive tests
+4. **API Changes:** Update endpoint tests with new parameters/responses
+5. **Critical Paths:** Always test authentication, data operations, automation flows
+
+**Test-First Development:**
+```yaml
+Workflow:
+  1. Write failing test for new functionality
+  2. Implement minimal code to pass test
+  3. Refactor and optimize implementation
+  4. Verify all tests still pass
+  5. Use Testing Dashboard for final validation
+```
+
+**Using the Testing Dashboard:**
+1. Start both frontend and backend servers
+2. Navigate to `/testing` route
+3. Click "Run All Tests" or select specific categories
+4. Monitor real-time execution progress
+5. Review detailed results for any failures
+6. Use "Copy Results" to share test outcomes
+
+### Test Implementation Patterns
+
+**Backend Test Endpoint Structure:**
+```python
+@router.get("/test/feature")
+async def test_feature():
+    """Test endpoint following standard pattern"""
+    try:
+        # Perform test operations
+        result = await perform_test()
+        
+        return {
+            "success": True,
+            "message": "Feature test passed",
+            "details": result
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Feature test failed: {str(e)}",
+            "error": str(e)
+        }
+```
+
+**Frontend Test Integration:**
+```typescript
+// Testing service integration
+const runTest = async (endpoint: string) => {
+  try {
+    const response = await api.get(`/api/test/${endpoint}`);
+    return {
+      passed: response.data.success,
+      message: response.data.message,
+      details: response.data.details
+    };
+  } catch (error) {
+    return {
+      passed: false,
+      message: error.message,
+      error: true
+    };
+  }
+};
+```
+
+**Common Test Patterns:**
+1. **Authentication Tests:** Validate credentials, check token generation
+2. **Database Tests:** Verify connections, test CRUD operations
+3. **Scraping Tests:** Mock browser interactions, validate data extraction
+4. **API Tests:** Check endpoints, verify response formats
+5. **Integration Tests:** Test full workflows across systems
+
+### Testing with Sub-Agent Delegation
+
+**Complex Test Debugging:**
+When tests fail or need investigation, use sub-agent delegation:
+
+```yaml
+Main Task: "Fix failing authentication tests"
+Sub-Agent Tasks:
+  1. "Analyze test failure logs"
+  2. "Trace authentication flow"
+  3. "Identify root cause"
+  4. "Implement fix"
+  5. "Verify all tests pass"
+```
+
+**Test Creation Delegation:**
+```yaml
+Main Task: "Add comprehensive filter system tests"
+Sub-Agent Tasks:
+  1. "Research existing filter logic"
+  2. "Design test scenarios"
+  3. "Implement test endpoints"
+  4. "Add frontend integration"
+  5. "Document test coverage"
+```
+
+### Troubleshooting Test Failures
+
+**Common Authentication Test Issues:**
+- **Invalid Credentials:** Check WorkFossa test account status
+- **Token Expiry:** Verify JWT configuration and expiry settings
+- **Session Issues:** Clear browser storage and retry
+
+**Database Test Failures:**
+- **Connection Errors:** Verify database file exists and permissions
+- **Schema Issues:** Run migrations or check table definitions
+- **Lock Conflicts:** Ensure no other processes accessing database
+
+**API Test Problems:**
+- **CORS Errors:** Check backend CORS configuration
+- **Port Conflicts:** Verify services running on correct ports
+- **Timeout Issues:** Increase test timeout values
+
+**Scraping Test Failures:**
+- **Selector Changes:** Update selectors if WorkFossa UI changed
+- **Browser Issues:** Clear browser data or restart Playwright
+- **Network Problems:** Check internet connectivity and proxies
+
+### Testing Commands
+
+**Run Testing Dashboard:**
+```bash
+# Terminal 1: Start backend
+cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend
+source venv/bin/activate
+python -m uvicorn app.main:app --reload --port 8000
+
+# Terminal 2: Start frontend
+cd /Users/ibhunt/Documents/GitHub/FossaWorkV2
+npm run dev
+
+# Access dashboard at: http://localhost:5173/testing
+```
+
+**Backend Test Commands:**
+```bash
+# Run all backend tests (when organized)
+cd /Users/ibhunt/Documents/GitHub/FossaWorkV2/backend
+pytest tests/
+
+# Run specific test category
+pytest tests/test_authentication.py -v
+
+# Run with coverage
+pytest --cov=app tests/
+```
+
+**Frontend Test Commands:**
+```bash
+# Run frontend tests (when implemented)
+cd /Users/ibhunt/Documents/GitHub/FossaWorkV2
+npm test
+
+# Run with watch mode
+npm test -- --watch
+
+# Run with coverage
+npm test -- --coverage
+```
+
+**Integration Test Pattern:**
+```bash
+# Start services in test mode
+cd /Users/ibhunt/Documents/GitHub/FossaWorkV2
+npm run test:integration
+
+# Run end-to-end tests
+npm run test:e2e
+```
+
+### Test Result Sharing
+
+**Using Copy Results Feature:**
+1. Run tests in Testing Dashboard
+2. Click "Copy Results" button
+3. Share formatted results in documentation or issues
+4. Example format:
+   ```
+   Test Results - 2025-01-26 10:00 AM
+   =====================================
+   
+   Authentication Tests: 4/4 passed ✅
+   - Login Test: PASSED
+   - Token Validation: PASSED
+   - User Session: PASSED
+   - Logout Test: PASSED
+   
+   Database Tests: 3/3 passed ✅
+   ...
+   ```
+
+### Testing Best Practices
+
+**DO:**
+- Write tests before implementing features
+- Use Testing Dashboard for validation
+- Keep tests focused and independent
+- Mock external dependencies
+- Test edge cases and error conditions
+- Document test purposes clearly
+
+**DON'T:**
+- Skip tests for "simple" features
+- Hardcode test data that might change
+- Create interdependent tests
+- Ignore failing tests
+- Test implementation details
+- Leave console.log in test code
+
+### Dual Testing Strategy
+
+**When creating automation tests, ALWAYS create two versions:**
 
 1. **Interactive Version (for Bruce)**: 
    - Filename pattern: `interactive_[feature]_test.py`
@@ -978,6 +1377,7 @@ anyio.run(main)
 - **Puppeteer MCP:** Browser automation and web scraping
 - **Playwright MCP:** Advanced browser automation and testing
 - **Notion MCP:** Notion API integration for documentation and knowledge management
+- **BrowserMCP:** Human-like browser interaction with permission-based controls
 
 **Quick Usage:**
 - MCP servers complement existing project automation (form automation, web scraping, batch processing)
@@ -986,6 +1386,90 @@ anyio.run(main)
 - Ensure API keys are properly configured for full functionality
 
 **Configuration Location:** `~/.claude/claude_desktop_config.json` (global MCP configuration)
+
+### BrowserMCP Integration
+
+**BrowserMCP** provides human-like browser automation with permission-based controls, designed for safe and controlled web interactions.
+
+**When to Use BrowserMCP:**
+- **User Research Tasks:** When you need to browse websites and gather information interactively
+- **Form Testing:** For testing web forms with real user-like interactions
+- **UI Verification:** To verify UI elements work correctly from a user perspective
+- **Web Navigation:** For tasks requiring navigation through multi-page workflows
+- **Screenshot Capture:** To document current page states or UI issues
+
+**Key Features:**
+- **Permission-Based:** Requires user approval before interacting with page elements
+- **Accessibility-Focused:** Uses accessibility tree for reliable element identification
+- **Human-Readable:** Provides clear descriptions of actions being performed
+- **Safe by Design:** Cannot perform actions without explicit user consent
+
+**Usage Pattern:**
+```yaml
+1. Navigate: Use browser_navigate to go to target URL
+2. Snapshot: Use browser_snapshot to get accessibility tree
+3. Interact: Use browser_click/type/select with element refs
+4. Verify: Use browser_screenshot to capture results
+```
+
+**Available Tools:**
+- `mcp__browsermcp__browser_navigate` - Navigate to URLs
+- `mcp__browsermcp__browser_snapshot` - Get page accessibility tree
+- `mcp__browsermcp__browser_click` - Click elements (with permission)
+- `mcp__browsermcp__browser_type` - Type text into inputs (with permission)
+- `mcp__browsermcp__browser_select_option` - Select dropdown options
+- `mcp__browsermcp__browser_hover` - Hover over elements
+- `mcp__browsermcp__browser_press_key` - Press keyboard keys
+- `mcp__browsermcp__browser_wait` - Wait for specified time
+- `mcp__browsermcp__browser_screenshot` - Capture page screenshots
+- `mcp__browsermcp__browser_go_back/forward` - Browser navigation
+- `mcp__browsermcp__browser_get_console_logs` - Retrieve console output
+
+**Best Practices:**
+1. **Always snapshot first** to understand page structure before interactions
+2. **Use descriptive element names** when requesting permissions
+3. **Verify actions** with screenshots after important operations
+4. **Handle errors gracefully** - pages may change or elements may not exist
+5. **Respect rate limits** - avoid rapid automated actions
+
+**Example Workflow:**
+```python
+# 1. Navigate to page
+browser_navigate(url="https://example.com/form")
+
+# 2. Get page structure
+browser_snapshot()  # Returns accessibility tree
+
+# 3. Fill form (requires permission)
+browser_type(
+    element="Email input field", 
+    ref="[4] textbox 'Email'",
+    text="user@example.com",
+    submit=False
+)
+
+# 4. Submit form (requires permission)
+browser_click(
+    element="Submit button",
+    ref="[8] button 'Submit'"
+)
+
+# 5. Verify result
+browser_screenshot()
+```
+
+**When NOT to Use BrowserMCP:**
+- **Automated Scraping:** Use Playwright/Puppeteer MCP for programmatic scraping
+- **Batch Operations:** Not suitable for processing multiple items automatically
+- **Background Tasks:** Requires interactive approval, not for unattended automation
+- **Performance Testing:** Use dedicated performance testing tools instead
+
+**Integration with FossaWork:**
+BrowserMCP can complement existing automation by:
+- Manually testing form automation workflows before batch processing
+- Verifying WorkFossa UI changes that might affect scraping
+- Debugging failed automation scenarios interactively
+- Documenting UI workflows with screenshots for training
 
 ### Notion Documentation Integration
 

@@ -236,6 +236,16 @@ export const DispenserInfoModal: React.FC<DispenserInfoModalProps> = ({
     console.log('DispenserInfoModal - First dispenser full data:', dispensers[0]);
   }
   
+  // Debug logging for filters
+  if (isOpen) {
+    console.log('[DispenserInfoModal] Modal opened with data:', {
+      dispenserData,
+      filters: dispenserData?.filters,
+      hasFilters: dispenserData?.filters && Object.keys(dispenserData.filters).length > 0,
+      workOrder: dispenserData?.workOrder
+    });
+  }
+  
 
   // Helper to get dispenser manufacturer
   const getManufacturer = (dispenser: Dispenser): string => {

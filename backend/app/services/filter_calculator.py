@@ -1,11 +1,14 @@
 """Filter calculation service for determining filter requirements based on work orders and dispensers."""
 
+import logging
 import re
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from collections import defaultdict
 
 from app.core_models import WorkOrder, Dispenser
+
+logger = logging.getLogger(__name__)
 
 
 class FilterCalculator:
@@ -104,21 +107,64 @@ class FilterCalculator:
         overrides: Optional[Dict[str, int]] = None
     ) -> Dict[str, Any]:
         """Calculate filter requirements for given work orders and dispensers."""
+        logger.info(f"[FILTER_CALC_SERVICE] Starting filter calculation")
+        logger.info(f"[FILTER_CALC_SERVICE] Input: {len(work_orders)} work orders, {len(dispensers)} dispensers")
+        logger.debug(f"[FILTER_CALC_SERVICE] Overrides: {overrides}")
+        
+        # Validate inputs
+        if not work_orders:
+            logger.warning("[FILTER_CALC_SERVICE] No work orders provided - returning empty result")
+            return {
+                'summary': [],
+                'details': [],
+                'warnings': [{'message': 'No work orders provided', 'severity': 5, 'type': 'validation'}],
+                'totalFilters': 0,
+                'totalBoxes': 0,
+                'metadata': {
+                    'calculatedAt': datetime.utcnow().isoformat(),
+                    'jobCount': 0,
+                    'storeCount': 0
+                }
+            }
+        
         self.warnings = []
         self.filter_details = []
         self.filter_summary = defaultdict(lambda: {'quantity': 0, 'stores': set()})
         
+        # Log work order validation
+        logger.info("[FILTER_CALC_SERVICE] Validating work order data...")
+        required_fields = ['jobId', 'storeNumber', 'serviceCode', 'customerName']
+        valid_work_orders = []
+        
+        for i, wo in enumerate(work_orders):
+            missing_fields = [field for field in required_fields if not wo.get(field)]
+            if missing_fields:
+                logger.warning(f"[FILTER_CALC_SERVICE] Work order {i} missing fields: {missing_fields}")
+                logger.debug(f"[FILTER_CALC_SERVICE] Invalid work order data: {wo}")
+            else:
+                valid_work_orders.append(wo)
+        
+        logger.info(f"[FILTER_CALC_SERVICE] Valid work orders: {len(valid_work_orders)}/{len(work_orders)}")
+        
         # Group dispensers by store
+        logger.info("[FILTER_CALC_SERVICE] Grouping dispensers by store...")
         dispensers_by_store = self._group_dispensers_by_store(dispensers)
+        logger.info(f"[FILTER_CALC_SERVICE] Dispensers grouped for {len(dispensers_by_store)} stores")
+        
+        for store_num, store_dispensers in dispensers_by_store.items():
+            logger.debug(f"[FILTER_CALC_SERVICE] Store {store_num}: {len(store_dispensers)} dispensers")
         
         # Process each work order
-        for work_order in work_orders:
+        logger.info("[FILTER_CALC_SERVICE] Processing work orders...")
+        for i, work_order in enumerate(valid_work_orders):
+            logger.debug(f"[FILTER_CALC_SERVICE] Processing work order {i+1}/{len(valid_work_orders)}: {work_order.get('jobId')}")
             self._process_work_order(work_order, dispensers_by_store, overrides or {})
         
         # Generate summary
+        logger.info("[FILTER_CALC_SERVICE] Generating summary...")
         summary = self._generate_summary()
         
-        return {
+        result = {
             'summary': summary,
             'details': self.filter_details,
             'warnings': self.warnings,
@@ -126,17 +172,38 @@ class FilterCalculator:
             'totalBoxes': sum(item['boxes'] for item in summary),
             'metadata': {
                 'calculatedAt': datetime.utcnow().isoformat(),
-                'jobCount': len(work_orders),
-                'storeCount': len(set(wo['storeNumber'] for wo in work_orders))
+                'jobCount': len(valid_work_orders),
+                'storeCount': len(set(wo['storeNumber'] for wo in valid_work_orders))
             }
         }
+        
+        logger.info(f"[FILTER_CALC_SERVICE] Calculation completed")
+        logger.info(f"[FILTER_CALC_SERVICE] Final results: {result['totalFilters']} filters, {result['totalBoxes']} boxes")
+        logger.info(f"[FILTER_CALC_SERVICE] Generated {len(summary)} summary items and {len(self.filter_details)} detail items")
+        
+        return result
     
     def _group_dispensers_by_store(self, dispensers: List[Dict[str, Any]]) -> Dict[str, List[Dict]]:
         """Group dispensers by store number."""
+        logger.debug(f"[FILTER_CALC_SERVICE] Grouping {len(dispensers)} dispensers by store")
+        
         grouped = defaultdict(list)
+        dispenser_count = 0
+        
         for dispenser in dispensers:
-            grouped[dispenser['storeNumber']].append(dispenser)
-        return dict(grouped)
+            store_number = dispenser.get('storeNumber')
+            if store_number:
+                grouped[store_number].append(dispenser)
+                dispenser_count += 1
+                logger.debug(f"[FILTER_CALC_SERVICE] Added dispenser {dispenser.get('dispenserNumber')} to store '{store_number}'")
+            else:
+                logger.warning(f"[FILTER_CALC_SERVICE] Dispenser missing storeNumber: {dispenser}")
+        
+        result = dict(grouped)
+        logger.debug(f"[FILTER_CALC_SERVICE] Grouped {dispenser_count} dispensers into {len(result)} stores")
+        logger.debug(f"[FILTER_CALC_SERVICE] Store keys: {list(result.keys())}")
+        
+        return result
     
     def _process_work_order(
         self,
@@ -148,14 +215,21 @@ class FilterCalculator:
         job_id = work_order['jobId']
         store_number = work_order['storeNumber']
         service_code = work_order['serviceCode']
+        customer_name = work_order['customerName']
+        
+        logger.debug(f"[FILTER_CALC_SERVICE] Processing job {job_id}, store {store_number}, service {service_code}")
         
         # Check if this service requires filters
         requires_filters = True
         if service_code in self.SPECIAL_CODES:
             requires_filters = self.SPECIAL_CODES[service_code]['requires_filters']
+            logger.debug(f"[FILTER_CALC_SERVICE] Service {service_code} requires filters: {requires_filters}")
+        else:
+            logger.warning(f"[FILTER_CALC_SERVICE] Unknown service code {service_code} for job {job_id}")
         
         # Check for multi-day job
         if work_order.get('isMultiDay') and work_order.get('dayNumber', 1) > 1:
+            logger.info(f"[FILTER_CALC_SERVICE] Skipping multi-day job {job_id} day {work_order.get('dayNumber')}")
             self._add_warning(
                 severity=2,
                 type='multi_day',
@@ -164,17 +238,37 @@ class FilterCalculator:
             )
             return
         
-        # Get store dispensers
+        # Get store dispensers - handle store number formats
         store_dispensers = dispensers_by_store.get(store_number, [])
         
+        # If no match, try cleaning the store number (remove # prefix)
+        if not store_dispensers and store_number and store_number.startswith('#'):
+            clean_store_number = store_number[1:]  # Remove # prefix
+            store_dispensers = dispensers_by_store.get(clean_store_number, [])
+            if store_dispensers:
+                logger.debug(f"[FILTER_CALC_SERVICE] Found dispensers using cleaned store number: {store_number} -> {clean_store_number}")
+        
+        # If still no match, try adding # prefix
+        if not store_dispensers and store_number and not store_number.startswith('#'):
+            prefixed_store_number = f"#{store_number}"
+            store_dispensers = dispensers_by_store.get(prefixed_store_number, [])
+            if store_dispensers:
+                logger.debug(f"[FILTER_CALC_SERVICE] Found dispensers using prefixed store number: {store_number} -> {prefixed_store_number}")
+        
+        logger.debug(f"[FILTER_CALC_SERVICE] Found {len(store_dispensers)} dispensers for store {store_number}")
+        
         # Determine chain
-        chain = self._get_store_chain(work_order['customerName'])
+        chain = self._get_store_chain(customer_name)
+        logger.debug(f"[FILTER_CALC_SERVICE] Determined chain: {chain} from customer: {customer_name}")
         
         # Filter dispensers if specific ones are mentioned
+        original_dispenser_count = len(store_dispensers)
         if service_code == '2862' and work_order.get('instructions'):
             dispenser_refs = self._parse_dispenser_references(work_order['instructions'])
+            logger.debug(f"[FILTER_CALC_SERVICE] Parsed dispenser references: {dispenser_refs}")
             if dispenser_refs:
                 store_dispensers = [d for d in store_dispensers if d['dispenserNumber'] in dispenser_refs]
+                logger.info(f"[FILTER_CALC_SERVICE] Filtered dispensers from {original_dispenser_count} to {len(store_dispensers)} based on instructions")
         
         # Calculate filters for each dispenser
         job_filters = {}
@@ -182,14 +276,22 @@ class FilterCalculator:
         
         # Only calculate filters if this service requires them
         if requires_filters and store_dispensers:
-            for dispenser in store_dispensers:
+            logger.debug(f"[FILTER_CALC_SERVICE] Calculating filters for {len(store_dispensers)} dispensers")
+            for i, dispenser in enumerate(store_dispensers):
+                logger.debug(f"[FILTER_CALC_SERVICE] Processing dispenser {i+1}/{len(store_dispensers)}: {dispenser.get('dispenserNumber')}")
                 dispenser_filters = self._calculate_dispenser_filters(dispenser, chain, job_id)
+                logger.debug(f"[FILTER_CALC_SERVICE] Dispenser {dispenser.get('dispenserNumber')} needs filters: {dispenser_filters}")
+                
                 for part_number, quantity in dispenser_filters.items():
                     if part_number not in job_filters:
                         job_filters[part_number] = 0
                     job_filters[part_number] += quantity
+                    
+            logger.info(f"[FILTER_CALC_SERVICE] Job {job_id} total filters: {job_filters}")
+            
         elif requires_filters and not store_dispensers:
             # Add warning if filters are required but no dispensers found
+            logger.warning(f"[FILTER_CALC_SERVICE] No dispenser data found for store {store_number} (job {job_id})")
             self._add_warning(
                 severity=6,
                 type='missing_data',
@@ -197,6 +299,8 @@ class FilterCalculator:
                 affected_jobs=[job_id],
                 suggestions=["Scrape dispenser data for this store", "Check if store number is correct"]
             )
+        elif not requires_filters:
+            logger.debug(f"[FILTER_CALC_SERVICE] Job {job_id} service {service_code} does not require filters")
         
         # Apply overrides
         for part_number in job_filters:
@@ -239,25 +343,42 @@ class FilterCalculator:
     
     def _calculate_dispenser_filters(self, dispenser: Dict[str, Any], chain: str, job_id: str) -> Dict[str, int]:
         """Calculate filters needed for a single dispenser."""
-        filters = {}
-        fuel_grades = dispenser.get('fuelGrades', [])
+        dispenser_number = dispenser.get('dispenserNumber', 'Unknown')
+        fuel_grades_raw = dispenser.get('fuelGrades', [])
         meter_type = dispenser.get('meterType', 'Electronic')
+        
+        logger.debug(f"[FILTER_CALC_SERVICE] Calculating filters for dispenser {dispenser_number}")
+        logger.debug(f"[FILTER_CALC_SERVICE] Raw fuel grades: {fuel_grades_raw} (type: {type(fuel_grades_raw)})")
+        
+        # Transform fuel grades to expected format if needed
+        fuel_grades = self._transform_fuel_grades(fuel_grades_raw)
+        
+        logger.debug(f"[FILTER_CALC_SERVICE] Transformed fuel grades: {fuel_grades}")
+        logger.debug(f"[FILTER_CALC_SERVICE] Dispenser has {len(fuel_grades)} fuel grades, meter type: {meter_type}")
+        
+        filters = {}
         
         # Get all grade names
         grade_names = [grade['grade'] for grade in fuel_grades]
+        logger.debug(f"[FILTER_CALC_SERVICE] Fuel grades: {grade_names}")
         
-        for fuel_grade in fuel_grades:
+        for i, fuel_grade in enumerate(fuel_grades):
             grade = fuel_grade['grade'].lower()
+            logger.debug(f"[FILTER_CALC_SERVICE] Processing fuel grade {i+1}/{len(fuel_grades)}: {grade}")
             
             if self._should_filter_grade(grade, grade_names, job_id):
                 filter_type = self._determine_filter_type(grade)
                 part_number = self._get_part_number(chain, filter_type, meter_type)
                 
+                logger.debug(f"[FILTER_CALC_SERVICE] Grade '{grade}' -> type '{filter_type}' -> part '{part_number}'")
+                
                 if part_number:
                     if part_number not in filters:
                         filters[part_number] = 0
                     filters[part_number] += 1
+                    logger.debug(f"[FILTER_CALC_SERVICE] Added filter {part_number} (now {filters[part_number]})")
                 else:
+                    logger.debug(f"[FILTER_CALC_SERVICE] No filter required for {filter_type} at {chain}")
                     # Add warning for fuel types that don't require filters but should be noted
                     if filter_type == 'def' and chain in ['7-Eleven', 'Speedway', 'Marathon', 'Circle K']:
                         self._add_warning(
@@ -275,19 +396,26 @@ class FilterCalculator:
                             affected_jobs=[job_id],
                             suggestions=["High Flow Diesel does not require filters for Circle K"]
                         )
+            else:
+                logger.debug(f"[FILTER_CALC_SERVICE] Grade '{grade}' should not be filtered")
         
+        logger.debug(f"[FILTER_CALC_SERVICE] Dispenser {dispenser_number} final filters: {filters}")
         return filters
     
     def _should_filter_grade(self, grade: str, all_grades: List[str], job_id: str) -> bool:
         """Determine if a fuel grade should get a filter."""
         grade_lower = grade.lower()
         
+        logger.debug(f"[FILTER_CALC_SERVICE] Checking if grade '{grade}' should be filtered")
+        
         # Check always filter list
         if any(always in grade_lower for always in self.ALWAYS_FILTER):
+            logger.debug(f"[FILTER_CALC_SERVICE] Grade '{grade}' matches always filter rule")
             return True
         
         # Check never filter list
         if any(never in grade_lower for never in self.NEVER_FILTER):
+            logger.debug(f"[FILTER_CALC_SERVICE] Grade '{grade}' matches never filter rule")
             return False
         
         # Special case for premium
@@ -295,9 +423,12 @@ class FilterCalculator:
             # Premium only gets filter if no higher grade exists
             higher_grades = ['super', 'ultra', 'supreme']
             all_grades_lower = [g.lower() for g in all_grades]
-            return not any(higher in g for higher in higher_grades for g in all_grades_lower)
+            has_higher_grade = any(higher in g for higher in higher_grades for g in all_grades_lower)
+            logger.debug(f"[FILTER_CALC_SERVICE] Premium grade - has higher grade: {has_higher_grade}")
+            return not has_higher_grade
         
         # Unknown grade - filter it but add warning
+        logger.warning(f"[FILTER_CALC_SERVICE] Unknown fuel grade '{grade}' for job {job_id} - will filter by default")
         self._add_warning(
             severity=5,
             type='unknown_grade',
@@ -426,6 +557,8 @@ class FilterCalculator:
     
     def _generate_summary(self) -> List[Dict[str, Any]]:
         """Generate filter summary with box calculations."""
+        logger.debug(f"[FILTER_CALC_SERVICE] Generating summary from {len(self.filter_summary)} part numbers")
+        
         summary = []
         
         for part_number, data in self.filter_summary.items():
@@ -441,8 +574,72 @@ class FilterCalculator:
                 'filterType': filter_type
             }
             summary.append(summary_item)
+            
+            logger.debug(f"[FILTER_CALC_SERVICE] Summary item: {part_number} - {data['quantity']} units, {summary_item['boxes']} boxes, {len(data['stores'])} stores")
         
         # Sort by quantity descending
         summary.sort(key=lambda x: x['quantity'], reverse=True)
         
+        logger.info(f"[FILTER_CALC_SERVICE] Generated summary with {len(summary)} items, total filters: {sum(item['quantity'] for item in summary)}")
+        
         return summary
+    
+    def _transform_fuel_grades(self, fuel_grades_raw: Any) -> List[Dict[str, str]]:
+        """
+        Transform fuel grades from database format to filter calculator format.
+        
+        Handles various input formats:
+        - Dict format: {"regular": {"name": "Regular"}, "plus": {"name": "Plus"}}
+        - List format: [{"grade": "Regular"}, {"grade": "Plus"}] (already correct)
+        - None/empty: returns empty list
+        """
+        if fuel_grades_raw is None:
+            logger.debug("[FILTER_CALC_SERVICE] fuel_grades is None, returning empty list")
+            return []
+        
+        if isinstance(fuel_grades_raw, list):
+            # Already in list format, check if it's correctly structured
+            if not fuel_grades_raw:
+                logger.debug("[FILTER_CALC_SERVICE] fuel_grades is empty list")
+                return []
+            
+            # Check if first item has 'grade' key (expected format)
+            if isinstance(fuel_grades_raw[0], dict) and 'grade' in fuel_grades_raw[0]:
+                logger.debug("[FILTER_CALC_SERVICE] fuel_grades already in correct format")
+                return fuel_grades_raw
+            
+            # If list but wrong structure, log warning and try to convert
+            logger.warning(f"[FILTER_CALC_SERVICE] Unexpected list structure: {fuel_grades_raw}")
+            return []
+        
+        if isinstance(fuel_grades_raw, dict):
+            logger.debug("[FILTER_CALC_SERVICE] Converting dict format to list format")
+            transformed = []
+            
+            for fuel_type, fuel_data in fuel_grades_raw.items():
+                if isinstance(fuel_data, dict) and 'name' in fuel_data:
+                    # Standard format: {"regular": {"name": "Regular"}}
+                    transformed.append({"grade": fuel_data['name']})
+                    logger.debug(f"[FILTER_CALC_SERVICE] Converted {fuel_type} -> {fuel_data['name']}")
+                else:
+                    # Fallback: use the key as grade name
+                    grade_name = fuel_type.replace('_', ' ').title()
+                    transformed.append({"grade": grade_name})
+                    logger.debug(f"[FILTER_CALC_SERVICE] Fallback conversion {fuel_type} -> {grade_name}")
+            
+            logger.info(f"[FILTER_CALC_SERVICE] Transformed {len(fuel_grades_raw)} dict entries to {len(transformed)} grade entries")
+            return transformed
+        
+        if isinstance(fuel_grades_raw, str):
+            # Try to parse as JSON
+            import json
+            try:
+                parsed = json.loads(fuel_grades_raw)
+                logger.debug("[FILTER_CALC_SERVICE] Parsed JSON string, recursing")
+                return self._transform_fuel_grades(parsed)
+            except json.JSONDecodeError:
+                logger.warning(f"[FILTER_CALC_SERVICE] Failed to parse fuel_grades JSON string: {fuel_grades_raw}")
+                return []
+        
+        logger.warning(f"[FILTER_CALC_SERVICE] Unknown fuel_grades type: {type(fuel_grades_raw)}, value: {fuel_grades_raw}")
+        return []
