@@ -89,154 +89,624 @@ class EmailSettings:
 class EmailNotificationService:
     """V1-compatible email notification service"""
     
-    # V1-compatible email templates
+    # Enhanced V2 email templates with V1 design patterns
     EMAIL_TEMPLATES = {
         NotificationType.AUTOMATION_STARTED: {
             "subject": "🚀 Automation Job Started - {station_name}",
-            "html_template": """
-            <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
-                    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                    .header { background: #2c5aa0; color: white; padding: 20px; text-align: center; }
-                    .content { padding: 20px; }
-                    .info-box { background: #e8f4fd; border-left: 4px solid #2c5aa0; padding: 15px; margin: 15px 0; }
-                    .footer { background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #666; }
-                    .status { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-                    .status.started { background: #d1ecf1; color: #0c5460; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🚀 Automation Job Started</h1>
+            "html_template": """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f5f5f7; 
+            line-height: 1.6; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+        }
+        .header { 
+            background: linear-gradient(135deg, #007AFF 0%, #0051D5 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
+        }
+        .header h1 { 
+            margin: 0; 
+            font-size: 28px; 
+            font-weight: 600; 
+        }
+        .header p { 
+            margin: 10px 0 0 0; 
+            opacity: 0.9; 
+            font-size: 16px; 
+        }
+        .content { 
+            padding: 30px; 
+        }
+        .info-section { 
+            background-color: #E8F5E9; 
+            border-left: 4px solid #34C759; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin: 20px 0; 
+        }
+        .info-section h3 { 
+            color: #34C759; 
+            margin-top: 0; 
+            margin-bottom: 15px; 
+            font-size: 18px; 
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .detail-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .detail-value {
+            color: #212529;
+            font-size: 16px;
+        }
+        .status-badge { 
+            display: inline-block; 
+            padding: 6px 12px; 
+            border-radius: 20px; 
+            font-weight: 600; 
+            font-size: 14px;
+            background: #E8F5E9; 
+            color: #34C759; 
+            border: 1px solid #34C759;
+        }
+        .location-link {
+            color: #007AFF;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .location-link:hover {
+            text-decoration: underline;
+        }
+        .summary-box {
+            background: #f0f0f0; 
+            border-radius: 8px; 
+            padding: 20px; 
+            text-align: center; 
+            margin: 30px 0;
+            border: 1px solid #dee2e6;
+        }
+        .footer { 
+            background: #f8f9fa; 
+            padding: 20px; 
+            text-align: center; 
+            font-size: 12px; 
+            color: #6c757d; 
+            border-top: 1px solid #dee2e6;
+        }
+        @media (max-width: 600px) {
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Automation Job Started</h1>
+            <p>Your automation task is now running</p>
+        </div>
+        <div class="content">
+            <p>Hello {{user_name | default('User')}},</p>
+            <p>Your automation job has been started successfully and is now processing.</p>
+            
+            <div class="info-section">
+                <h3>✅ Job Details</h3>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">📍 Station</div>
+                        <div class="detail-value">{{station_name}}</div>
+                        {% if location_address %}
+                        <a href="https://maps.google.com/?q={{location_address | urlencode}}" class="location-link">View on Google Maps</a>
+                        {% endif %}
                     </div>
-                    <div class="content">
-                        <p>Hello,</p>
-                        <p>Your automation job has been started successfully.</p>
-                        
-                        <div class="info-box">
-                            <h3>Job Details</h3>
-                            <p><strong>Station:</strong> {{station_name}}</p>
-                            <p><strong>Job ID:</strong> {{job_id}}</p>
-                            <p><strong>Work Order:</strong> {{work_order_id}}</p>
-                            <p><strong>Service Code:</strong> {{service_code}}</p>
-                            <p><strong>Dispensers:</strong> {{dispenser_count}}</p>
-                            <p><strong>Total Iterations:</strong> {{total_iterations}}</p>
-                            <p><strong>Status:</strong> <span class="status started">Started</span></p>
-                            <p><strong>Started:</strong> {{start_time}}</p>
-                        </div>
-                        
-                        <p>You will receive another notification when the job completes.</p>
+                    <div class="detail-item">
+                        <div class="detail-label">🆔 Job ID</div>
+                        <div class="detail-value">{{job_id}}</div>
                     </div>
-                    <div class="footer">
-                        <p>FossaWork V2 Automation System | Generated at {{timestamp}}</p>
+                    <div class="detail-item">
+                        <div class="detail-label">📋 Work Order</div>
+                        <div class="detail-value">{{work_order_id}}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">🔧 Service Code</div>
+                        <div class="detail-value">{{service_code}} - {{service_name | default('Automation Task')}}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">⛽ Dispensers</div>
+                        <div class="detail-value">{{dispenser_count}} dispensers</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">🔄 Total Iterations</div>
+                        <div class="detail-value">{{total_iterations}}</div>
                     </div>
                 </div>
-            </body>
-            </html>
-            """
+                <p><strong>Status:</strong> <span class="status-badge">Started</span></p>
+                <p><strong>Started At:</strong> {{start_time}}</p>
+            </div>
+            
+            <div class="summary-box">
+                <strong>📊 Progress Tracking:</strong> You will receive real-time updates as the automation progresses and a completion notification when finished.
+            </div>
+        </div>
+        <div class="footer">
+            <p>FossaWork V2 Automation System | Generated at {{timestamp}}</p>
+            <p>🔗 <a href="{{dashboard_url | default('#')}}" style="color: #007AFF;">View Dashboard</a> | 🛠️ <a href="{{settings_url | default('#')}}" style="color: #007AFF;">Notification Settings</a></p>
+        </div>
+    </div>
+</body>
+</html>"""
         },
         
         NotificationType.AUTOMATION_COMPLETED: {
             "subject": "✅ Automation Completed - {station_name}",
-            "html_template": """
-            <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
-                    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                    .header { background: #28a745; color: white; padding: 20px; text-align: center; }
-                    .content { padding: 20px; }
-                    .info-box { background: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 15px 0; }
-                    .stats-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; margin: 15px 0; }
-                    .footer { background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #666; }
-                    .status { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-                    .status.completed { background: #d4edda; color: #155724; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>✅ Automation Completed</h1>
+            "html_template": """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background-color: #f5f5f7; 
+            line-height: 1.6; 
+        }
+        .container { 
+            max-width: 600px; 
+            margin: 0 auto; 
+            background: white; 
+            border-radius: 12px; 
+            overflow: hidden; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+        }
+        .header { 
+            background: linear-gradient(135deg, #34C759 0%, #28A745 100%); 
+            color: white; 
+            padding: 30px; 
+            text-align: center; 
+        }
+        .header h1 { 
+            margin: 0; 
+            font-size: 28px; 
+            font-weight: 600; 
+        }
+        .header p { 
+            margin: 10px 0 0 0; 
+            opacity: 0.9; 
+            font-size: 16px; 
+        }
+        .content { 
+            padding: 30px; 
+        }
+        .success-section { 
+            background-color: #E8F5E9; 
+            border-left: 4px solid #34C759; 
+            border-radius: 8px; 
+            padding: 20px; 
+            margin: 20px 0; 
+        }
+        .success-section h3 { 
+            color: #34C759; 
+            margin-top: 0; 
+            margin-bottom: 15px; 
+            font-size: 18px; 
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #34C759;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #6c757d;
+            font-weight: 500;
+        }
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .detail-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .detail-value {
+            color: #212529;
+            font-size: 16px;
+        }
+        .status-badge { 
+            display: inline-block; 
+            padding: 6px 12px; 
+            border-radius: 20px; 
+            font-weight: 600; 
+            font-size: 14px;
+            background: #E8F5E9; 
+            color: #34C759; 
+            border: 1px solid #34C759;
+        }
+        .location-link {
+            color: #007AFF;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .location-link:hover {
+            text-decoration: underline;
+        }
+        .summary-box {
+            background: #E8F5E9; 
+            border-radius: 8px; 
+            padding: 20px; 
+            text-align: center; 
+            margin: 30px 0;
+            border: 1px solid #34C759;
+        }
+        .footer { 
+            background: #f8f9fa; 
+            padding: 20px; 
+            text-align: center; 
+            font-size: 12px; 
+            color: #6c757d; 
+            border-top: 1px solid #dee2e6;
+        }
+        @media (max-width: 600px) {
+            .detail-grid {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ Automation Completed</h1>
+            <p>Your automation task finished successfully</p>
+        </div>
+        <div class="content">
+            <p>Hello {{user_name | default('User')}},</p>
+            <p>Excellent news! Your automation job has been completed successfully. All forms have been submitted to WorkFossa.</p>
+            
+            <div class="success-section">
+                <h3>✅ Job Summary</h3>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">📍 Station</div>
+                        <div class="detail-value">{{station_name}}</div>
+                        {% if location_address %}
+                        <a href="https://maps.google.com/?q={{location_address | urlencode}}" class="location-link">View on Google Maps</a>
+                        {% endif %}
                     </div>
-                    <div class="content">
-                        <p>Hello,</p>
-                        <p>Your automation job has been completed successfully!</p>
-                        
-                        <div class="info-box">
-                            <h3>Job Summary</h3>
-                            <p><strong>Station:</strong> {{station_name}}</p>
-                            <p><strong>Job ID:</strong> {{job_id}}</p>
-                            <p><strong>Work Order:</strong> {{work_order_id}}</p>
-                            <p><strong>Status:</strong> <span class="status completed">Completed</span></p>
-                            <p><strong>Duration:</strong> {{duration}}</p>
-                        </div>
-                        
-                        <div class="stats-box">
-                            <h3>Automation Statistics</h3>
-                            <p><strong>Dispensers Processed:</strong> {{dispensers_processed}}</p>
-                            <p><strong>Forms Completed:</strong> {{forms_completed}}</p>
-                            <p><strong>Total Iterations:</strong> {{total_iterations}}</p>
-                            <p><strong>Success Rate:</strong> {{success_rate}}%</p>
-                        </div>
-                        
-                        <p>All forms have been submitted successfully to WorkFossa.</p>
+                    <div class="detail-item">
+                        <div class="detail-label">🆔 Job ID</div>
+                        <div class="detail-value">{{job_id}}</div>
                     </div>
-                    <div class="footer">
-                        <p>FossaWork V2 Automation System | Generated at {{timestamp}}</p>
+                    <div class="detail-item">
+                        <div class="detail-label">📋 Work Order</div>
+                        <div class="detail-value">{{work_order_id}}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">⏱️ Duration</div>
+                        <div class="detail-value">{{duration}}</div>
                     </div>
                 </div>
-            </body>
-            </html>
-            """
+                <p><strong>Status:</strong> <span class="status-badge">Completed Successfully</span></p>
+                <p><strong>Completed At:</strong> {{completion_time}}</p>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number">{{dispensers_processed}}</div>
+                    <div class="stat-label">Dispensers Processed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{forms_completed}}</div>
+                    <div class="stat-label">Forms Completed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{total_iterations}}</div>
+                    <div class="stat-label">Total Iterations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{success_rate}}%</div>
+                    <div class="stat-label">Success Rate</div>
+                </div>
+            </div>
+            
+            <div class="summary-box">
+                <strong>🎉 All Done!</strong> All {{forms_completed}} forms have been successfully submitted to WorkFossa. Your fuel dispenser testing automation is complete.
+            </div>
+        </div>
+        <div class="footer">
+            <p>FossaWork V2 Automation System | Generated at {{timestamp}}</p>
+            <p>🔗 <a href="{{dashboard_url | default('#')}}" style="color: #007AFF;">View Dashboard</a> | 📊 <a href="{{reports_url | default('#')}}" style="color: #007AFF;">View Reports</a></p>
+        </div>
+    </div>
+</body>
+</html>"""
         },
         
         NotificationType.AUTOMATION_FAILED: {
             "subject": "❌ Automation Failed - {station_name}",
-            "html_template": """
-            <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
-                    .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                    .header { background: #dc3545; color: white; padding: 20px; text-align: center; }
-                    .content { padding: 20px; }
-                    .error-box { background: #f8d7da; border-left: 4px solid #dc3545; padding: 15px; margin: 15px 0; }
-                    .footer { background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #666; }
-                    .status { display: inline-block; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-                    .status.failed { background: #f8d7da; color: #721c24; }
+            "html_template": """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+                    body { 
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
+                        margin: 0; 
+                        padding: 20px; 
+                        background-color: #f5f5f7; 
+                        line-height: 1.6; 
+                    }
+                    .container { 
+                        max-width: 600px; 
+                        margin: 0 auto; 
+                        background: white; 
+                        border-radius: 12px; 
+                        overflow: hidden; 
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+                    }
+                    .header { 
+                        background: linear-gradient(135deg, #FF3B30 0%, #DC2626 100%); 
+                        color: white; 
+                        padding: 30px; 
+                        text-align: center; 
+                    }
+                    .header h1 { 
+                        margin: 0; 
+                        font-size: 28px; 
+                        font-weight: 600; 
+                    }
+                    .header p { 
+                        margin: 10px 0 0 0; 
+                        opacity: 0.9; 
+                        font-size: 16px; 
+                    }
+                    .content { 
+                        padding: 30px; 
+                    }
+                    .error-section { 
+                        background-color: #FFEBEE; 
+                        border-left: 4px solid #FF3B30; 
+                        border-radius: 8px; 
+                        padding: 20px; 
+                        margin: 20px 0; 
+                    }
+                    .error-section h3 { 
+                        color: #FF3B30; 
+                        margin-top: 0; 
+                        margin-bottom: 15px; 
+                        font-size: 18px; 
+                    }
+                    .detail-grid {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 15px;
+                        margin: 15px 0;
+                    }
+                    .detail-item {
+                        padding: 12px;
+                        background: #f8f9fa;
+                        border-radius: 6px;
+                        border: 1px solid #e9ecef;
+                    }
+                    .detail-label {
+                        font-weight: 600;
+                        color: #495057;
+                        font-size: 14px;
+                        margin-bottom: 4px;
+                    }
+                    .detail-value {
+                        color: #212529;
+                        font-size: 16px;
+                    }
+                    .status-badge { 
+                        display: inline-block; 
+                        padding: 6px 12px; 
+                        border-radius: 20px; 
+                        font-weight: 600; 
+                        font-size: 14px;
+                        background: #FFEBEE; 
+                        color: #FF3B30; 
+                        border: 1px solid #FF3B30;
+                    }
+                    .error-message {
+                        background: #FFF3E0;
+                        border: 1px solid #FFB74D;
+                        border-radius: 6px;
+                        padding: 15px;
+                        margin: 15px 0;
+                        font-family: 'Courier New', monospace;
+                        font-size: 14px;
+                        color: #E65100;
+                        overflow-wrap: break-word;
+                    }
+                    .progress-bar {
+                        background: #e9ecef;
+                        border-radius: 10px;
+                        height: 20px;
+                        margin: 10px 0;
+                        overflow: hidden;
+                    }
+                    .progress-fill {
+                        background: linear-gradient(90deg, #FF3B30 0%, #FF9500 100%);
+                        height: 100%;
+                        transition: width 0.3s ease;
+                    }
+                    .progress-text {
+                        text-align: center;
+                        margin-top: 5px;
+                        font-size: 14px;
+                        color: #6c757d;
+                    }
+                    .action-section {
+                        background: #E3F2FD;
+                        border-left: 4px solid #007AFF;
+                        border-radius: 8px;
+                        padding: 20px;
+                        margin: 20px 0;
+                    }
+                    .action-section h3 {
+                        color: #007AFF;
+                        margin-top: 0;
+                        margin-bottom: 15px;
+                        font-size: 18px;
+                    }
+                    .location-link {
+                        color: #007AFF;
+                        text-decoration: none;
+                        font-weight: 500;
+                    }
+                    .location-link:hover {
+                        text-decoration: underline;
+                    }
+                    .footer { 
+                        background: #f8f9fa; 
+                        padding: 20px; 
+                        text-align: center; 
+                        font-size: 12px; 
+                        color: #6c757d; 
+                        border-top: 1px solid #dee2e6;
+                    }
+                    @media (max-width: 600px) {
+                        .detail-grid {
+                            grid-template-columns: 1fr;
+                        }
+                    }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <div class="header">
                         <h1>❌ Automation Failed</h1>
+                        <p>Attention required for your automation task</p>
                     </div>
                     <div class="content">
-                        <p>Hello,</p>
-                        <p>Unfortunately, your automation job has failed and requires attention.</p>
+                        <p>Hello {{user_name | default('User')}},</p>
+                        <p>Unfortunately, your automation job has encountered an error and requires attention.</p>
                         
-                        <div class="error-box">
-                            <h3>Failure Details</h3>
-                            <p><strong>Station:</strong> {{station_name}}</p>
-                            <p><strong>Job ID:</strong> {{job_id}}</p>
-                            <p><strong>Work Order:</strong> {{work_order_id}}</p>
-                            <p><strong>Status:</strong> <span class="status failed">Failed</span></p>
-                            <p><strong>Error:</strong> {{error_message}}</p>
-                            <p><strong>Failed At:</strong> {{failure_time}}</p>
-                            <p><strong>Progress:</strong> {{progress_percentage}}% completed</p>
+                        <div class="error-section">
+                            <h3>❌ Failure Details</h3>
+                            <div class="detail-grid">
+                                <div class="detail-item">
+                                    <div class="detail-label">📍 Station</div>
+                                    <div class="detail-value">{{station_name}}</div>
+                                    {% if location_address %}
+                                    <a href="https://maps.google.com/?q={{location_address | urlencode}}" class="location-link">View on Google Maps</a>
+                                    {% endif %}
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">🆔 Job ID</div>
+                                    <div class="detail-value">{{job_id}}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">📋 Work Order</div>
+                                    <div class="detail-value">{{work_order_id}}</div>
+                                </div>
+                                <div class="detail-item">
+                                    <div class="detail-label">⏱️ Failed At</div>
+                                    <div class="detail-value">{{failure_time}}</div>
+                                </div>
+                            </div>
+                            <p><strong>Status:</strong> <span class="status-badge">Failed</span></p>
+                            
+                            {% if progress_percentage %}
+                            <p><strong>Progress Before Failure:</strong></p>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: {{progress_percentage}}%"></div>
+                            </div>
+                            <div class="progress-text">{{progress_percentage}}% completed</div>
+                            {% endif %}
+                            
+                            {% if error_message %}
+                            <p><strong>Error Details:</strong></p>
+                            <div class="error-message">{{error_message}}</div>
+                            {% endif %}
                         </div>
                         
-                        {% if retry_available %}
-                        <p><strong>Next Steps:</strong> The system will automatically retry this job. If the issue persists, please check your WorkFossa credentials and internet connection.</p>
-                        {% else %}
-                        <p><strong>Next Steps:</strong> Please review the error and manually restart the automation if needed.</p>
-                        {% endif %}
+                        <div class="action-section">
+                            <h3>🔧 Next Steps</h3>
+                            {% if retry_available %}
+                            <p><strong>Automatic Retry:</strong> The system will automatically retry this job in a few minutes.</p>
+                            <p><strong>If Issues Persist:</strong></p>
+                            <ul>
+                                <li>Check your WorkFossa credentials are still valid</li>
+                                <li>Verify your internet connection is stable</li>
+                                <li>Ensure the work order still exists in WorkFossa</li>
+                                <li>Contact support if the problem continues</li>
+                            </ul>
+                            {% else %}
+                            <p><strong>Manual Review Required:</strong></p>
+                            <ul>
+                                <li>Review the error details above</li>
+                                <li>Check the automation logs for more information</li>
+                                <li>Manually restart the automation if needed</li>
+                                <li>Contact support if you need assistance</li>
+                            </ul>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="footer">
                         <p>FossaWork V2 Automation System | Generated at {{timestamp}}</p>
+                        <p>🔗 <a href="{{dashboard_url | default('#')}}" style="color: #007AFF;">View Dashboard</a> | 🛠️ <a href="{{support_url | default('#')}}" style="color: #007AFF;">Get Support</a></p>
                     </div>
                 </div>
             </body>
@@ -246,71 +716,430 @@ class EmailNotificationService:
         
         NotificationType.DAILY_DIGEST: {
             "subject": "📊 Daily Automation Summary - {date}",
-            "html_template": """
-            <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
-                    .container { max-width: 700px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-                    .header { background: #6f42c1; color: white; padding: 20px; text-align: center; }
-                    .content { padding: 20px; }
-                    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 20px 0; }
-                    .summary-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; text-align: center; }
-                    .summary-number { font-size: 24px; font-weight: bold; color: #6f42c1; }
-                    .job-list { background: #f8f9fa; border-radius: 4px; padding: 15px; margin: 15px 0; }
-                    .job-item { padding: 8px 0; border-bottom: 1px solid #dee2e6; }
-                    .footer { background: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #666; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>📊 Daily Automation Summary</h1>
-                        <p>{{date}}</p>
-                    </div>
-                    <div class="content">
-                        <p>Hello,</p>
-                        <p>Here's your daily automation activity summary:</p>
-                        
-                        <div class="summary-grid">
-                            <div class="summary-card">
-                                <div class="summary-number">{{total_jobs}}</div>
-                                <div>Total Jobs</div>
-                            </div>
-                            <div class="summary-card">
-                                <div class="summary-number">{{successful_jobs}}</div>
-                                <div>Successful</div>
-                            </div>
-                            <div class="summary-card">
-                                <div class="summary-number">{{failed_jobs}}</div>
-                                <div>Failed</div>
-                            </div>
-                            <div class="summary-card">
-                                <div class="summary-number">{{dispensers_processed}}</div>
-                                <div>Dispensers</div>
-                            </div>
-                        </div>
-                        
-                        {% if recent_jobs %}
-                        <div class="job-list">
-                            <h3>Recent Jobs</h3>
-                            {% for job in recent_jobs %}
-                            <div class="job-item">
-                                <strong>{{job.station_name}}</strong> - {{job.status}} ({{job.time}})
-                            </div>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                        
-                        <p>Keep up the great work automating your fuel dispenser testing!</p>
-                    </div>
-                    <div class="footer">
-                        <p>FossaWork V2 Automation System | Generated at {{timestamp}}</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
+            "html_template": """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { 
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
+margin: 0; 
+padding: 20px; 
+background-color: #f5f5f7; 
+line-height: 1.6; 
+}
+.container { 
+max-width: 700px; 
+margin: 0 auto; 
+background: white; 
+border-radius: 12px; 
+overflow: hidden; 
+box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+}
+.header { 
+background: linear-gradient(135deg, #AF52DE 0%, #6F42C1 100%); 
+color: white; 
+padding: 30px; 
+text-align: center; 
+}
+.header h1 { 
+margin: 0; 
+font-size: 28px; 
+font-weight: 600; 
+}
+.header p { 
+margin: 10px 0 0 0; 
+opacity: 0.9; 
+font-size: 16px; 
+}
+.content { 
+padding: 30px; 
+}
+.summary-grid { 
+display: grid; 
+grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
+gap: 15px; 
+margin: 25px 0; 
+}
+.summary-card { 
+background: #f8f9fa; 
+border: 1px solid #e9ecef; 
+border-radius: 8px; 
+padding: 20px; 
+text-align: center; 
+transition: transform 0.2s ease;
+}
+.summary-card:hover {
+transform: translateY(-2px);
+box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.summary-number { 
+font-size: 32px; 
+font-weight: 700; 
+color: #AF52DE; 
+margin-bottom: 8px;
+}
+.summary-label {
+font-size: 14px;
+color: #6c757d;
+font-weight: 500;
+}
+.jobs-section { 
+background: #f8f9fa; 
+border-radius: 8px; 
+padding: 20px; 
+margin: 25px 0; 
+border: 1px solid #e9ecef;
+}
+.jobs-section h3 {
+color: #495057;
+margin-top: 0;
+margin-bottom: 15px;
+font-size: 18px;
+}
+.job-item { 
+padding: 12px 0; 
+border-bottom: 1px solid #dee2e6; 
+display: flex;
+justify-content: space-between;
+align-items: center;
+}
+.job-item:last-child {
+border-bottom: none;
+}
+.job-name {
+font-weight: 600;
+color: #212529;
+}
+.job-status {
+padding: 4px 8px;
+border-radius: 12px;
+font-size: 12px;
+font-weight: 600;
+}
+.job-status.success {
+background: #E8F5E9;
+color: #34C759;
+}
+.job-status.failed {
+background: #FFEBEE;
+color: #FF3B30;
+}
+.job-time {
+font-size: 14px;
+color: #6c757d;
+}
+.performance-section {
+background: linear-gradient(135deg, #E8F5E9 0%, #F0F9FF 100%);
+border-radius: 8px;
+padding: 20px;
+margin: 25px 0;
+text-align: center;
+}
+.footer { 
+background: #f8f9fa; 
+padding: 20px; 
+text-align: center; 
+font-size: 12px; 
+color: #6c757d; 
+border-top: 1px solid #dee2e6;
+}
+@media (max-width: 600px) {
+.summary-grid {
+grid-template-columns: repeat(2, 1fr);
+}
+.job-item {
+flex-direction: column;
+align-items: flex-start;
+gap: 8px;
+}
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>📊 Daily Automation Summary</h1>
+<p>{{date}}</p>
+</div>
+<div class="content">
+<p>Hello {{user_name | default('User')}},</p>
+<p>Here's your daily automation activity summary for {{date}}:</p>
+
+<div class="summary-grid">
+<div class="summary-card">
+<div class="summary-number">{{total_jobs}}</div>
+<div class="summary-label">Total Jobs</div>
+</div>
+<div class="summary-card">
+<div class="summary-number">{{successful_jobs}}</div>
+<div class="summary-label">Successful</div>
+</div>
+<div class="summary-card">
+<div class="summary-number">{{failed_jobs}}</div>
+<div class="summary-label">Failed</div>
+</div>
+<div class="summary-card">
+<div class="summary-number">{{dispensers_processed}}</div>
+<div class="summary-label">Dispensers</div>
+</div>
+</div>
+
+{% if recent_jobs %}
+<div class="jobs-section">
+<h3>📋 Recent Jobs</h3>
+{% for job in recent_jobs %}
+<div class="job-item">
+<div>
+<div class="job-name">{{job.station_name}}</div>
+<div class="job-time">{{job.time}}</div>
+</div>
+<span class="job-status {{job.status | lower}}">{{job.status}}</span>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if success_rate %}
+<div class="performance-section">
+<h3 style="margin-top: 0; color: #34C759;">🎯 Performance</h3>
+<p><strong>Success Rate:</strong> {{success_rate}}%</p>
+<p>Keep up the excellent work automating your fuel dispenser testing!</p>
+</div>
+{% endif %}
+</div>
+<div class="footer">
+<p>FossaWork V2 Automation System | Generated at {{timestamp}}</p>
+<p>🔗 <a href="{{dashboard_url | default('#')}}" style="color: #007AFF;">View Dashboard</a> | 📊 <a href="{{analytics_url | default('#')}}" style="color: #007AFF;">View Analytics</a></p>
+</div>
+</div>
+</body>
+</html>
+"""
+        },
+        
+        NotificationType.SCHEDULE_CHANGE: {
+            "subject": "📅 Schedule Changes Detected - {change_count} updates",
+            "html_template": """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body { 
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; 
+margin: 0; 
+padding: 20px; 
+background-color: #f5f5f7; 
+line-height: 1.6; 
+}
+.container { 
+max-width: 700px; 
+margin: 0 auto; 
+background: white; 
+border-radius: 12px; 
+overflow: hidden; 
+box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+}
+.header { 
+background: linear-gradient(135deg, #007AFF 0%, #0051D5 100%); 
+color: white; 
+padding: 30px; 
+text-align: center; 
+}
+.header h1 { 
+margin: 0; 
+font-size: 28px; 
+font-weight: 600; 
+}
+.header p { 
+margin: 10px 0 0 0; 
+opacity: 0.9; 
+font-size: 16px; 
+}
+.content { 
+padding: 30px; 
+}
+.change-section { 
+border-radius: 8px; 
+padding: 20px; 
+margin: 20px 0; 
+}
+.added { 
+background-color: #E8F5E9; 
+border-left: 4px solid #34C759; 
+}
+.removed { 
+background-color: #FFEBEE; 
+border-left: 4px solid #FF3B30; 
+}
+.date-changed { 
+background-color: #FFF3E0; 
+border-left: 4px solid #FF9500; 
+}
+.swapped { 
+background-color: #E3F2FD; 
+border-left: 4px solid #007AFF; 
+}
+.replaced { 
+background-color: #F3E5F5; 
+border-left: 4px solid #AF52DE; 
+}
+.change-section h3 { 
+margin-top: 0; 
+margin-bottom: 15px; 
+font-size: 18px; 
+}
+.added h3 { color: #34C759; }
+.removed h3 { color: #FF3B30; }
+.date-changed h3 { color: #FF9500; }
+.swapped h3 { color: #007AFF; }
+.replaced h3 { color: #AF52DE; }
+.visit-item {
+background: white;
+border-radius: 6px;
+padding: 15px;
+margin: 15px 0;
+border: 1px solid rgba(0,0,0,0.1);
+}
+.visit-name {
+font-weight: 600;
+font-size: 16px;
+margin-bottom: 8px;
+color: #212529;
+}
+.visit-details {
+color: #495057;
+line-height: 1.8;
+}
+.location-link {
+color: #007AFF;
+text-decoration: none;
+font-weight: 500;
+}
+.location-link:hover {
+text-decoration: underline;
+}
+.summary-box {
+background: #f0f0f0; 
+border-radius: 8px; 
+padding: 20px; 
+text-align: center; 
+margin: 30px 0;
+border: 1px solid #dee2e6;
+}
+.footer { 
+background: #f8f9fa; 
+padding: 20px; 
+text-align: center; 
+font-size: 12px; 
+color: #6c757d; 
+border-top: 1px solid #dee2e6;
+}
+.no-changes {
+text-align: center;
+padding: 40px;
+color: #6c757d;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>📅 Schedule Changes Detected</h1>
+<p>Hello {{user_name | default('User')}}, here are your latest schedule updates</p>
+</div>
+<div class="content">
+{% if added_visits %}
+<div class="change-section added">
+<h3>✅ Added Visits ({{added_visits | length}})</h3>
+{% for visit in added_visits %}
+<div class="visit-item">
+<div class="visit-name">Visit #{{visit.id}} - {{visit.date}}</div>
+<div class="visit-details">
+📍 {{visit.customer_name}} - Store #{{visit.store_number}}<br>
+📌 {{visit.address}}<br>
+⛽ {{visit.dispenser_count}} dispensers | Job: {{visit.service_name}} ({{visit.service_code}})<br>
+{% if visit.address %}
+<a href="https://maps.google.com/?q={{visit.address | urlencode}}" class="location-link">View on Google Maps</a>
+{% endif %}
+</div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if removed_visits %}
+<div class="change-section removed">
+<h3>❌ Removed Visits ({{removed_visits | length}})</h3>
+{% for visit in removed_visits %}
+<div class="visit-item">
+<div class="visit-name">Visit #{{visit.id}} - {{visit.date}}</div>
+<div class="visit-details">
+📍 {{visit.customer_name}} - Store #{{visit.store_number}}<br>
+📌 {{visit.address}}<br>
+⛽ {{visit.dispenser_count}} dispensers | Job: {{visit.service_name}} ({{visit.service_code}})
+</div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if date_changed_visits %}
+<div class="change-section date-changed">
+<h3>📅 Date Changes ({{date_changed_visits | length}})</h3>
+{% for visit in date_changed_visits %}
+<div class="visit-item">
+<div class="visit-name">Visit #{{visit.id}}</div>
+<div class="visit-details">
+<strong>Changed from:</strong> {{visit.old_date}} → {{visit.new_date}}<br>
+📍 {{visit.customer_name}} - Store #{{visit.store_number}}<br>
+📌 {{visit.address}}<br>
+⛽ {{visit.dispenser_count}} dispensers | Job: {{visit.service_name}} ({{visit.service_code}})
+</div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if swapped_visits %}
+<div class="change-section swapped">
+<h3>🔄 Swapped Visits ({{swapped_visits | length}})</h3>
+{% for swap in swapped_visits %}
+<div class="visit-item">
+<div class="visit-details">
+<strong>Swapped:</strong> Visit #{{swap.visit1_id}} ↔ Visit #{{swap.visit2_id}}<br>
+<strong>Dates:</strong> {{swap.date1}} ↔ {{swap.date2}}
+</div>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+{% if not (added_visits or removed_visits or date_changed_visits or swapped_visits) %}
+<div class="no-changes">
+<h3>✅ No Schedule Changes</h3>
+<p>Your schedule is up to date with no recent changes.</p>
+</div>
+{% endif %}
+
+<div class="summary-box">
+<strong>📊 Summary:</strong> 
+{{added_visits | length | default(0)}} visits added, 
+{{removed_visits | length | default(0)}} visits removed, 
+{{date_changed_visits | length | default(0)}} date changes,
+{{swapped_visits | length | default(0)}} swaps
+</div>
+</div>
+<div class="footer">
+<p>FossaWork V2 Automation System | Generated at {{timestamp}}</p>
+<p>🔗 <a href="{{schedule_url | default('#')}}" style="color: #007AFF;">View Full Schedule</a> | 🛠️ <a href="{{settings_url | default('#')}}" style="color: #007AFF;">Notification Settings</a></p>
+</div>
+</div>
+</body>
+</html>
+"""
         }
     }
     

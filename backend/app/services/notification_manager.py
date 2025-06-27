@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from ..services.email_notification import EmailNotificationService, EmailSettings, NotificationType
 from ..services.pushover_notification import PushoverNotificationService, PushoverSettings, PushoverPriority
+from ..services.desktop_notification import DesktopNotificationService, DesktopNotificationSettings, NotificationPriority as DesktopPriority
 from ..services.logging_service import LoggingService
 from ..services.user_management import UserManagementService
 from ..database import get_db
@@ -28,7 +29,11 @@ class NotificationChannel(Enum):
     """Available notification channels"""
     EMAIL = "email"
     PUSHOVER = "pushover"
-    BOTH = "both"
+    DESKTOP = "desktop"
+    EMAIL_PUSHOVER = "email_pushover"
+    EMAIL_DESKTOP = "email_desktop"
+    PUSHOVER_DESKTOP = "pushover_desktop"
+    ALL = "all"
 
 
 class NotificationTrigger(Enum):
@@ -50,16 +55,17 @@ class NotificationPreferences:
     user_id: str
     email_enabled: bool = True
     pushover_enabled: bool = False
+    desktop_enabled: bool = True
     
     # Channel preferences for each trigger
-    automation_started: NotificationChannel = NotificationChannel.EMAIL
-    automation_completed: NotificationChannel = NotificationChannel.BOTH
-    automation_failed: NotificationChannel = NotificationChannel.BOTH
-    automation_progress: NotificationChannel = NotificationChannel.PUSHOVER
-    schedule_change: NotificationChannel = NotificationChannel.EMAIL
+    automation_started: NotificationChannel = NotificationChannel.EMAIL_DESKTOP
+    automation_completed: NotificationChannel = NotificationChannel.ALL
+    automation_failed: NotificationChannel = NotificationChannel.ALL
+    automation_progress: NotificationChannel = NotificationChannel.PUSHOVER_DESKTOP
+    schedule_change: NotificationChannel = NotificationChannel.EMAIL_DESKTOP
     daily_digest: NotificationChannel = NotificationChannel.EMAIL
     weekly_summary: NotificationChannel = NotificationChannel.EMAIL
-    error_alert: NotificationChannel = NotificationChannel.BOTH
+    error_alert: NotificationChannel = NotificationChannel.ALL
     
     # Timing preferences
     digest_time: time = time(8, 0)  # 8:00 AM
@@ -70,6 +76,11 @@ class NotificationPreferences:
     pushover_user_key: Optional[str] = None
     pushover_device: Optional[str] = None
     pushover_sound: str = "pushover"
+    
+    # Desktop specific
+    desktop_sound_enabled: bool = True
+    desktop_auto_close_time: int = 10
+    desktop_quiet_hours_enabled: bool = False
 
 
 @dataclass
@@ -92,7 +103,7 @@ class DigestData:
 class NotificationManager:
     """Unified notification management service"""
     
-    def __init__(self, db: Session, email_settings: EmailSettings, pushover_settings: PushoverSettings):
+    def __init__(self, db: Session, email_settings: EmailSettings, pushover_settings: PushoverSettings, desktop_settings: DesktopNotificationSettings = None):
         self.db = db
         self.logging_service = LoggingService()
         self.user_service = UserManagementService()
@@ -100,6 +111,7 @@ class NotificationManager:
         # Initialize notification services
         self.email_service = EmailNotificationService(db, email_settings)
         self.pushover_service = PushoverNotificationService(db, pushover_settings)
+        self.desktop_service = DesktopNotificationService(db, desktop_settings or DesktopNotificationSettings())
         
         # Background tasks
         self.digest_scheduler_running = False
@@ -110,12 +122,16 @@ class NotificationManager:
         try:
             # Initialize services
             pushover_init = await self.pushover_service.initialize()
+            desktop_init = await self.desktop_service.initialize()
             
             # Start background tasks
             asyncio.create_task(self._digest_scheduler())
             asyncio.create_task(self._notification_processor())
             
-            await self.logging_service.log_info("Notification manager initialized successfully")
+            await self.logging_service.log_info(
+                f"Notification manager initialized successfully - "
+                f"Pushover: {pushover_init}, Desktop: {desktop_init}"
+            )
             return True
             
         except Exception as e:
@@ -135,32 +151,41 @@ class NotificationManager:
             preferences = await self._get_user_preferences(user_id)
             if not preferences:
                 logger.warning(f"No notification preferences found for user {user_id}")
-                return {"email": False, "pushover": False}
+                return {"email": False, "pushover": False, "desktop": False}
             
             # Determine which channels to use
             channel = self._get_trigger_channel(trigger, preferences)
             
-            results = {"email": True, "pushover": True}  # Default to success for disabled channels
+            results = {"email": True, "pushover": True, "desktop": True}  # Default to success for disabled channels
             
             # Send email notification
-            if channel in [NotificationChannel.EMAIL, NotificationChannel.BOTH] and preferences.email_enabled:
+            if self._should_send_email(channel, preferences):
                 email_type = self._trigger_to_email_type(trigger)
                 results["email"] = await self.email_service.send_automation_notification(
                     user_id, email_type, data, self._pushover_to_email_priority(priority)
                 )
             
             # Send Pushover notification
-            if channel in [NotificationChannel.PUSHOVER, NotificationChannel.BOTH] and preferences.pushover_enabled:
+            if self._should_send_pushover(channel, preferences):
                 results["pushover"] = await self.pushover_service.send_automation_notification(
                     user_id, trigger.value, data, priority
                 )
             
+            # Send Desktop notification
+            if self._should_send_desktop(channel, preferences):
+                desktop_priority = self._pushover_to_desktop_priority(priority)
+                results["desktop"] = await self.desktop_service.send_automation_notification(
+                    user_id, trigger.value, data, desktop_priority
+                )
+            
             # Log notification attempt
             channels_used = []
-            if channel in [NotificationChannel.EMAIL, NotificationChannel.BOTH] and preferences.email_enabled:
+            if self._should_send_email(channel, preferences):
                 channels_used.append("email")
-            if channel in [NotificationChannel.PUSHOVER, NotificationChannel.BOTH] and preferences.pushover_enabled:
+            if self._should_send_pushover(channel, preferences):
                 channels_used.append("pushover")
+            if self._should_send_desktop(channel, preferences):
+                channels_used.append("desktop")
             
             success_count = sum(1 for r in results.values() if r)
             total_count = len([c for c in channels_used])
@@ -176,7 +201,7 @@ class NotificationManager:
             await self.logging_service.log_error(
                 f"Error sending automation notification: {str(e)}"
             )
-            return {"email": False, "pushover": False}
+            return {"email": False, "pushover": False, "desktop": False}
     
     async def send_daily_digest(self, user_id: str) -> bool:
         """Generate and send daily digest"""
@@ -236,7 +261,7 @@ class NotificationManager:
         """Send emergency alert via all available channels"""
         try:
             preferences = await self._get_user_preferences(user_id)
-            results = {"email": True, "pushover": True}
+            results = {"email": True, "pushover": True, "desktop": True}
             
             # Send via email (high priority)
             if (force_all_channels or preferences.email_enabled):
@@ -259,13 +284,19 @@ class NotificationManager:
                     user_id, title, message
                 )
             
+            # Send via Desktop (critical priority)
+            if (force_all_channels or preferences.desktop_enabled):
+                results["desktop"] = await self.desktop_service.send_system_alert(
+                    user_id, message, DesktopPriority.CRITICAL
+                )
+            
             return results
             
         except Exception as e:
             await self.logging_service.log_error(
                 f"Error sending emergency alert: {str(e)}"
             )
-            return {"email": False, "pushover": False}
+            return {"email": False, "pushover": False, "desktop": False}
     
     async def update_user_preferences(
         self,
@@ -380,6 +411,48 @@ class NotificationManager:
         }
         
         return mapping.get(pushover_priority, NotificationPriority.NORMAL)
+    
+    def _pushover_to_desktop_priority(self, pushover_priority: Optional[PushoverPriority]) -> DesktopPriority:
+        """Convert Pushover priority to desktop priority"""
+        if not pushover_priority:
+            return DesktopPriority.NORMAL
+        
+        mapping = {
+            PushoverPriority.LOWEST: DesktopPriority.LOW,
+            PushoverPriority.LOW: DesktopPriority.LOW,
+            PushoverPriority.NORMAL: DesktopPriority.NORMAL,
+            PushoverPriority.HIGH: DesktopPriority.HIGH,
+            PushoverPriority.EMERGENCY: DesktopPriority.CRITICAL,
+        }
+        
+        return mapping.get(pushover_priority, DesktopPriority.NORMAL)
+    
+    def _should_send_email(self, channel: NotificationChannel, preferences: NotificationPreferences) -> bool:
+        """Check if email notification should be sent"""
+        return (channel in [
+            NotificationChannel.EMAIL, 
+            NotificationChannel.EMAIL_PUSHOVER, 
+            NotificationChannel.EMAIL_DESKTOP,
+            NotificationChannel.ALL
+        ] and preferences.email_enabled)
+    
+    def _should_send_pushover(self, channel: NotificationChannel, preferences: NotificationPreferences) -> bool:
+        """Check if Pushover notification should be sent"""
+        return (channel in [
+            NotificationChannel.PUSHOVER, 
+            NotificationChannel.EMAIL_PUSHOVER, 
+            NotificationChannel.PUSHOVER_DESKTOP,
+            NotificationChannel.ALL
+        ] and preferences.pushover_enabled)
+    
+    def _should_send_desktop(self, channel: NotificationChannel, preferences: NotificationPreferences) -> bool:
+        """Check if desktop notification should be sent"""
+        return (channel in [
+            NotificationChannel.DESKTOP, 
+            NotificationChannel.EMAIL_DESKTOP, 
+            NotificationChannel.PUSHOVER_DESKTOP,
+            NotificationChannel.ALL
+        ] and preferences.desktop_enabled)
     
     async def _generate_digest_data(self, user_id: str, period: str) -> Optional[DigestData]:
         """Generate digest data for user"""
@@ -530,6 +603,7 @@ class NotificationManager:
         try:
             await self.email_service.cleanup()
             await self.pushover_service.cleanup()
+            await self.desktop_service.cleanup()
             
             await self.logging_service.log_info("Notification manager cleaned up")
             
@@ -542,6 +616,7 @@ def get_notification_manager(
     db: Session = None,
     email_settings: EmailSettings = None,
     pushover_settings: PushoverSettings = None,
+    desktop_settings: DesktopNotificationSettings = None,
     user_id: str = None
 ) -> NotificationManager:
     """Factory function for creating notification manager"""
@@ -587,4 +662,7 @@ def get_notification_manager(
             user_key=""
         )
     
-    return NotificationManager(db, email_settings, pushover_settings)
+    if desktop_settings is None:
+        desktop_settings = DesktopNotificationSettings()
+    
+    return NotificationManager(db, email_settings, pushover_settings, desktop_settings)

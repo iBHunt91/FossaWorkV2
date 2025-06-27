@@ -21,6 +21,7 @@ from ..services.notification_manager import (
 )
 from ..services.email_notification import EmailSettings
 from ..services.pushover_notification import PushoverSettings, PushoverPriority
+from ..services.desktop_notification import DesktopNotificationSettings
 from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
 from ..auth.dependencies import require_auth
@@ -45,16 +46,17 @@ def get_notification_manager_dependency(current_user: User = Depends(require_aut
 class NotificationPreferencesRequest(BaseModel):
     email_enabled: bool = True
     pushover_enabled: bool = False
+    desktop_enabled: bool = True
     
     # Channel preferences
-    automation_started: str = "email"
-    automation_completed: str = "both"
-    automation_failed: str = "both"
-    automation_progress: str = "pushover"
-    schedule_change: str = "email"
+    automation_started: str = "email_desktop"
+    automation_completed: str = "all"
+    automation_failed: str = "all"
+    automation_progress: str = "pushover_desktop"
+    schedule_change: str = "email_desktop"
     daily_digest: str = "email"
     weekly_summary: str = "email"
-    error_alert: str = "both"
+    error_alert: str = "all"
     
     # Timing preferences
     digest_time: str = "08:00"
@@ -65,6 +67,11 @@ class NotificationPreferencesRequest(BaseModel):
     pushover_user_key: Optional[str] = None
     pushover_device: Optional[str] = None
     pushover_sound: str = "pushover"
+    
+    # Desktop specific
+    desktop_sound_enabled: bool = True
+    desktop_auto_close_time: int = 10
+    desktop_quiet_hours_enabled: bool = False
 
 
 class TestNotificationRequest(BaseModel):
@@ -586,7 +593,7 @@ async def get_notification_status(
                 "error_alert",
                 "system_maintenance"
             ],
-            "channels": ["email", "pushover", "both"],
+            "channels": ["email", "pushover", "desktop", "email_pushover", "email_desktop", "pushover_desktop", "all"],
             "timestamp": datetime.utcnow().isoformat()
         }
         
@@ -594,4 +601,340 @@ async def get_notification_status(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to get notification status: {str(e)}"
+        )
+
+
+# Desktop Notification Endpoints
+
+@router.get("/desktop/pending")
+async def get_pending_desktop_notifications(
+    current_user: User = Depends(require_auth),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency)
+):
+    """Get pending desktop notifications for the current user"""
+    try:
+        notifications = await notification_manager.desktop_service.get_pending_notifications(current_user.id)
+        
+        return {
+            "success": True,
+            "notifications": notifications,
+            "count": len(notifications),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get pending notifications: {str(e)}"
+        )
+
+
+@router.post("/desktop/click/{notification_id}")
+async def handle_desktop_notification_click(
+    notification_id: str,
+    current_user: User = Depends(require_auth),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency)
+):
+    """Handle desktop notification click action"""
+    try:
+        result = await notification_manager.desktop_service.handle_notification_click(
+            notification_id, current_user.id
+        )
+        
+        return {
+            "success": True,
+            "action": result,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to handle notification click: {str(e)}"
+        )
+
+
+@router.get("/desktop/history")
+async def get_desktop_notification_history(
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(require_auth),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency)
+):
+    """Get desktop notification history for the current user"""
+    try:
+        history = await notification_manager.desktop_service.get_notification_history(
+            current_user.id, limit
+        )
+        
+        return {
+            "success": True,
+            "history": history,
+            "count": len(history),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get notification history: {str(e)}"
+        )
+
+
+class DesktopNotificationTestRequest(BaseModel):
+    title: str = "Test Desktop Notification"
+    message: str = "This is a test desktop notification from Fossa Monitor."
+    priority: str = "normal"  # low, normal, high, critical
+
+
+@router.post("/desktop/test")
+async def test_desktop_notification(
+    request: DesktopNotificationTestRequest,
+    current_user: User = Depends(require_auth),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency)
+):
+    """Send a test desktop notification"""
+    try:
+        from ..services.desktop_notification import NotificationPriority as DesktopPriority
+        
+        # Convert priority string to enum
+        priority_mapping = {
+            "low": DesktopPriority.LOW,
+            "normal": DesktopPriority.NORMAL,
+            "high": DesktopPriority.HIGH,
+            "critical": DesktopPriority.CRITICAL
+        }
+        
+        priority = priority_mapping.get(request.priority.lower(), DesktopPriority.NORMAL)
+        
+        # Send test notification
+        success = await notification_manager.desktop_service.send_system_alert(
+            current_user.id, request.message, priority
+        )
+        
+        return {
+            "success": success,
+            "message": "Test notification sent" if success else "Failed to send test notification",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send test notification: {str(e)}"
+        )
+
+
+class DesktopSettingsRequest(BaseModel):
+    enabled: bool = True
+    sound_enabled: bool = True
+    auto_close_time: int = 10
+    priority_threshold: str = "normal"
+    quiet_hours_enabled: bool = False
+    quiet_hours_start: str = "22:00"
+    quiet_hours_end: str = "07:00"
+
+
+@router.put("/desktop/settings")
+async def update_desktop_settings(
+    settings: DesktopSettingsRequest,
+    current_user: User = Depends(require_auth),
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency)
+):
+    """Update desktop notification settings"""
+    try:
+        settings_dict = settings.dict()
+        
+        success = await notification_manager.desktop_service.update_user_settings(
+            current_user.id, settings_dict
+        )
+        
+        return {
+            "success": success,
+            "message": "Desktop notification settings updated" if success else "Failed to update settings",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update desktop settings: {str(e)}"
+        )
+
+
+@router.get("/desktop/settings")
+async def get_desktop_settings(
+    current_user: User = Depends(require_auth),
+    user_service: UserManagementService = Depends(get_user_service)
+):
+    """Get current desktop notification settings"""
+    try:
+        settings = user_service.get_user_preference(current_user.id, "desktop_notification_settings") or {}
+        
+        # Provide defaults for missing values
+        default_settings = {
+            "enabled": True,
+            "sound_enabled": True,
+            "auto_close_time": 10,
+            "priority_threshold": "normal",
+            "quiet_hours_enabled": False,
+            "quiet_hours_start": "22:00",
+            "quiet_hours_end": "07:00"
+        }
+        
+        # Merge defaults with user settings
+        merged_settings = {**default_settings, **settings}
+        
+        return {
+            "success": True,
+            "settings": merged_settings,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get desktop settings: {str(e)}"
+        )
+
+
+@router.post("/test/{channel}")
+async def send_test_notification_channel(
+    channel: str,
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
+    current_user: User = Depends(require_auth)
+):
+    """Send test notification via specific channel"""
+    try:
+        user_id = current_user.id
+        
+        # Validate channel
+        valid_channels = ["email", "pushover", "desktop", "all"]
+        if channel not in valid_channels:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid channel. Must be one of: {', '.join(valid_channels)}"
+            )
+        
+        # Prepare test data
+        test_data = {
+            "station_name": f"Test Station via {channel.title()}",
+            "job_id": f"TEST_{channel.upper()}_001",
+            "work_order_id": f"TEST_WO_{channel.upper()}_001",
+            "service_code": "2861",
+            "dispenser_count": 4,
+            "start_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "duration": "2 minutes",
+            "forms_completed": 4,
+            "success_rate": 100,
+            "dispensers_processed": 4,
+        }
+        
+        # Override notification preferences to force specific channel
+        original_prefs = await notification_manager._get_user_preferences(user_id)
+        
+        if channel == "email":
+            results = await notification_manager.email_service.send_automation_notification(
+                user_id, NotificationTrigger.AUTOMATION_COMPLETED.value, test_data
+            )
+            results = {"email": results, "pushover": True, "desktop": True}  # Mark others as skipped
+            
+        elif channel == "pushover":
+            results = await notification_manager.pushover_service.send_automation_notification(
+                user_id, NotificationTrigger.AUTOMATION_COMPLETED.value, test_data, PushoverPriority.NORMAL
+            )
+            results = {"email": True, "pushover": results, "desktop": True}  # Mark others as skipped
+            
+        elif channel == "desktop":
+            from ..services.desktop_notification import NotificationPriority as DesktopPriority
+            results = await notification_manager.desktop_service.send_automation_notification(
+                user_id, NotificationTrigger.AUTOMATION_COMPLETED.value, test_data, DesktopPriority.NORMAL
+            )
+            results = {"email": True, "pushover": True, "desktop": results}  # Mark others as skipped
+            
+        elif channel == "all":
+            results = await notification_manager.send_automation_notification(
+                user_id, NotificationTrigger.AUTOMATION_COMPLETED, test_data, PushoverPriority.NORMAL
+            )
+        
+        return {
+            "success": True,
+            "message": f"Test notification sent via {channel}",
+            "user_id": user_id,
+            "channel": channel,
+            "results": results,
+            "test_data": test_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send test notification via {channel}: {str(e)}"
+        )
+
+
+@router.get("/channels/status")
+async def get_notification_channels_status(
+    notification_manager: NotificationManager = Depends(get_notification_manager_dependency),
+    current_user: User = Depends(require_auth)
+):
+    """Get status of all notification channels for the current user"""
+    try:
+        user_id = current_user.id
+        
+        # Get user preferences
+        preferences = await notification_manager._get_user_preferences(user_id)
+        
+        # Check email configuration
+        email_configured = bool(
+            notification_manager.email_service.email_settings.username and
+            notification_manager.email_service.email_settings.password
+        )
+        
+        # Check Pushover configuration
+        pushover_configured = bool(preferences and preferences.pushover_user_key)
+        
+        # Check desktop notification support
+        desktop_supported = True  # Always available in web/electron
+        
+        return {
+            "success": True,
+            "channels": {
+                "email": {
+                    "enabled": preferences.email_enabled if preferences else True,
+                    "configured": email_configured,
+                    "smtp_server": notification_manager.email_service.email_settings.smtp_server,
+                    "from_email": notification_manager.email_service.email_settings.from_email,
+                    "status": "ready" if (email_configured and (preferences.email_enabled if preferences else True)) else "needs_configuration"
+                },
+                "pushover": {
+                    "enabled": preferences.pushover_enabled if preferences else False,
+                    "configured": pushover_configured,
+                    "user_key_set": bool(preferences.pushover_user_key if preferences else False),
+                    "device": preferences.pushover_device if preferences else None,
+                    "sound": preferences.pushover_sound if preferences else "pushover",
+                    "status": "ready" if (pushover_configured and (preferences.pushover_enabled if preferences else False)) else "needs_configuration"
+                },
+                "desktop": {
+                    "enabled": preferences.desktop_enabled if preferences else True,
+                    "supported": desktop_supported,
+                    "sound_enabled": preferences.desktop_sound_enabled if preferences else True,
+                    "auto_close_time": preferences.desktop_auto_close_time if preferences else 10,
+                    "status": "ready" if desktop_supported else "not_supported"
+                }
+            },
+            "quiet_hours": {
+                "enabled": preferences and hasattr(preferences, 'quiet_hours_start'),
+                "start": preferences.quiet_hours_start.strftime("%H:%M") if preferences and hasattr(preferences, 'quiet_hours_start') else "22:00",
+                "end": preferences.quiet_hours_end.strftime("%H:%M") if preferences and hasattr(preferences, 'quiet_hours_end') else "07:00"
+            },
+            "user_id": user_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get channels status: {str(e)}"
         )

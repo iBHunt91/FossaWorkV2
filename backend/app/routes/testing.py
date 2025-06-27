@@ -626,6 +626,628 @@ async def test_pushover_configuration(
             "data": {"error": str(e)}
         }
 
+@router.get("/notifications/test-smtp-connection")
+async def test_smtp_connection(current_user: User = Depends(get_current_user)):
+    """Test SMTP server connection without sending email"""
+    try:
+        from app.services.email_notification import EmailNotificationService, EmailSettings
+        import smtplib
+        import ssl
+        
+        # Load user email settings
+        smtp_settings_path = f"data/users/{current_user.id}/settings/smtp.json"
+        if not os.path.exists(smtp_settings_path):
+            return {
+                "success": False,
+                "message": "SMTP settings not configured",
+                "data": {"configured": False}
+            }
+        
+        with open(smtp_settings_path, 'r') as f:
+            smtp_config = json.load(f)
+        
+        # Test connection
+        server = None
+        try:
+            if smtp_config.get('use_tls', True):
+                context = ssl.create_default_context()
+                server = smtplib.SMTP(smtp_config['smtp_server'], smtp_config['smtp_port'])
+                server.starttls(context=context)
+            else:
+                server = smtplib.SMTP_SSL(smtp_config['smtp_server'], smtp_config['smtp_port'])
+            
+            # Test login
+            server.login(smtp_config['username'], smtp_config['password'])
+            
+            return {
+                "success": True,
+                "message": "SMTP connection and authentication successful",
+                "data": {
+                    "smtp_server": smtp_config['smtp_server'],
+                    "smtp_port": smtp_config['smtp_port'],
+                    "tls_enabled": smtp_config.get('use_tls', True),
+                    "auth_successful": True
+                }
+            }
+        except smtplib.SMTPAuthenticationError as e:
+            return {
+                "success": False,
+                "message": "SMTP authentication failed - check username/password",
+                "data": {"auth_error": str(e)}
+            }
+        except smtplib.SMTPConnectError as e:
+            return {
+                "success": False,
+                "message": "Cannot connect to SMTP server - check server/port",
+                "data": {"connection_error": str(e)}
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"SMTP connection test failed: {str(e)}",
+                "data": {"error": str(e)}
+            }
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
+                    
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"SMTP test setup failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.post("/notifications/test-email-send")
+async def test_email_send(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Send a test email to verify email delivery"""
+    try:
+        from app.services.email_notification import EmailNotificationService, EmailSettings, NotificationType
+        
+        # Load email settings
+        smtp_settings_path = f"data/users/{current_user.id}/settings/smtp.json"
+        if not os.path.exists(smtp_settings_path):
+            return {
+                "success": False,
+                "message": "Email settings not configured",
+                "data": {"configured": False}
+            }
+        
+        with open(smtp_settings_path, 'r') as f:
+            smtp_config = json.load(f)
+        
+        email_settings = EmailSettings(
+            smtp_server=smtp_config['smtp_server'],
+            smtp_port=smtp_config['smtp_port'],
+            username=smtp_config['username'],
+            password=smtp_config['password'],
+            use_tls=smtp_config.get('use_tls', True),
+            from_email=smtp_config.get('from_email', smtp_config['username']),
+            from_name=smtp_config.get('from_name', 'FossaWork Testing')
+        )
+        
+        # Create email service
+        email_service = EmailNotificationService(db=db, email_settings=email_settings)
+        
+        # Test data for notification
+        test_data = {
+            "station_name": "Test Station #123",
+            "job_id": "TEST-001",
+            "work_order_id": "W-TEST-001",
+            "started_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "service_type": "AccuMeasure Test",
+            "dispenser_count": 3,
+            "estimated_duration": "5 minutes"
+        }
+        
+        # Send test automation started notification
+        success = await email_service.send_automation_notification(
+            user_id=current_user.id,
+            notification_type=NotificationType.AUTOMATION_STARTED,
+            data=test_data
+        )
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Test email sent successfully",
+                "data": {
+                    "recipient": email_settings.from_email,
+                    "notification_type": "automation_started",
+                    "test_data": test_data
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Email sending failed",
+                "data": {"service_error": "Email service returned False"}
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Email test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.get("/notifications/test-email-templates")
+async def test_email_templates(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Test email template rendering"""
+    try:
+        from app.services.email_notification import EmailNotificationService, NotificationType
+        
+        # Test template rendering without sending
+        email_service = EmailNotificationService(db=db, email_settings=None)
+        
+        test_scenarios = []
+        notification_types = [
+            NotificationType.AUTOMATION_STARTED,
+            NotificationType.AUTOMATION_COMPLETED,
+            NotificationType.AUTOMATION_FAILED,
+            NotificationType.DAILY_DIGEST
+        ]
+        
+        for notification_type in notification_types:
+            try:
+                # Create test data for each template
+                if notification_type == NotificationType.DAILY_DIGEST:
+                    test_data = {
+                        "date": datetime.utcnow().strftime("%Y-%m-%d"),
+                        "total_jobs": 5,
+                        "successful_jobs": 4,
+                        "failed_jobs": 1,
+                        "dispensers_processed": 23,
+                        "recent_jobs": [
+                            {"station_name": "Test Station #1", "status": "completed", "time": "14:30"},
+                            {"station_name": "Test Station #2", "status": "completed", "time": "15:45"},
+                            {"station_name": "Test Station #3", "status": "failed", "time": "16:20"}
+                        ]
+                    }
+                else:
+                    test_data = {
+                        "station_name": "Test Station #123",
+                        "job_id": "TEST-001",
+                        "work_order_id": "W-TEST-001",
+                        "started_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+                        "completed_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+                        "failure_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+                        "service_type": "AccuMeasure Test",
+                        "dispenser_count": 3,
+                        "progress_percentage": 65,
+                        "error_message": "Test error for template validation",
+                        "retry_available": True
+                    }
+                
+                # Test template rendering
+                template_info = email_service.EMAIL_TEMPLATES.get(notification_type)
+                if template_info:
+                    subject = template_info["subject"].format(**test_data)
+                    html_content = template_info["html_template"].format(**test_data)
+                    text_content = template_info.get("text_template", "").format(**test_data)
+                    
+                    test_scenarios.append({
+                        "notification_type": notification_type.value,
+                        "template_exists": True,
+                        "subject_rendered": len(subject) > 0,
+                        "html_rendered": len(html_content) > 0,
+                        "text_rendered": len(text_content) > 0,
+                        "subject_preview": subject[:100],
+                        "html_size": len(html_content),
+                        "text_size": len(text_content)
+                    })
+                else:
+                    test_scenarios.append({
+                        "notification_type": notification_type.value,
+                        "template_exists": False,
+                        "error": "No template found"
+                    })
+                    
+            except Exception as e:
+                test_scenarios.append({
+                    "notification_type": notification_type.value,
+                    "template_exists": True,
+                    "rendering_error": str(e)
+                })
+        
+        templates_working = sum(1 for scenario in test_scenarios if scenario.get("template_exists") and not scenario.get("rendering_error"))
+        
+        return {
+            "success": templates_working > 0,
+            "message": f"Template test completed - {templates_working}/{len(notification_types)} templates working",
+            "data": {
+                "templates_tested": len(notification_types),
+                "templates_working": templates_working,
+                "scenarios": test_scenarios
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Template test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.get("/notifications/test-pushover-api")
+async def test_pushover_api_connection(current_user: User = Depends(get_current_user)):
+    """Test Pushover API connection and credentials"""
+    try:
+        from app.services.pushover_notification import PushoverNotificationService, PushoverSettings
+        import aiohttp
+        
+        # Load Pushover settings
+        pushover_settings = None
+        pushover_settings_path = f"data/users/{current_user.id}/settings/pushover.json"
+        
+        if os.path.exists(pushover_settings_path):
+            with open(pushover_settings_path, 'r') as f:
+                pushover_config = json.load(f)
+                pushover_settings = PushoverSettings(
+                    api_token=pushover_config.get('api_token', ''),
+                    user_key=pushover_config.get('user_key', ''),
+                    device=pushover_config.get('device')
+                )
+        
+        if not pushover_settings or not pushover_settings.user_key:
+            return {
+                "success": False,
+                "message": "Pushover user key not configured",
+                "data": {"configured": False}
+            }
+        
+        # Test API connection by validating user
+        async with aiohttp.ClientSession() as session:
+            validate_data = {
+                'token': pushover_settings.api_token,
+                'user': pushover_settings.user_key
+            }
+            
+            async with session.post(
+                'https://api.pushover.net/1/users/validate.json',
+                data=validate_data
+            ) as response:
+                result = await response.json()
+                
+                if response.status == 200 and result.get('status') == 1:
+                    return {
+                        "success": True,
+                        "message": "Pushover API connection and user validation successful",
+                        "data": {
+                            "user_valid": True,
+                            "devices": result.get('devices', []),
+                            "api_available": True
+                        }
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"Pushover user validation failed: {result.get('errors', ['Unknown error'])}",
+                        "data": {
+                            "user_valid": False,
+                            "response": result
+                        }
+                    }
+                    
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Pushover API test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.post("/notifications/test-pushover-send")
+async def test_pushover_send(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Send a test Pushover notification"""
+    try:
+        from app.services.pushover_notification import PushoverNotificationService, PushoverSettings, PushoverPriority
+        
+        # Load Pushover settings
+        pushover_settings_path = f"data/users/{current_user.id}/settings/pushover.json"
+        if not os.path.exists(pushover_settings_path):
+            return {
+                "success": False,
+                "message": "Pushover settings not configured",
+                "data": {"configured": False}
+            }
+        
+        with open(pushover_settings_path, 'r') as f:
+            pushover_config = json.load(f)
+        
+        pushover_settings = PushoverSettings(
+            api_token=pushover_config.get('api_token', ''),
+            user_key=pushover_config.get('user_key', ''),
+            device=pushover_config.get('device')
+        )
+        
+        # Create Pushover service
+        pushover_service = PushoverNotificationService(db=db, pushover_settings=pushover_settings)
+        
+        # Test data for notification
+        test_data = {
+            "station_name": "Test Station #123",
+            "job_id": "TEST-001",
+            "progress_percentage": 75,
+            "estimated_completion": "2 minutes"
+        }
+        
+        # Send test notification
+        success = await pushover_service.send_automation_notification(
+            user_id=current_user.id,
+            trigger="automation_progress",
+            data=test_data,
+            priority=PushoverPriority.NORMAL
+        )
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Test Pushover notification sent successfully",
+                "data": {
+                    "notification_type": "automation_progress",
+                    "test_data": test_data,
+                    "priority": "normal"
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Pushover notification sending failed",
+                "data": {"service_error": "Pushover service returned False"}
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Pushover test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.get("/notifications/test-desktop-support")
+async def test_desktop_notification_support(db: Session = Depends(get_db)):
+    """Test desktop notification platform support"""
+    try:
+        from app.services.desktop_notification import DesktopNotificationService, DesktopNotificationSettings
+        import platform
+        
+        # Check platform support
+        current_platform = platform.system()
+        platform_supported = current_platform in ["Windows", "Darwin", "Linux"]
+        
+        # Check library availability
+        try:
+            from plyer import notification
+            plyer_available = True
+        except ImportError:
+            plyer_available = False
+        
+        try:
+            if current_platform == "Windows":
+                import win10toast
+                win10toast_available = True
+            else:
+                win10toast_available = False
+        except ImportError:
+            win10toast_available = False
+        
+        # Test service initialization
+        try:
+            desktop_service = DesktopNotificationService(
+                db=db, 
+                desktop_settings=DesktopNotificationSettings()
+            )
+            service_init = True
+        except Exception as e:
+            service_init = False
+            init_error = str(e)
+        
+        support_level = "full" if (platform_supported and (plyer_available or win10toast_available)) else \
+                        "partial" if platform_supported else "none"
+        
+        return {
+            "success": support_level != "none",
+            "message": f"Desktop notifications support: {support_level}",
+            "data": {
+                "platform": current_platform,
+                "platform_supported": platform_supported,
+                "plyer_available": plyer_available,
+                "win10toast_available": win10toast_available,
+                "service_init": service_init,
+                "support_level": support_level,
+                "recommended_library": "win10toast" if (current_platform == "Windows" and win10toast_available) else "plyer" if plyer_available else "none",
+                "init_error": init_error if not service_init else None
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Desktop notification support test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.post("/notifications/test-desktop-send")
+async def test_desktop_send(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Send a test desktop notification"""
+    try:
+        from app.services.desktop_notification import DesktopNotificationService, DesktopNotificationSettings, NotificationPriority
+        
+        # Create desktop service
+        desktop_service = DesktopNotificationService(
+            db=db,
+            desktop_settings=DesktopNotificationSettings()
+        )
+        
+        # Initialize service
+        init_success = await desktop_service.initialize()
+        if not init_success:
+            return {
+                "success": False,
+                "message": "Desktop notification service failed to initialize",
+                "data": {"init_failed": True}
+            }
+        
+        # Test data
+        test_data = {
+            "station_name": "Test Station #123",
+            "job_id": "TEST-001",
+            "work_order_id": "W-TEST-001",
+            "completed_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "dispenser_count": 3
+        }
+        
+        # Send test notification
+        success = await desktop_service.send_automation_notification(
+            user_id=current_user.id,
+            trigger="automation_completed",
+            data=test_data,
+            priority=NotificationPriority.NORMAL
+        )
+        
+        if success:
+            return {
+                "success": True,
+                "message": "Test desktop notification sent successfully",
+                "data": {
+                    "notification_type": "automation_completed",
+                    "test_data": test_data,
+                    "priority": "normal"
+                }
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Desktop notification sending failed",
+                "data": {"service_error": "Desktop service returned False"}
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Desktop notification test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.get("/notifications/test-manager-integration")
+async def test_notification_manager_integration(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Test the unified notification manager with all channels"""
+    try:
+        from app.services.notification_manager import NotificationManager, NotificationTrigger, get_notification_manager
+        from app.services.pushover_notification import PushoverPriority
+        
+        # Get notification manager (will load user-specific settings)
+        notification_manager = get_notification_manager(user_id=current_user.id)
+        
+        # Initialize manager
+        init_success = await notification_manager.initialize()
+        if not init_success:
+            return {
+                "success": False,
+                "message": "Notification manager failed to initialize",
+                "data": {"init_failed": True}
+            }
+        
+        # Test data
+        test_data = {
+            "station_name": "Test Station #456",
+            "job_id": "MANAGER-TEST-001",
+            "work_order_id": "W-MGR-001",
+            "started_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "service_type": "Manager Integration Test",
+            "dispenser_count": 2,
+            "estimated_duration": "3 minutes"
+        }
+        
+        # Send test notification through manager
+        results = await notification_manager.send_automation_notification(
+            user_id=current_user.id,
+            trigger=NotificationTrigger.AUTOMATION_STARTED,
+            data=test_data,
+            priority=PushoverPriority.NORMAL
+        )
+        
+        # Check results
+        successful_channels = [channel for channel, success in results.items() if success]
+        failed_channels = [channel for channel, success in results.items() if not success]
+        
+        return {
+            "success": len(successful_channels) > 0,
+            "message": f"Manager test completed - {len(successful_channels)} channels successful, {len(failed_channels)} failed",
+            "data": {
+                "successful_channels": successful_channels,
+                "failed_channels": failed_channels,
+                "detailed_results": results,
+                "test_data": test_data
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Notification manager test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.get("/notifications/test-preferences")
+async def test_notification_preferences(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Test notification preferences loading and validation"""
+    try:
+        from app.services.notification_manager import NotificationManager, get_notification_manager
+        
+        # Get notification manager
+        notification_manager = get_notification_manager(user_id=current_user.id)
+        
+        # Get user preferences (internal method)
+        preferences = await notification_manager._get_user_preferences(current_user.id)
+        
+        if not preferences:
+            return {
+                "success": False,
+                "message": "No notification preferences found - using defaults",
+                "data": {"preferences_exist": False}
+            }
+        
+        # Validate preferences structure
+        preference_checks = {
+            "email_enabled": hasattr(preferences, 'email_enabled'),
+            "pushover_enabled": hasattr(preferences, 'pushover_enabled'),
+            "desktop_enabled": hasattr(preferences, 'desktop_enabled'),
+            "automation_started": hasattr(preferences, 'automation_started'),
+            "automation_completed": hasattr(preferences, 'automation_completed'),
+            "automation_failed": hasattr(preferences, 'automation_failed'),
+            "pushover_user_key": hasattr(preferences, 'pushover_user_key'),
+            "quiet_hours_start": hasattr(preferences, 'quiet_hours_start'),
+            "digest_time": hasattr(preferences, 'digest_time')
+        }
+        
+        valid_preferences = sum(preference_checks.values())
+        total_checks = len(preference_checks)
+        
+        return {
+            "success": valid_preferences >= total_checks * 0.8,  # 80% of checks must pass
+            "message": f"Preferences validation: {valid_preferences}/{total_checks} checks passed",
+            "data": {
+                "preferences_loaded": True,
+                "user_id": preferences.user_id,
+                "email_enabled": preferences.email_enabled,
+                "pushover_enabled": preferences.pushover_enabled,
+                "desktop_enabled": preferences.desktop_enabled,
+                "has_pushover_key": bool(preferences.pushover_user_key),
+                "validation_results": preference_checks,
+                "validation_score": f"{valid_preferences}/{total_checks}"
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Preferences test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
 @router.post("/notifications/test")
 async def send_test_notification(
     request: Dict[str, str],
@@ -822,8 +1444,8 @@ async def test_dashboard_work_week(current_user: User = Depends(get_current_user
     """Test if dashboard properly uses work week configuration"""
     try:
         # Get user preferences
-        from app.services.user_service import UserService
-        user_service = UserService()
+        from app.services.user_management import UserManagementService
+        user_service = UserManagementService()
         preferences = user_service.get_user_preferences(current_user.id)
         
         work_week = preferences.get('work_week', {})
@@ -873,8 +1495,8 @@ async def test_filters_work_week(current_user: User = Depends(get_current_user))
     """Test if filters page properly uses work week configuration"""
     try:
         # Get user preferences
-        from app.services.user_service import UserService
-        user_service = UserService()
+        from app.services.user_management import UserManagementService
+        user_service = UserManagementService()
         preferences = user_service.get_user_preferences(current_user.id)
         
         work_week = preferences.get('work_week', {})
