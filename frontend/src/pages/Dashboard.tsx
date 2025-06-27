@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Calendar, Users, AlertTriangle, CheckCircle, Activity, Settings, RefreshCw, Store, TrendingUp, CalendarDays, Building2, MapPin, Filter, Package } from 'lucide-react'
+import { Calendar, Users, AlertTriangle, CheckCircle, Activity, Settings, RefreshCw, Store, TrendingUp, CalendarDays, Building2, MapPin, Filter, Package, Sparkles } from 'lucide-react'
 import { fetchHealthCheck, fetchWorkOrders, getUserPreferences, apiClient as api } from '../services/api'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import { ProgressLoader, DotsLoader } from '@/components/ui/animated-loader'
 import { cleanSiteName } from '@/utils/storeColors'
 import { FilterCalculationResult, FilterSummary } from '../types/filters'
 import { cn } from '@/lib/utils'
+import { useWeekendMode } from '../hooks/useWeekendMode'
 
 const Dashboard: React.FC = () => {
   const { token, user } = useAuth()
@@ -162,6 +163,21 @@ const Dashboard: React.FC = () => {
 
   const currentWeek = getWeekRange(0)
   const nextWeek = getWeekRange(1)
+
+  // Get work days from preferences for weekend mode
+  const workDays = preferences?.work_week?.days || [1, 2, 3, 4, 5]
+  
+  // Initialize weekend mode hook
+  const {
+    isWeekendMode,
+    weekendModeEnabled,
+    setWeekendModeEnabled,
+    setWeekendModeDismissed
+  } = useWeekendMode({
+    workDays,
+    filteredWorkOrders: workOrders || [],
+    showAllJobs: false // Dashboard doesn't have a show all jobs toggle
+  })
 
   // Helper function to calculate filters for work orders
   const calculateFilters = async (workOrders: any[]) => {

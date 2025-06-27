@@ -37,7 +37,7 @@ interface TestCase {
 
 export const TestingDashboard: React.FC = () => {
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['auth']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set()); // Start with all sections closed
   const [runningAll, setRunningAll] = useState(false);
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown');
 
@@ -1621,6 +1621,22 @@ ${'='.repeat(60)}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    {/* Individual test status indicators */}
+                    <div className="flex items-center gap-1">
+                      {section.tests.map((test) => {
+                        const result = testResults[test.id];
+                        const statusIcon = result?.status === 'success' ? (
+                          <div key={test.id} className="w-3 h-3 bg-emerald-500 rounded-full" title={`${test.name}: Passed`} />
+                        ) : result?.status === 'error' ? (
+                          <div key={test.id} className="w-3 h-3 bg-red-500 rounded-full" title={`${test.name}: Failed`} />
+                        ) : result?.status === 'running' ? (
+                          <div key={test.id} className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" title={`${test.name}: Running`} />
+                        ) : (
+                          <div key={test.id} className="w-3 h-3 bg-gray-300 dark:bg-gray-600 rounded-full" title={`${test.name}: Not tested`} />
+                        );
+                        return statusIcon;
+                      })}
+                    </div>
                     <Badge variant="outline" className="font-mono">
                       {sectionPassed}/{sectionTotal}
                     </Badge>
