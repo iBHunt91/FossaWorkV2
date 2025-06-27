@@ -179,6 +179,28 @@ const Dashboard: React.FC = () => {
     showAllJobs: false // Dashboard doesn't have a show all jobs toggle
   })
 
+  // Auto-enable weekend mode when conditions are met
+  useEffect(() => {
+    if (isWeekendMode && !weekendModeEnabled && workOrders) {
+      // Check if current week has no work but next week does
+      const currentWeekOrders = workOrders.filter(order => {
+        if (!order.scheduled_date) return false
+        const scheduledDate = new Date(order.scheduled_date)
+        return scheduledDate >= currentWeek.start && scheduledDate <= currentWeek.end
+      })
+      
+      const nextWeekOrders = workOrders.filter(order => {
+        if (!order.scheduled_date) return false
+        const scheduledDate = new Date(order.scheduled_date)
+        return scheduledDate >= nextWeek.start && scheduledDate <= nextWeek.end
+      })
+      
+      if (currentWeekOrders.length === 0 && nextWeekOrders.length > 0) {
+        setWeekendModeEnabled(true)
+      }
+    }
+  }, [isWeekendMode, weekendModeEnabled, workOrders, currentWeek, nextWeek, setWeekendModeEnabled])
+
   // Helper function to calculate filters for work orders
   const calculateFilters = async (workOrders: any[]) => {
     console.group('[DASHBOARD] 🔧 Calculate Filters')
@@ -623,6 +645,36 @@ const Dashboard: React.FC = () => {
           </AlertDescription>
         </Alert>
 
+        {/* Weekend Mode Banner */}
+        {weekendModeEnabled && (
+          <AnimatedCard className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Sparkles className="h-5 w-5 text-blue-500 animate-pulse" />
+                    <Sparkles className="h-5 w-5 text-blue-500 absolute inset-0 animate-ping opacity-50" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-blue-600 dark:text-blue-400">Weekend Mode Active</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Previewing upcoming work for better planning
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekendModeEnabled(false)}
+                  className="text-blue-600 border-blue-500/50 hover:bg-blue-500/10"
+                >
+                  Exit Weekend Mode
+                </Button>
+              </div>
+            </CardContent>
+          </AnimatedCard>
+        )}
+
         {/* Main Dashboard Content */}
         <div className="space-y-6">
           {/* Total Work Orders */}
@@ -650,7 +702,7 @@ const Dashboard: React.FC = () => {
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
                       <CalendarDays className="h-4 w-4" />
-                      Current Week
+                      {weekendModeEnabled ? 'Last Work Week' : 'Current Week'}
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {currentWeek.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {currentWeek.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -815,11 +867,21 @@ const Dashboard: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4" />
-                      Next Week
+                      {weekendModeEnabled ? (
+                        <>
+                          <Sparkles className="h-4 w-4 text-blue-500" />
+                          Preview Week
+                        </>
+                      ) : (
+                        <>
+                          <TrendingUp className="h-4 w-4" />
+                          Next Week
+                        </>
+                      )}
                     </CardTitle>
                     <CardDescription className="text-xs">
                       {nextWeek.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {nextWeek.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {weekendModeEnabled && <span className="text-blue-500 ml-1">(Weekend Mode)</span>}
                     </CardDescription>
                   </div>
                   <div className="text-right">

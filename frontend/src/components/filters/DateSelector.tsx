@@ -13,13 +13,15 @@ interface DateSelectorProps {
   onWeekChange: (date: Date) => void;
   workOrderCount: number;
   totalFilters: number;
+  workDays?: number[];
 }
 
 export default function DateSelector({ 
   selectedWeek, 
   onWeekChange, 
   workOrderCount,
-  totalFilters 
+  totalFilters,
+  workDays = [1, 2, 3, 4, 5] // Default to Monday-Friday
 }: DateSelectorProps) {
   const weekStart = startOfWeek(selectedWeek, { weekStartsOn: 1 }); // Monday
   const weekEnd = endOfWeek(selectedWeek, { weekStartsOn: 1 });
@@ -62,6 +64,12 @@ export default function DateSelector({
                 <Clock className="h-3 w-3" />
                 Week {format(selectedWeek, 'w')} of {format(selectedWeek, 'yyyy')}
               </div>
+              {/* Show work week indicator if not using standard Mon-Fri */}
+              {JSON.stringify(workDays) !== JSON.stringify([1, 2, 3, 4, 5]) && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  Work Days: {workDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}
+                </div>
+              )}
             </div>
             
             <MagneticButton

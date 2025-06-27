@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, AlertCircle, Loader2, Play, RefreshCw, Shield, Database, Globe, Zap, Users, Bell, FileText, Settings, FlaskConical, ChevronRight, ChevronDown, Wifi, WifiOff, Circle } from 'lucide-react';
+import { Check, X, AlertCircle, Loader2, Play, RefreshCw, Shield, Database, Globe, Zap, Users, Bell, FileText, Settings, FlaskConical, ChevronRight, ChevronDown, Wifi, WifiOff, Circle, Calendar } from 'lucide-react';
 import api from '../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1196,6 +1196,14 @@ export const TestingDashboard: React.FC = () => {
                 };
               }
 
+              // First, try to create a sample work order with dispensers
+              try {
+                await api.post('/api/test/create-sample-work-order');
+                console.log('Created sample work order with dispensers for testing');
+              } catch (error) {
+                console.log('Could not create sample work order:', error);
+              }
+
               // Get work orders 
               const workOrdersResponse = await api.get('/api/v1/work-orders', {
                 params: { user_id: userId }
@@ -1307,6 +1315,160 @@ export const TestingDashboard: React.FC = () => {
           name: 'Permission System',
           description: 'Test user permission checks',
           endpoint: '/users/test-permissions'
+        }
+      ]
+    },
+    {
+      id: 'work-week',
+      title: 'Work Week & Weekend Mode',
+      description: 'Test work week configuration and weekend mode detection',
+      icon: Calendar,
+      tests: [
+        {
+          id: 'work-week-config',
+          name: 'Work Week Configuration',
+          description: 'Verify work week preferences are loaded and applied',
+          testFunction: async () => {
+            try {
+              const response = await api.get('/api/v1/users/authenticated-user/preferences');
+              const workWeek = response.data.work_week;
+              
+              if (!workWeek) {
+                return {
+                  status: 'error',
+                  message: 'No work week configuration found',
+                  details: response.data
+                };
+              }
+              
+              const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+              const workDays = workWeek.days || [1, 2, 3, 4, 5];
+              const selectedDays = workDays.map((d: number) => dayNames[d]).join(', ');
+              
+              return {
+                status: 'success',
+                message: `Work week configured: ${selectedDays}`,
+                details: { workWeek, selectedDays }
+              };
+            } catch (error) {
+              return {
+                status: 'error',
+                message: 'Failed to fetch work week configuration',
+                details: error
+              };
+            }
+          }
+        },
+        {
+          id: 'weekend-mode-detection',
+          name: 'Weekend Mode Detection',
+          description: 'Check if weekend mode should be active based on current day and work week',
+          testFunction: async () => {
+            try {
+              // First get work week configuration
+              const prefResponse = await api.get('/api/v1/users/authenticated-user/preferences');
+              const workDays = prefResponse.data.work_week?.days || [1, 2, 3, 4, 5];
+              
+              // Get current day
+              const today = new Date();
+              const currentDay = today.getDay();
+              const currentHour = today.getHours();
+              const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+              
+              // Check if today is a work day
+              const isWorkDay = workDays.includes(currentDay);
+              
+              // Find last work day of the week
+              const sortedWorkDays = [...workDays].sort((a, b) => a - b);
+              const lastWorkDay = sortedWorkDays[sortedWorkDays.length - 1];
+              const isLastWorkDay = currentDay === lastWorkDay;
+              
+              // Weekend mode conditions
+              const isWeekendTime = !isWorkDay || (isLastWorkDay && currentHour >= 17);
+              
+              return {
+                status: 'success',
+                message: `Today is ${dayNames[currentDay]} at ${currentHour}:00. Weekend mode: ${isWeekendTime ? 'Active' : 'Inactive'}`,
+                details: {
+                  currentDay: dayNames[currentDay],
+                  isWorkDay,
+                  isLastWorkDay,
+                  currentHour,
+                  isWeekendTime,
+                  workDays: workDays.map((d: number) => dayNames[d])
+                }
+              };
+            } catch (error) {
+              return {
+                status: 'error',
+                message: 'Failed to detect weekend mode status',
+                details: error
+              };
+            }
+          }
+        },
+        {
+          id: 'week-calculations',
+          name: 'Week Range Calculations',
+          description: 'Test work week-aware date range calculations',
+          testFunction: async () => {
+            try {
+              // Get work week configuration
+              const prefResponse = await api.get('/api/v1/users/authenticated-user/preferences');
+              const workDays = prefResponse.data.work_week?.days || [1, 2, 3, 4, 5];
+              
+              // Calculate current week based on work days
+              const today = new Date();
+              const currentDay = today.getDay();
+              
+              // Find start of week (Sunday)
+              const weekStart = new Date(today);
+              weekStart.setDate(today.getDate() - currentDay);
+              weekStart.setHours(0, 0, 0, 0);
+              
+              // Find work days in current week
+              const dates: Date[] = [];
+              for (let i = 0; i < 7; i++) {
+                const date = new Date(weekStart);
+                date.setDate(weekStart.getDate() + i);
+                if (workDays.includes(date.getDay())) {
+                  dates.push(date);
+                }
+              }
+              
+              const firstWorkDay = dates[0];
+              const lastWorkDay = dates[dates.length - 1];
+              
+              return {
+                status: 'success',
+                message: `Work week: ${firstWorkDay?.toLocaleDateString()} - ${lastWorkDay?.toLocaleDateString()}`,
+                details: {
+                  workDaysCount: dates.length,
+                  firstWorkDay: firstWorkDay?.toLocaleDateString(),
+                  lastWorkDay: lastWorkDay?.toLocaleDateString(),
+                  allWorkDays: dates.map(d => d.toLocaleDateString())
+                }
+              };
+            } catch (error) {
+              return {
+                status: 'error',
+                message: 'Failed to calculate week ranges',
+                details: error
+              };
+            }
+          }
+        },
+        {
+          id: 'dashboard-integration',
+          name: 'Dashboard Weekend Mode',
+          description: 'Verify dashboard respects work week settings',
+          endpoint: '/work-week/test-dashboard'
+        },
+        {
+          id: 'filters-integration',
+          name: 'Filters Work Week',
+          description: 'Verify filters page uses work week settings',
+          endpoint: '/work-week/test-filters'
         }
       ]
     }

@@ -148,51 +148,51 @@ class UserManagementService:
                 "enabled": True,
                 "email": {
                     "enabled": False,
-                    "frequency": "immediate",
-                    "deliveryTime": "15:40"
+                    "jobStart": True,
+                    "jobComplete": True,
+                    "errors": True
                 },
                 "pushover": {
-                    "enabled": False
+                    "enabled": False,
+                    "jobStart": False,
+                    "jobComplete": True,
+                    "errors": True
                 }
             }
             
-            # Create preference records
-            preferences = [
-                UserPreference(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    preference_type="email_settings",
-                    preference_data=email_settings
-                ),
-                UserPreference(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    preference_type="pushover_settings",
-                    preference_data=pushover_settings
-                ),
-                UserPreference(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    preference_type="prover_preferences",
-                    preference_data=prover_preferences
-                ),
-                UserPreference(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    preference_type="notification_settings",
-                    preference_data=notification_settings
-                )
-            ]
-            
-            for pref in preferences:
-                db.add(pref)
-            
-            return {
+            # Store all preferences
+            preferences = {
                 "email_settings": email_settings,
                 "pushover_settings": pushover_settings,
                 "prover_preferences": prover_preferences,
                 "notification_settings": notification_settings
             }
+            
+            # Store each preference type separately (V1 pattern)
+            for pref_type, pref_data in preferences.items():
+                preference = UserPreference(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    preference_type=pref_type,
+                    preference_data=pref_data
+                )
+                db.add(preference)
+            
+            # Store user metadata (V1 pattern)
+            metadata = UserPreference(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                preference_type="metadata",
+                preference_data={
+                    "created": datetime.now().isoformat(),
+                    "lastLogin": None,
+                    "lastUsed": None,
+                    "loginCount": 0
+                }
+            )
+            db.add(metadata)
+            
+            return preferences
             
         except Exception as e:
             logger.error(f"Failed to create default preferences for user {user_id}: {e}")
@@ -201,92 +201,135 @@ class UserManagementService:
     async def _initialize_user_data_structure(self, user_id: str, email: str, 
                                             label: str, friendly_name: str, db: Session):
         """
-        Initialize user data structure for V1 compatibility
-        Creates additional user metadata
+        Initialize user-specific data structure (V1 compatibility)
         """
         try:
-            # Create metadata preference (V1 compatibility)
-            metadata = {
-                "id": user_id,
+            # Create user directories
+            user_base_path = Path(f"data/users/{user_id}")
+            directories = [
+                user_base_path,
+                user_base_path / "settings",
+                user_base_path / "work_orders",
+                user_base_path / "schedules",
+                user_base_path / "activity"
+            ]
+            
+            for directory in directories:
+                directory.mkdir(parents=True, exist_ok=True)
+                logger.info(f"Created directory: {directory}")
+            
+            # Create user info file (V1 pattern)
+            user_info = {
+                "userId": user_id,
                 "email": email,
                 "label": label or email,
                 "friendlyName": friendly_name,
-                "lastUsed": datetime.now().isoformat(),
-                "configuredEmail": email,
-                "createdAt": datetime.now().isoformat()
+                "created": datetime.now().isoformat(),
+                "lastUsed": None
             }
             
-            metadata_pref = UserPreference(
-                id=str(uuid.uuid4()),
-                user_id=user_id,
-                preference_type="metadata",
-                preference_data=metadata
-            )
+            user_info_path = user_base_path / "user.json"
+            with open(user_info_path, 'w') as f:
+                json.dump(user_info, f, indent=2)
             
-            db.add(metadata_pref)
-            
-            # Initialize empty data structures (V1 pattern)
-            empty_structures = {
-                "dispenser_store": {"dispenserData": {}},
-                "scraped_content": {"workOrders": [], "lastScrape": None},
-                "completed_jobs": {"jobs": []},
-                "batch_history": {"batches": []},
-                "change_history": {"changes": []}
-            }
-            
-            for structure_type, data in empty_structures.items():
-                structure_pref = UserPreference(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    preference_type=structure_type,
-                    preference_data=data
-                )
-                db.add(structure_pref)
+            logger.info(f"Initialized data structure for user {user_id}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize user data structure for {user_id}: {e}")
+            logger.error(f"Failed to initialize data structure for user {user_id}: {e}")
             raise
     
-    async def set_active_user(self, user_id: str, db: Session = None) -> bool:
+    async def authenticate_user(self, email: str, password: str, db: Session = None) -> Optional[Dict[str, Any]]:
         """
-        Set active user (V1 pattern equivalent)
-        Implements V1's setActiveUser functionality
+        Authenticate user with V1-compatible response
         """
         try:
             if not db:
                 db = next(get_db())
             
-            # Verify user exists
-            user = db.query(User).filter(User.id == user_id).first()
+            user = db.query(User).filter(User.email == email).first()
             if not user:
-                raise ValueError(f"User {user_id} not found")
+                logger.warning(f"Authentication failed: User {email} not found")
+                return None
             
-            # Clear existing active user sessions
+            if not user.is_active:
+                logger.warning(f"Authentication failed: User {email} is not active")
+                return None
+            
+            if not user.verify_password(password):
+                logger.warning(f"Authentication failed: Invalid password for {email}")
+                return None
+            
+            # Update last login metadata
+            await self._update_user_last_login(user.id, db)
+            
+            # Set as active user
+            await self.set_active_user(user.id, db)
+            
+            logger.info(f"Authentication successful for user {email} ({user.id})")
+            
+            return await self._format_user_response(user, db)
+            
+        except Exception as e:
+            logger.error(f"Authentication error for {email}: {e}")
+            return None
+    
+    async def _update_user_last_login(self, user_id: str, db: Session):
+        """
+        Update user's last login timestamp (V1 pattern)
+        """
+        try:
+            # Update metadata preference
+            metadata_pref = db.query(UserPreference).filter(
+                and_(
+                    UserPreference.user_id == user_id,
+                    UserPreference.preference_type == "metadata"
+                )
+            ).first()
+            
+            if metadata_pref:
+                metadata_pref.preference_data["lastLogin"] = datetime.now().isoformat()
+                metadata_pref.preference_data["loginCount"] = metadata_pref.preference_data.get("loginCount", 0) + 1
+                db.commit()
+                
+            # Update user.json file (V1 compatibility)
+            user_info_path = Path(f"data/users/{user_id}/user.json")
+            if user_info_path.exists():
+                with open(user_info_path, 'r') as f:
+                    user_info = json.load(f)
+                
+                user_info["lastUsed"] = datetime.now().isoformat()
+                
+                with open(user_info_path, 'w') as f:
+                    json.dump(user_info, f, indent=2)
+                    
+        except Exception as e:
+            logger.error(f"Failed to update last login for user {user_id}: {e}")
+    
+    async def set_active_user(self, user_id: str, db: Session = None) -> bool:
+        """
+        Set the active user (V1 pattern for multi-user support)
+        """
+        try:
+            if not db:
+                db = next(get_db())
+            
+            # Clear any existing active sessions
             db.query(UserPreference).filter(
                 UserPreference.preference_type == "active_session"
             ).delete()
             
-            # Set new active user
+            # Create new active session
             active_session = UserPreference(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
                 preference_type="active_session",
-                preference_data={
-                    "isActive": True,
-                    "sessionStart": datetime.now().isoformat(),
-                    "lastActivity": datetime.now().isoformat()
-                }
+                preference_data={"active": True, "timestamp": datetime.now().isoformat()}
             )
-            
             db.add(active_session)
-            
-            # Update user's last used timestamp (V1 pattern)
-            await self._update_user_last_used(user_id, db)
-            
-            # Cache active user
-            self.active_user_cache = user_id
-            
             db.commit()
+            
+            # Update cache
+            self.active_user_cache = user_id
             
             logger.info(f"Set active user: {user_id}")
             return True
@@ -296,6 +339,36 @@ class UserManagementService:
                 db.rollback()
             logger.error(f"Failed to set active user {user_id}: {e}")
             return False
+    
+    def get_user(self, user_id: str, db: Session = None) -> Optional[User]:
+        """
+        Get user by ID
+        """
+        try:
+            if not db:
+                db = next(get_db())
+            
+            user = db.query(User).filter(User.id == user_id).first()
+            return user
+            
+        except Exception as e:
+            logger.error(f"Failed to get user {user_id}: {e}")
+            return None
+    
+    def get_all_users(self, db: Session = None) -> List[User]:
+        """
+        Get all users
+        """
+        try:
+            if not db:
+                db = next(get_db())
+            
+            users = db.query(User).all()
+            return users
+            
+        except Exception as e:
+            logger.error(f"Failed to get all users: {e}")
+            return []
     
     async def get_active_user(self, db: Session = None) -> Optional[Dict[str, Any]]:
         """
@@ -347,33 +420,45 @@ class UserManagementService:
             
             if metadata_pref:
                 metadata_pref.preference_data["lastUsed"] = datetime.now().isoformat()
-                metadata_pref.updated_at = datetime.now()
-            
+                db.commit()
+                
         except Exception as e:
             logger.error(f"Failed to update last used for user {user_id}: {e}")
     
     async def _format_user_response(self, user: User, db: Session) -> Dict[str, Any]:
         """
-        Format user response with preferences (V1 compatibility)
+        Format user response with V1-compatible structure
         """
         try:
             # Get user preferences
-            preferences = db.query(UserPreference).filter(
+            preferences = {}
+            user_prefs = db.query(UserPreference).filter(
                 UserPreference.user_id == user.id
             ).all()
             
-            prefs_dict = {}
-            for pref in preferences:
-                prefs_dict[pref.preference_type] = pref.preference_data
+            for pref in user_prefs:
+                if pref.preference_type != "active_session":
+                    preferences[pref.preference_type] = pref.preference_data
+            
+            # Get user info from file (V1 compatibility)
+            user_info_path = Path(f"data/users/{user.id}/user.json")
+            if user_info_path.exists():
+                with open(user_info_path, 'r') as f:
+                    user_info = json.load(f)
+            else:
+                user_info = {
+                    "label": user.email,
+                    "friendlyName": None
+                }
             
             return {
                 "id": user.id,
                 "email": user.email,
-                "username": user.username,
-                "is_active": user.is_active,
-                "created_at": user.created_at.isoformat(),
-                "last_login": user.last_login.isoformat() if user.last_login else None,
-                "preferences": prefs_dict
+                "label": user_info.get("label", user.email),
+                "friendly_name": user_info.get("friendlyName"),
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "preferences": preferences,
+                "is_active": user.is_active
             }
             
         except Exception as e:
@@ -381,42 +466,57 @@ class UserManagementService:
             return {
                 "id": user.id,
                 "email": user.email,
-                "username": user.username,
-                "is_active": user.is_active,
-                "created_at": user.created_at.isoformat(),
-                "preferences": {}
+                "label": user.email,
+                "friendly_name": None,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+                "preferences": {},
+                "is_active": user.is_active
             }
     
-    async def list_users(self, db: Session = None) -> List[Dict[str, Any]]:
+    def get_users(self, db: Session = None) -> List[Dict[str, Any]]:
         """
-        List all users with V1-compatible format
+        Get all users with V1-compatible structure
         """
         try:
             if not db:
                 db = next(get_db())
             
-            users = db.query(User).filter(User.is_active == True).all()
-            
+            users = db.query(User).all()
             user_list = []
+            
             for user in users:
-                formatted_user = await self._format_user_response(user, db)
-                user_list.append(formatted_user)
+                # Get user info from file
+                user_info_path = Path(f"data/users/{user.id}/user.json")
+                if user_info_path.exists():
+                    with open(user_info_path, 'r') as f:
+                        user_info = json.load(f)
+                else:
+                    user_info = {
+                        "label": user.email,
+                        "friendlyName": None,
+                        "lastUsed": None
+                    }
+                
+                user_list.append({
+                    "id": user.id,
+                    "email": user.email,
+                    "label": user_info.get("label", user.email),
+                    "friendlyName": user_info.get("friendlyName"),
+                    "lastUsed": user_info.get("lastUsed"),
+                    "created": user.created_at.isoformat() if user.created_at else None
+                })
             
-            # Sort by last used timestamp (V1 pattern)
-            def get_last_used(user_data):
-                metadata = user_data.get("preferences", {}).get("metadata", {})
-                return metadata.get("lastUsed", "1970-01-01T00:00:00.000Z")
-            
-            user_list.sort(key=get_last_used, reverse=True)
+            # Sort by last used (V1 pattern)
+            user_list.sort(key=lambda x: x["lastUsed"] or "", reverse=True)
             
             return user_list
             
         except Exception as e:
-            logger.error(f"Failed to list users: {e}")
+            logger.error(f"Failed to get users: {e}")
             return []
     
     async def get_user_preferences(self, user_id: str, preference_type: str = None, 
-                                 db: Session = None) -> Dict[str, Any]:
+                                  db: Session = None) -> Dict[str, Any]:
         """
         Get user preferences (V1 pattern)
         """
@@ -424,20 +524,29 @@ class UserManagementService:
             if not db:
                 db = next(get_db())
             
-            query = db.query(UserPreference).filter(UserPreference.user_id == user_id)
-            
             if preference_type:
-                query = query.filter(UserPreference.preference_type == preference_type)
-                pref = query.first()
+                # Get specific preference type
+                pref = db.query(UserPreference).filter(
+                    and_(
+                        UserPreference.user_id == user_id,
+                        UserPreference.preference_type == preference_type
+                    )
+                ).first()
+                
                 return pref.preference_data if pref else {}
-            
-            preferences = query.all()
-            result = {}
-            for pref in preferences:
-                result[pref.preference_type] = pref.preference_data
-            
-            return result
-            
+            else:
+                # Get all preferences
+                preferences = {}
+                user_prefs = db.query(UserPreference).filter(
+                    UserPreference.user_id == user_id
+                ).all()
+                
+                for pref in user_prefs:
+                    if pref.preference_type != "active_session":
+                        preferences[pref.preference_type] = pref.preference_data
+                
+                return preferences
+                
         except Exception as e:
             logger.error(f"Failed to get preferences for user {user_id}: {e}")
             return {}
@@ -451,25 +560,31 @@ class UserManagementService:
             if not db:
                 db = next(get_db())
             
+            # Find existing preference
             existing_pref = db.query(UserPreference).filter(
                 and_(
                     UserPreference.user_id == user_id,
-                    UserPreference.category == preference_type  # Fixed: use 'category' instead of 'preference_type'
+                    UserPreference.preference_type == preference_type
                 )
             ).first()
             
             if existing_pref:
-                existing_pref.settings = preference_data  # Fixed: use 'settings' instead of 'preference_data'
+                # Update existing
+                existing_pref.preference_data = preference_data
                 existing_pref.updated_at = datetime.now()
             else:
+                # Create new
                 new_pref = UserPreference(
+                    id=str(uuid.uuid4()),
                     user_id=user_id,
-                    category=preference_type,  # Fixed: use 'category' instead of 'preference_type'
-                    settings=preference_data   # Fixed: use 'settings' instead of 'preference_data'
+                    preference_type=preference_type,
+                    preference_data=preference_data
                 )
                 db.add(new_pref)
             
             db.commit()
+            
+            logger.info(f"Updated {preference_type} preferences for user {user_id}")
             return True
             
         except Exception as e:
@@ -478,8 +593,79 @@ class UserManagementService:
             logger.error(f"Failed to update preferences for user {user_id}: {e}")
             return False
     
+    async def store_user_credential(self, user_id: str, service: str, 
+                                  credentials: Dict[str, Any], db: Session = None) -> bool:
+        """
+        Store encrypted user credentials (V1 pattern)
+        """
+        try:
+            if not db:
+                db = next(get_db())
+            
+            # TODO: Implement encryption
+            encrypted_data = json.dumps(credentials)  # Placeholder - should encrypt
+            
+            # Check if credential exists
+            existing = db.query(UserCredential).filter(
+                and_(
+                    UserCredential.user_id == user_id,
+                    UserCredential.service == service
+                )
+            ).first()
+            
+            if existing:
+                existing.encrypted_data = encrypted_data
+                existing.updated_at = datetime.now()
+            else:
+                new_cred = UserCredential(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    service=service,
+                    encrypted_data=encrypted_data
+                )
+                db.add(new_cred)
+            
+            db.commit()
+            
+            logger.info(f"Stored {service} credentials for user {user_id}")
+            return True
+            
+        except Exception as e:
+            if db:
+                db.rollback()
+            logger.error(f"Failed to store credentials for user {user_id}: {e}")
+            return False
+    
+    async def get_user_credential(self, user_id: str, service: str, 
+                                db: Session = None) -> Optional[Dict[str, Any]]:
+        """
+        Get decrypted user credentials (V1 pattern)
+        """
+        try:
+            if not db:
+                db = next(get_db())
+            
+            credential = db.query(UserCredential).filter(
+                and_(
+                    UserCredential.user_id == user_id,
+                    UserCredential.service == service
+                )
+            ).first()
+            
+            if not credential:
+                return None
+            
+            # TODO: Implement decryption
+            decrypted_data = json.loads(credential.encrypted_data)  # Placeholder - should decrypt
+            
+            return decrypted_data
+            
+        except Exception as e:
+            logger.error(f"Failed to get credentials for user {user_id}: {e}")
+            return None
+    
     async def log_user_activity(self, user_id: str, activity_type: str, 
-                              details: Dict[str, Any], db: Session = None) -> bool:
+                              activity_data: Dict[str, Any], db: Session = None) -> bool:
         """
         Log user activity (V1 pattern)
         """
@@ -487,42 +673,36 @@ class UserManagementService:
             if not db:
                 db = next(get_db())
             
-            # Get current activity log
-            activity_log_pref = db.query(UserPreference).filter(
-                and_(
-                    UserPreference.user_id == user_id,
-                    UserPreference.preference_type == "activity_log"
-                )
-            ).first()
+            # Create activity file (V1 compatibility)
+            activity_dir = Path(f"data/users/{user_id}/activity")
+            activity_dir.mkdir(parents=True, exist_ok=True)
             
-            activity_entry = {
-                "userId": user_id,
-                "username": details.get("username", ""),
-                "activityType": activity_type,
+            # Create activity entry
+            activity = {
                 "timestamp": datetime.now().isoformat(),
-                "details": details
+                "type": activity_type,
+                "data": activity_data
             }
             
-            if activity_log_pref:
-                activities = activity_log_pref.preference_data.get("activities", [])
-                activities.append(activity_entry)
-                
-                # Keep only last 1000 entries (V1 pattern)
-                if len(activities) > 1000:
-                    activities = activities[-1000:]
-                
-                activity_log_pref.preference_data = {"activities": activities}
-                activity_log_pref.updated_at = datetime.now()
-            else:
-                new_log = UserPreference(
-                    id=str(uuid.uuid4()),
-                    user_id=user_id,
-                    preference_type="activity_log",
-                    preference_data={"activities": [activity_entry]}
-                )
-                db.add(new_log)
+            # Store in daily activity file
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            activity_file = activity_dir / f"{date_str}.json"
             
-            db.commit()
+            if activity_file.exists():
+                with open(activity_file, 'r') as f:
+                    activities = json.load(f)
+            else:
+                activities = []
+            
+            activities.append(activity)
+            
+            with open(activity_file, 'w') as f:
+                json.dump(activities, f, indent=2)
+            
+            # Update last used timestamp
+            await self._update_user_last_used(user_id, db)
+            
+            logger.info(f"Logged activity for user {user_id}: {activity_type}")
             return True
             
         except Exception as e:
@@ -541,43 +721,6 @@ class UserManagementService:
         except Exception as e:
             logger.error(f"Failed to track activity for user {user_id}: {e}")
             pass  # Don't fail the main operation if activity tracking fails
-
-# Global user management service instance
-user_management_service = UserManagementService()
-
-# Testing function
-async def test_user_management():
-    """Test user management service"""
-    import os
-    print("🔄 Testing User Management Service...")
-    
-    try:
-        # Test user ID generation
-        test_email = os.getenv("TEST_USERNAME", "test@example.com")
-        expected_id = "7bea3bdb7e8e303eacaba442bd824004"  # From V1 analysis for bruce.hunt@owlservices.com
-        
-        generated_id = user_management_service.generate_user_id(test_email)
-        
-        print("✅ User ID generation working")
-        print(f"   {test_email} → {generated_id}")
-        
-        # Only assert match if using the specific test email
-        if test_email == "bruce.hunt@owlservices.com":
-            assert generated_id == expected_id, f"Expected {expected_id}, got {generated_id}"
-        
-        print("🎉 User Management Service tests completed successfully!")
-        print("📋 Features implemented:")
-        print("   ✅ V1-compatible MD5 user ID generation")
-        print("   ✅ Complete user preference system")
-        print("   ✅ Active user session management")
-        print("   ✅ Activity logging with V1 patterns")
-        print("   ✅ Database-based data isolation")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ User management test failed: {e}")
-        return False
     
     def get_user_preference(self, user_id: str, preference_type: str, db: Session = None) -> Dict[str, Any]:
         """
@@ -597,7 +740,7 @@ async def test_user_management():
             return pref.preference_data if pref else {}
             
         except Exception as e:
-            logger.error(f"Failed to get preference {preference_type} for user {user_id}: {e}")
+            logger.error(f"Failed to get user preference {preference_type} for user {user_id}: {e}")
             return {}
     
     def set_user_preference(self, user_id: str, preference_type: str, 
@@ -636,6 +779,61 @@ async def test_user_management():
                 db.rollback()
             logger.error(f"Failed to set preference {preference_type} for user {user_id}: {e}")
             return False
+    
+    def get_user_activities(self, user_id: str, start_date: datetime = None, 
+                           end_date: datetime = None, db: Session = None) -> List[Any]:
+        """
+        Get user activities within a date range
+        """
+        try:
+            if not db:
+                db = next(get_db())
+            
+            # For now, return empty list as we don't have activity tracking implemented
+            # TODO: Implement activity tracking when needed
+            logger.info(f"Activity tracking not yet implemented for user {user_id}")
+            return []
+            
+        except Exception as e:
+            logger.error(f"Failed to get user activities: {e}")
+            return []
+
+# Global user management service instance
+user_management_service = UserManagementService()
+
+# Testing function
+async def test_user_management():
+    """Test user management service"""
+    import os
+    print("🔄 Testing User Management Service...")
+    
+    try:
+        # Test user ID generation
+        test_email = os.getenv("TEST_USERNAME", "test@example.com")
+        expected_id = "7bea3bdb7e8e303eacaba442bd824004"  # From V1 analysis for bruce.hunt@owlservices.com
+        
+        generated_id = user_management_service.generate_user_id(test_email)
+        
+        print("✅ User ID generation working")
+        print(f"   {test_email} → {generated_id}")
+        
+        # Only assert match if using the specific test email
+        if test_email == "bruce.hunt@owlservices.com":
+            assert generated_id == expected_id, f"Expected {expected_id}, got {generated_id}"
+        
+        print("🎉 User Management Service tests completed successfully!")
+        print("📋 Features implemented:")
+        print("   ✅ V1-compatible MD5 user ID generation")
+        print("   ✅ Complete user preference system")
+        print("   ✅ Active user session management")
+        print("   ✅ Activity logging with V1 patterns")
+        print("   ✅ Database-based data isolation")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ User management test failed: {e}")
+        return False
 
 if __name__ == "__main__":
     import asyncio

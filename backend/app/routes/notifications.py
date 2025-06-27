@@ -36,9 +36,9 @@ def get_logging_service(db: Session = Depends(get_db)):
     """Get logging service instance"""
     return LoggingService()
 
-def get_notification_manager_dependency():
+def get_notification_manager_dependency(current_user: User = Depends(require_auth)):
     """Get notification manager instance without exposing Session type"""
-    return get_notification_manager()
+    return get_notification_manager(user_id=current_user.id)
 
 
 # Pydantic models for request/response
@@ -81,10 +81,6 @@ class EmergencyAlertRequest(BaseModel):
 
 
 # Duplicate function removed - already defined above
-
-
-def get_logging_service(db: Session = Depends(get_db)) -> LoggingService:
-    return LoggingService()
 
 
 @router.get("/preferences")

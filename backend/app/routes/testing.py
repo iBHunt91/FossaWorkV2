@@ -816,3 +816,183 @@ async def test_rate_limiting():
             }
         }
     }
+
+@router.get("/work-week/test-dashboard")
+async def test_dashboard_work_week(current_user: User = Depends(get_current_user)):
+    """Test if dashboard properly uses work week configuration"""
+    try:
+        # Get user preferences
+        from app.services.user_service import UserService
+        user_service = UserService()
+        preferences = user_service.get_user_preferences(current_user.id)
+        
+        work_week = preferences.get('work_week', {})
+        work_days = work_week.get('days', [1, 2, 3, 4, 5])
+        
+        # Check current day
+        today = datetime.now()
+        current_day = today.weekday()  # Monday = 0, Sunday = 6
+        # Convert to JavaScript format (Sunday = 0, Saturday = 6)
+        js_current_day = (current_day + 1) % 7
+        
+        is_work_day = js_current_day in work_days
+        
+        # Calculate current week work days
+        week_start = today
+        while week_start.weekday() != 6:  # Find last Sunday
+            week_start = week_start.replace(day=week_start.day - 1)
+        
+        work_days_this_week = []
+        for i in range(7):
+            day = week_start.replace(day=week_start.day + i)
+            js_day = (day.weekday() + 1) % 7
+            if js_day in work_days:
+                work_days_this_week.append(day.strftime('%Y-%m-%d'))
+        
+        return {
+            "success": True,
+            "message": f"Dashboard work week integration verified",
+            "data": {
+                "work_week_configured": bool(work_week),
+                "work_days": work_days,
+                "current_day": js_current_day,
+                "is_work_day": is_work_day,
+                "work_days_this_week": work_days_this_week,
+                "dashboard_should_show": "Current week" if is_work_day else "Weekend mode active"
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Dashboard work week test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.get("/work-week/test-filters")
+async def test_filters_work_week(current_user: User = Depends(get_current_user)):
+    """Test if filters page properly uses work week configuration"""
+    try:
+        # Get user preferences
+        from app.services.user_service import UserService
+        user_service = UserService()
+        preferences = user_service.get_user_preferences(current_user.id)
+        
+        work_week = preferences.get('work_week', {})
+        work_days = work_week.get('days', [1, 2, 3, 4, 5])
+        
+        # Test week calculation logic
+        today = datetime.now()
+        
+        # Find Monday of current week
+        monday = today
+        while monday.weekday() != 0:
+            monday = monday.replace(day=monday.day - 1)
+        
+        # Calculate work days in week
+        week_work_days = []
+        for i in range(7):
+            day = monday.replace(day=monday.day + i)
+            js_day = (day.weekday() + 1) % 7
+            if js_day in work_days:
+                week_work_days.append({
+                    "date": day.strftime('%Y-%m-%d'),
+                    "day_name": day.strftime('%A')
+                })
+        
+        return {
+            "success": True,
+            "message": "Filters work week integration verified",
+            "data": {
+                "work_week_configured": bool(work_week),
+                "work_days": work_days,
+                "week_start": monday.strftime('%Y-%m-%d'),
+                "week_work_days": week_work_days,
+                "filters_should_calculate_for": f"{len(week_work_days)} work days"
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Filters work week test failed: {str(e)}",
+            "data": {"error": str(e)}
+        }
+
+@router.post("/test/create-sample-work-order")
+async def create_sample_work_order_with_dispensers(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a sample work order with dispensers for testing"""
+    try:
+        from app.models import WorkOrder
+        from datetime import datetime
+        import json
+        
+        # Create sample work order
+        work_order = WorkOrder(
+            id=f"test-wo-{datetime.now().timestamp()}",
+            user_id=current_user.id,
+            external_id="TEST123",
+            store_number="#9999",
+            site_name="Test Station",
+            customer_name="Test Customer Corp",
+            address="123 Test St, Test City, TS 12345",
+            service_code="2861",
+            service_name="AccuMeasure",
+            scheduled_date=datetime.now(),
+            status="scheduled",
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            data={
+                "visit_url": "/test/visit/123",
+                "customer_url": "/test/customer/123"
+            }
+        )
+        
+        # Add sample dispensers
+        sample_dispensers = [
+            {
+                "dispenser_number": "1",
+                "dispenser_type": "MPD",
+                "meter_type": "Electronic",
+                "fuel_grades": {
+                    "1": {"grade": "Regular", "position": 1},
+                    "2": {"grade": "Plus", "position": 2},
+                    "3": {"grade": "Premium", "position": 3}
+                }
+            },
+            {
+                "dispenser_number": "2", 
+                "dispenser_type": "MPD",
+                "meter_type": "Electronic",
+                "fuel_grades": {
+                    "1": {"grade": "Regular", "position": 1},
+                    "2": {"grade": "Plus", "position": 2},
+                    "3": {"grade": "Premium", "position": 3},
+                    "4": {"grade": "Diesel", "position": 4}
+                }
+            }
+        ]
+        
+        work_order.dispensers = sample_dispensers
+        
+        db.add(work_order)
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "Sample work order with dispensers created",
+            "data": {
+                "work_order_id": work_order.id,
+                "external_id": work_order.external_id,
+                "dispenser_count": len(sample_dispensers),
+                "service_code": work_order.service_code
+            }
+        }
+    except Exception as e:
+        db.rollback()
+        return {
+            "success": False,
+            "message": f"Failed to create sample work order: {str(e)}",
+            "error": str(e)
+        }

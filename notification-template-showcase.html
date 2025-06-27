@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fossa Monitor - Notification Templates Showcase</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background-color: #f5f5f7;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #1d1d1f;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .template-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .template-section h2 {
+            color: #1d1d1f;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #007AFF;
+            padding-bottom: 10px;
+        }
+        .template-example {
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #fafafa;
+        }
+        .email-template {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .pushover-template {
+            max-width: 400px;
+            background: #1a1a1a;
+            color: white;
+            border-radius: 12px;
+            padding: 15px;
+            font-size: 14px;
+        }
+        .desktop-notification {
+            background: white;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            padding: 15px;
+            max-width: 350px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        /* Email Template Styles */
+        .email-header {
+            background: linear-gradient(135deg, #007AFF 0%, #0051D5 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .email-body {
+            padding: 30px;
+        }
+        .change-section {
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .added { background-color: #E8F5E9; border-left: 4px solid #34C759; }
+        .removed { background-color: #FFEBEE; border-left: 4px solid #FF3B30; }
+        .date-changed { background-color: #FFF3E0; border-left: 4px solid #FF9500; }
+        .swapped { background-color: #E3F2FD; border-left: 4px solid #007AFF; }
+        .replaced { background-color: #F3E5F5; border-left: 4px solid #AF52DE; }
+        
+        /* Pushover Styles */
+        .pushover-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #007AFF;
+        }
+        .pushover-section {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        
+        /* Desktop Notification Styles */
+        .desktop-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .desktop-icon {
+            width: 32px;
+            height: 32px;
+            background: #007AFF;
+            border-radius: 8px;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .code-block {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fossa Monitor - Notification Templates Showcase</h1>
+        
+        <!-- Email Templates Section -->
+        <div class="template-section">
+            <h2>Email Templates</h2>
+            
+            <!-- Schedule Change Email -->
+            <div class="template-example">
+                <h3>Schedule Change Email</h3>
+                <div class="email-template">
+                    <div class="email-header">
+                        <h1 style="margin: 0;">Schedule Changes Detected</h1>
+                        <p style="margin: 10px 0 0 0;">Hello John, here are your latest schedule updates</p>
+                    </div>
+                    <div class="email-body">
+                        <div class="change-section added">
+                            <h3 style="color: #34C759; margin-top: 0;">✅ Added Visits (2)</h3>
+                            <p><strong>Visit #48592</strong> - Friday, May 30th<br>
+                            📍 Circle K - Store #2891<br>
+                            📌 123 Main Street, Dallas, TX 75201<br>
+                            ⛽ 10 dispensers | Job: Open Neck Prover (3146)<br>
+                            <a href="https://maps.google.com/?q=123+Main+Street+Dallas+TX+75201" style="color: #007AFF;">View on Google Maps</a></p>
+                        </div>
+                        
+                        <div class="change-section removed">
+                            <h3 style="color: #FF3B30; margin-top: 0;">❌ Removed Visits (1)</h3>
+                            <p><strong>Visit #48590</strong> - Thursday, May 29th<br>
+                            📍 Circle K - Store #2892<br>
+                            📌 456 Oak Avenue, Dallas, TX 75202<br>
+                            ⛽ 8 dispensers | Job: All Dispensers (2861)</p>
+                        </div>
+                        
+                        <div class="change-section date-changed">
+                            <h3 style="color: #FF9500; margin-top: 0;">📅 Date Changes (1)</h3>
+                            <p><strong>Visit #48591</strong><br>
+                            Changed from: Tuesday, May 27th → Thursday, May 29th<br>
+                            📍 Circle K - Store #2893<br>
+                            📌 789 Elm Street, Dallas, TX 75203<br>
+                            ⛽ 12 dispensers | Job: Specific Dispensers (2862)</p>
+                        </div>
+                        
+                        <p style="margin-top: 30px; padding: 20px; background: #f0f0f0; border-radius: 8px; text-align: center;">
+                            <strong>Summary:</strong> 2 visits added, 1 visit removed, 1 date change
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Test Email -->
+            <div class="template-example">
+                <h3>Test Email</h3>
+                <div class="email-template">
+                    <div class="email-header">
+                        <h1 style="margin: 0;">🧪 Test Email from Fossa Monitor</h1>
+                    </div>
+                    <div class="email-body">
+                        <p>Hello John!</p>
+                        <p>This is a test email to verify your email settings are working correctly.</p>
+                        
+                        <div style="background: #E8F5E9; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                            <h3 style="color: #34C759; margin-top: 0;">✅ Connection Status</h3>
+                            <p>• SMTP Server: Connected to smtp.gmail.com<br>
+                            • Authentication: Verified<br>
+                            • Email Delivery: Successful</p>
+                        </div>
+                        
+                        <p><strong>Note:</strong> If you don't see this email in your inbox, please check your spam folder.</p>
+                        <p style="color: #666; font-size: 12px; margin-top: 30px;">
+                            Sent from Fossa Monitor at 5/30/2025 2:45:30 PM
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pushover Templates Section -->
+        <div class="template-section">
+            <h2>Pushover (Mobile Push) Templates</h2>
+            
+            <!-- Schedule Change Pushover -->
+            <div class="template-example">
+                <h3>Schedule Change Pushover</h3>
+                <div class="pushover-template">
+                    <div class="pushover-header">📅 Schedule Changes</div>
+                    
+                    <div class="pushover-section" style="border-left: 3px solid #34C759;">
+                        <strong style="color: #34C759;">✅ Added (2)</strong><br>
+                        <span style="color: #888;">#48592 • Fri 5/30</span><br>
+                        Circle K #2891<br>
+                        123 Main St, Dallas<br>
+                        <span style="color: #888;">10 disp • Job 3146</span>
+                    </div>
+                    
+                    <div class="pushover-section" style="border-left: 3px solid #FF3B30;">
+                        <strong style="color: #FF3B30;">❌ Removed (1)</strong><br>
+                        <span style="color: #888;">#48590 • Thu 5/29</span><br>
+                        Circle K #2892<br>
+                        456 Oak Ave, Dallas
+                    </div>
+                    
+                    <div class="pushover-section" style="border-left: 3px solid #FF9500;">
+                        <strong style="color: #FF9500;">📅 Changed (1)</strong><br>
+                        <span style="color: #888;">#48591</span><br>
+                        Tue 5/27 → Thu 5/29<br>
+                        Circle K #2893
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 15px; color: #888; font-size: 12px;">
+                        2 added • 1 removed • 1 changed
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Alert Pushover -->
+            <div class="template-example">
+                <h3>Alert Pushover</h3>
+                <div class="pushover-template">
+                    <div class="pushover-header" style="color: #FF3B30;">🚨 Critical Alerts (2)</div>
+                    
+                    <div class="pushover-section" style="border-left: 3px solid #FF3B30;">
+                        <strong style="color: #FF3B30;">🔋 Battery Critical</strong><br>
+                        <span style="color: #888;">Device: DISP-001</span><br>
+                        Battery: 5% remaining<br>
+                        Location: Store #2891<br>
+                        <span style="color: #FF9500;">Action: Replace immediately</span>
+                    </div>
+                    
+                    <div class="pushover-section" style="border-left: 3px solid #FF9500;">
+                        <strong style="color: #FF9500;">📡 Connectivity Issue</strong><br>
+                        <span style="color: #888;">Device: DISP-002</span><br>
+                        Last seen: 2 hours ago<br>
+                        Location: Store #2892<br>
+                        <span style="color: #FF9500;">Action: Check connection</span>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 15px; color: #888; font-size: 12px;">
+                        2 critical • 0 high • 0 normal
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Test Pushover -->
+            <div class="template-example">
+                <h3>Test Pushover</h3>
+                <div class="pushover-template">
+                    <div class="pushover-header">🧪 Test Notification</div>
+                    
+                    <div style="color: #34C759; margin-bottom: 10px;">
+                        ✅ Connection Successful
+                    </div>
+                    
+                    <div class="pushover-section">
+                        <strong>Settings Verified:</strong><br>
+                        • App Token: Valid<br>
+                        • User Key: Valid<br>
+                        • Sound: pushover<br>
+                        • Priority: Normal
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 15px; color: #888; font-size: 12px;">
+                        Fossa Monitor Test<br>
+                        5/30/2025 2:45 PM
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Desktop Notification Section -->
+        <div class="template-section">
+            <h2>Desktop Notifications</h2>
+            
+            <div class="template-example">
+                <h3>Desktop Notification Example</h3>
+                <div class="desktop-notification">
+                    <div class="desktop-header">
+                        <div class="desktop-icon">FM</div>
+                        <div>
+                            <strong>Fossa Monitor</strong><br>
+                            <span style="color: #666; font-size: 12px;">Schedule Changes Detected</span>
+                        </div>
+                    </div>
+                    <p style="margin: 0; color: #333;">2 visits added, 1 visit removed, 1 date change detected in your schedule.</p>
+                </div>
+                
+                <h4>Implementation Code:</h4>
+                <div class="code-block">
+function showNotification(title, body) {
+  new Notification({
+    title,
+    body,
+    icon: path.join(__dirname, '../src/assets/images/FossaFoxIco.ico')
+  }).show();
+}
+
+// Example usage:
+showNotification(
+  'Schedule Changes Detected',
+  '2 visits added, 1 visit removed, 1 date change detected in your schedule.'
+);</div>
+            </div>
+        </div>
+        
+        <!-- Color Coding Reference -->
+        <div class="template-section">
+            <h2>Color Coding Reference</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div style="background: #E8F5E9; border-left: 4px solid #34C759; padding: 15px; border-radius: 8px;">
+                    <strong style="color: #34C759;">Added</strong><br>
+                    #34C759 (Green)
+                </div>
+                <div style="background: #FFEBEE; border-left: 4px solid #FF3B30; padding: 15px; border-radius: 8px;">
+                    <strong style="color: #FF3B30;">Removed</strong><br>
+                    #FF3B30 (Red)
+                </div>
+                <div style="background: #FFF3E0; border-left: 4px solid #FF9500; padding: 15px; border-radius: 8px;">
+                    <strong style="color: #FF9500;">Date Changed</strong><br>
+                    #FF9500 (Orange)
+                </div>
+                <div style="background: #E3F2FD; border-left: 4px solid #007AFF; padding: 15px; border-radius: 8px;">
+                    <strong style="color: #007AFF;">Swapped</strong><br>
+                    #007AFF (Blue)
+                </div>
+                <div style="background: #F3E5F5; border-left: 4px solid #AF52DE; padding: 15px; border-radius: 8px;">
+                    <strong style="color: #AF52DE;">Replaced</strong><br>
+                    #AF52DE (Purple)
+                </div>
+            </div>
+        </div>
+        
+        <!-- Template Features -->
+        <div class="template-section">
+            <h2>Key Features Across All Templates</h2>
+            <ul>
+                <li><strong>Consistent Visual Language:</strong> Same color coding and iconography across all notification types</li>
+                <li><strong>Responsive Design:</strong> Email templates adapt to different screen sizes</li>
+                <li><strong>User Personalization:</strong> Greetings use user's name, configurable display fields</li>
+                <li><strong>Interactive Elements:</strong> Clickable Google Maps links in emails</li>
+                <li><strong>Professional Styling:</strong> Clean typography, proper spacing, shadow effects</li>
+                <li><strong>Accessibility:</strong> High contrast colors, clear hierarchy, readable fonts</li>
+                <li><strong>Size Optimization:</strong> Pushover messages respect character limits with intelligent splitting</li>
+                <li><strong>Time Zone Support:</strong> All dates/times displayed in user's configured timezone</li>
+                <li><strong>Frequency Options:</strong> Immediate notifications or daily digest summaries</li>
+                <li><strong>Error Handling:</strong> Graceful degradation when data is missing</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

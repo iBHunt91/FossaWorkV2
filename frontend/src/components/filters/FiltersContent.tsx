@@ -22,13 +22,15 @@ interface FiltersContentProps {
   onWeekChange: (date: Date) => void;
   onExport: () => void;
   isRefreshing: boolean;
+  workDays?: number[];
 }
 
 export default function FiltersContent({
   selectedWeek,
   onWeekChange,
   onExport,
-  isRefreshing
+  isRefreshing,
+  workDays = [1, 2, 3, 4, 5] // Default to Monday-Friday
 }: FiltersContentProps) {
   const { user } = useAuth();
   const [editedValues, setEditedValues] = useState<Record<string, number>>({});
@@ -36,7 +38,12 @@ export default function FiltersContent({
   const [warningSeverityFilter, setWarningSeverityFilter] = useState<string>('all');
   const [hasSetInitialWeek, setHasSetInitialWeek] = useState(false);
 
-  // Get week boundaries
+  // Get week boundaries based on user's work week
+  // Find the first work day to use as week start
+  const firstWorkDay = workDays.length > 0 ? Math.min(...workDays) : 1;
+  
+  // For now, still use Monday as week start for consistency with calendar view
+  // But filter results will only show work days
   const weekStart = selectedWeek ? startOfWeek(selectedWeek, { weekStartsOn: 1 }) : startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
   const weekEnd = selectedWeek ? endOfWeek(selectedWeek, { weekStartsOn: 1 }) : endOfWeek(new Date(), { weekStartsOn: 1 }); // Sunday
   
@@ -337,6 +344,7 @@ export default function FiltersContent({
           onWeekChange={onWeekChange}
           workOrderCount={0}
           totalFilters={0}
+          workDays={workDays}
         />
         <ErrorState 
           error={workOrdersError}
@@ -363,6 +371,7 @@ export default function FiltersContent({
           onWeekChange={onWeekChange}
           workOrderCount={workOrders.length}
           totalFilters={0}
+          workDays={workDays}
         />
         <FiltersSkeleton />
       </>
@@ -383,6 +392,7 @@ export default function FiltersContent({
           onWeekChange={onWeekChange}
           workOrderCount={0}
           totalFilters={0}
+          workDays={workDays}
         />
         
         <Alert className="border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 mb-6">
@@ -414,6 +424,7 @@ export default function FiltersContent({
           onWeekChange={onWeekChange}
           workOrderCount={0}
           totalFilters={0}
+          workDays={workDays}
         />
         
         <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800 mb-6">
@@ -446,6 +457,7 @@ export default function FiltersContent({
           onWeekChange={onWeekChange}
           workOrderCount={workOrders.length}
           totalFilters={0}
+          workDays={workDays}
         />
         
         <NoDispensersState
@@ -475,6 +487,7 @@ export default function FiltersContent({
           onWeekChange={onWeekChange}
           workOrderCount={workOrders.length}
           totalFilters={0}
+          workDays={workDays}
         />
         
         <Alert className="border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 mb-6">
@@ -515,6 +528,7 @@ export default function FiltersContent({
         onWeekChange={onWeekChange}
         workOrderCount={workOrders?.length || 0}
         totalFilters={filterResults?.totalFilters || 0}
+        workDays={workDays}
       />
 
       {/* Summary Statistics - Enhanced Styling */}

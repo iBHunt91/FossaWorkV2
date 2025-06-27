@@ -3,15 +3,19 @@ import { Calendar, Filter, AlertTriangle, Download, RefreshCw, Sparkles, Bell } 
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 import { useJobData } from '../hooks/useJobData';
+import { useWeekendMode } from '../hooks/useWeekendMode';
 import FiltersContent from '../components/filters/FiltersContent';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { AnimatedText, GradientText } from '../components/ui/animated-text';
 import { AnimatedButton, RippleButton, MagneticButton } from '../components/ui/animated-button';
+import { AnimatedCard } from '../components/ui/animated-card';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { cn } from '../lib/utils';
 import { Badge } from '../components/ui/badge';
+import { useQuery } from '@tanstack/react-query';
+import { getUserPreferences } from '../services/api';
 
 // Constants for update system
 const UPDATE_CHECK_INTERVAL = 30000; // 30 seconds
@@ -20,10 +24,24 @@ const REFRESH_DELAY = 1000; // 1 second
 
 export default function Filters() {
   const { user } = useAuth();
+  const currentUserId = user?.id || 'authenticated-user';
   const [selectedWeek, setSelectedWeek] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasUpdate, setHasUpdate] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date>(new Date());
+
+  // Fetch user preferences including work week settings
+  const { data: preferences } = useQuery({
+    queryKey: ['user-preferences', currentUserId],
+    queryFn: () => getUserPreferences(currentUserId),
+    enabled: !!user,
+  });
+
+  // Get work days from preferences for weekend mode
+  const workDays = preferences?.work_week?.days || [1, 2, 3, 4, 5];
+  
+  // Note: Weekend mode isn't directly used in Filters page, but we'll pass work days to FiltersContent
+  // to ensure week calculations respect the user's work week
 
   // Check for updates every 30 seconds
   useEffect(() => {
@@ -173,6 +191,7 @@ export default function Filters() {
           onWeekChange={setSelectedWeek}
           onExport={handleExport}
           isRefreshing={isRefreshing}
+          workDays={workDays}
         />
       </div>
     </ErrorBoundary>
