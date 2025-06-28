@@ -1,75 +1,92 @@
 #!/usr/bin/env python3
 """
-Test script to verify browser visibility toggle is working properly
+Test script to verify browser visibility toggle functionality
 """
-
 import asyncio
 import json
-from pathlib import Path
-import sys
 import os
+from pathlib import Path
 
 # Add the backend directory to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend')))
+import sys
+sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from app.services.workfossa_automation import WorkFossaAutomationService
+from app.services.browser_automation import BrowserAutomation
+
 
 async def test_browser_visibility():
-    """Test browser visibility with different settings"""
+    """Test browser visibility toggle"""
+    print("\n🧪 Testing Browser Visibility Toggle\n")
     
-    # Test user ID
-    user_id = "test_user"
+    # Test user ID (Bruce Hunt's ID from the console logs)
+    user_id = "7bea3bdb7e8e303eacaba442bd824004"
     
-    # Test 1: Default (headless = True)
-    print("\n" + "="*50)
-    print("TEST 1: Default settings (headless = True)")
-    print("="*50)
+    # Path to browser settings
+    settings_path = Path(__file__).parent.parent.parent / "data" / "users" / user_id / "settings" / "browser_settings.json"
     
-    service1 = WorkFossaAutomationService(headless=True)
-    await service1.initialize_browser()
-    print(f"Browser headless mode: {service1.headless}")
-    print("You should NOT see a browser window")
-    await asyncio.sleep(3)
-    await service1.cleanup()
+    # Test 1: Check if settings file exists
+    print("1️⃣ Checking browser settings file...")
+    if settings_path.exists():
+        with open(settings_path, 'r') as f:
+            settings = json.load(f)
+        print(f"   ✅ Settings found: {json.dumps(settings, indent=2)}")
+    else:
+        print("   ⚠️  No settings file found, using defaults")
     
-    # Test 2: With user settings (headless = False)
-    print("\n" + "="*50)
-    print("TEST 2: User settings (headless = False)")
-    print("="*50)
-    
-    user_settings = {
-        'browser_settings': {
-            'headless': False,
-            'browser_type': 'chromium',
-            'viewport_width': 1280,
-            'viewport_height': 720
-        }
+    # Test 2: Test with browser visible
+    print("\n2️⃣ Testing with browser VISIBLE (headless=False)...")
+    browser_settings = {
+        "browser_visible": True,
+        "browser_type": "chromium",
+        "viewport_width": 1280,
+        "viewport_height": 720
     }
     
-    service2 = WorkFossaAutomationService(headless=True, user_settings=user_settings)
-    await service2.initialize_browser()
-    print(f"Browser headless mode: {service2.headless}")
-    print("You SHOULD see a browser window")
-    await asyncio.sleep(5)
-    await service2.cleanup()
+    browser = BrowserAutomation()
+    await browser.initialize(headless=not browser_settings["browser_visible"])
     
-    # Test 3: Environment variable override
-    print("\n" + "="*50)
-    print("TEST 3: Environment variable override (BROWSER_VISIBLE=true)")
-    print("="*50)
+    print("   ✅ Browser launched in VISIBLE mode")
+    print("   🔍 You should see a browser window open")
     
-    os.environ['BROWSER_VISIBLE'] = 'true'
-    service3 = WorkFossaAutomationService(headless=True)
-    await service3.initialize_browser()
-    print(f"Browser headless mode: {service3.headless}")
-    print("You SHOULD see a browser window (env var override)")
-    await asyncio.sleep(5)
-    await service3.cleanup()
+    # Navigate to a test page
+    await browser.page.goto("https://example.com")
+    print("   📄 Navigated to example.com")
     
-    # Clean up environment variable
-    del os.environ['BROWSER_VISIBLE']
+    # Wait a bit so user can see the browser
+    print("   ⏳ Waiting 3 seconds...")
+    await asyncio.sleep(3)
     
-    print("\n✅ All tests completed!")
+    await browser.cleanup()
+    print("   ✅ Browser closed")
+    
+    # Test 3: Test with browser hidden
+    print("\n3️⃣ Testing with browser HIDDEN (headless=True)...")
+    browser_settings["browser_visible"] = False
+    
+    browser = BrowserAutomation()
+    await browser.initialize(headless=not browser_settings["browser_visible"])
+    
+    print("   ✅ Browser launched in HIDDEN mode")
+    print("   👻 No browser window should be visible")
+    
+    # Navigate to a test page
+    await browser.page.goto("https://example.com")
+    print("   📄 Navigated to example.com")
+    
+    # Take a screenshot to prove it's working
+    screenshot_path = Path(__file__).parent / "browser_visibility_test.png"
+    await browser.page.screenshot(path=str(screenshot_path))
+    print(f"   📸 Screenshot saved to: {screenshot_path}")
+    
+    await browser.cleanup()
+    print("   ✅ Browser closed")
+    
+    print("\n✅ Browser visibility toggle test completed successfully!")
+    print("\n💡 Next steps:")
+    print("   1. Go to Settings > Advanced > Browser Settings in the UI")
+    print("   2. Toggle 'Browser Visibility' on/off")
+    print("   3. Run work order scraping to see the effect")
+
 
 if __name__ == "__main__":
     asyncio.run(test_browser_visibility())

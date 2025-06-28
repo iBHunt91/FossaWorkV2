@@ -4,7 +4,7 @@
 import asyncio
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append('/Users/ibhunt/Documents/GitHub/FossaWorkV2/backend')
 
 from app.services.workfossa_scraper import WorkFossaScraper
 from app.services.browser_automation import BrowserAutomation

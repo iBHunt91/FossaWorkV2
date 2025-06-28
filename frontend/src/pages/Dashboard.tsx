@@ -9,29 +9,19 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import LoadingSpinner from '../components/LoadingSpinner'
-import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text'
-import { AnimatedCard, GlowCard } from '@/components/ui/animated-card'
-import { AnimatedButton, RippleButton } from '@/components/ui/animated-button'
-import { ProgressLoader, DotsLoader } from '@/components/ui/animated-loader'
+// Removed animated component imports for simplified UI
 import { cleanSiteName, getBrandStyle } from '@/utils/storeColors'
 import { FilterCalculationResult, FilterSummary } from '../types/filters'
 import { cn } from '@/lib/utils'
 import { useWeekendMode } from '../hooks/useWeekendMode'
+import { getWeekRange, filterWorkOrdersByDateRange, getDateRangeDisplay, WeekRange } from '../utils/dateUtils'
 
 const Dashboard: React.FC = () => {
   const { token, user } = useAuth()
   const currentUserId = user?.id || 'authenticated-user'
   const queryClient = useQueryClient()
 
-  // Log component initialization
-  useEffect(() => {
-    console.group('[DASHBOARD] 🚀 Component Initialization')
-    console.log('[DASHBOARD] User ID:', currentUserId)
-    console.log('[DASHBOARD] Token present:', !!token)
-    console.log('[DASHBOARD] User object:', user)
-    console.log('[DASHBOARD] Component mounted at:', new Date().toISOString())
-    console.groupEnd()
-  }, [])
+  // Component initialization (removed excessive logging)
 
   const { data: health, isLoading: healthLoading } = useQuery({
     queryKey: ['health'],
@@ -46,126 +36,24 @@ const Dashboard: React.FC = () => {
     enabled: !!token,
   })
 
-  // For now, use a generic user ID since we need to implement proper user management
   const { data: workOrders, isLoading: workOrdersLoading, error: workOrdersError, refetch: refetchWorkOrders } = useQuery({
     queryKey: ['work-orders', currentUserId],
-    queryFn: async () => {
-      console.group('[DASHBOARD] 📊 Fetching Work Orders')
-      console.log('[WORK_ORDERS] User ID:', currentUserId)
-      console.log('[WORK_ORDERS] Token present:', !!token)
-      
-      try {
-        const result = await fetchWorkOrders(currentUserId)
-        console.log('[WORK_ORDERS] ✅ Fetch successful')
-        console.log('[WORK_ORDERS] Count:', result?.length || 0)
-        console.log('[WORK_ORDERS] Sample data structure:', result?.slice(0, 2))
-        
-        // Log work orders with scheduled dates
-        const scheduledOrders = result?.filter(order => order.scheduled_date) || []
-        const unscheduledOrders = result?.filter(order => !order.scheduled_date) || []
-        
-        console.log('[WORK_ORDERS] Scheduled orders:', scheduledOrders.length)
-        console.log('[WORK_ORDERS] Unscheduled orders:', unscheduledOrders.length)
-        
-        // Log date range of scheduled orders
-        if (scheduledOrders.length > 0) {
-          const dates = scheduledOrders.map(order => new Date(order.scheduled_date))
-          const minDate = new Date(Math.min(...dates))
-          const maxDate = new Date(Math.max(...dates))
-          console.log('[WORK_ORDERS] Date range:', {
-            earliest: minDate.toISOString().split('T')[0],
-            latest: maxDate.toISOString().split('T')[0]
-          })
-        }
-        
-        console.groupEnd()
-        return result
-      } catch (error) {
-        console.error('[WORK_ORDERS] ❌ Fetch failed:', error)
-        console.groupEnd()
-        throw error
-      }
-    },
-    refetchInterval: 60000, // Refetch every minute
-    enabled: !!token, // Only run query if authenticated
+    queryFn: () => fetchWorkOrders(currentUserId),
+    refetchInterval: 60000,
+    enabled: !!token,
   })
 
   // Force refresh filter calculations when work orders change or component mounts
   useEffect(() => {
     if (workOrders && workOrders.length > 0) {
-      console.log('[DASHBOARD] Work orders updated, invalidating filter queries')
-      // Invalidate filter calculation queries to force recalculation
       queryClient.invalidateQueries({ queryKey: ['filters'] })
     }
   }, [workOrders, queryClient])
 
   // Calculate current and next week date ranges based on user preferences
-  const getWeekRange = (weekOffset: number = 0) => {
-    console.group(`[DASHBOARD] 📅 Calculating Week Range (offset: ${weekOffset})`)
-    
-    const today = new Date()
-    const currentDay = today.getDay()
-    console.log('[WEEK_CALC] Today:', today.toISOString().split('T')[0], `(day ${currentDay})`)
-    
-    // Get work week days from preferences (default Monday-Friday)
-    const workDays = preferences?.work_week?.days || [1, 2, 3, 4, 5]
-    console.log('[WEEK_CALC] Work days from preferences:', workDays)
-    
-    // Find the start of the current week (Sunday)
-    const weekStart = new Date(today)
-    weekStart.setDate(today.getDate() - currentDay + (weekOffset * 7))
-    weekStart.setHours(0, 0, 0, 0)
-    
-    // Find the end of the current week (Saturday)
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekStart.getDate() + 6)
-    weekEnd.setHours(23, 59, 59, 999)
-    
-    console.log('[WEEK_CALC] Week boundaries:', {
-      start: weekStart.toISOString().split('T')[0],
-      end: weekEnd.toISOString().split('T')[0]
-    })
-    
-    // Filter dates within this week that are work days
-    const dates: Date[] = []
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(weekStart)
-      date.setDate(weekStart.getDate() + i)
-      if (workDays.includes(date.getDay())) {
-        dates.push(date)
-      }
-    }
-    
-    console.log('[WEEK_CALC] Work days in range:', dates.map(d => d.toISOString().split('T')[0]))
-    
-    // Return the first and last work days of the week
-    let result
-    if (dates.length > 0) {
-      result = { 
-        start: dates[0], 
-        end: dates[dates.length - 1],
-        workDays: dates
-      }
-    } else {
-      // No work days in this week, return week bounds
-      result = { start: weekStart, end: weekEnd, workDays: [] }
-    }
-    
-    console.log('[WEEK_CALC] Final range:', {
-      start: result.start.toISOString().split('T')[0],
-      end: result.end.toISOString().split('T')[0],
-      workDaysCount: result.workDays.length
-    })
-    console.groupEnd()
-    
-    return result
-  }
-
-  const currentWeek = getWeekRange(0)
-  const nextWeek = getWeekRange(1)
-
-  // Get work days from preferences for weekend mode
   const workDays = preferences?.work_week?.days || [1, 2, 3, 4, 5]
+  const currentWeek = getWeekRange(0, workDays)
+  const nextWeek = getWeekRange(1, workDays)
   
   // Initialize weekend mode hook
   const {
@@ -183,17 +71,8 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (isWeekendMode && !weekendModeEnabled && workOrders) {
       // Check if current week has no work but next week does
-      const currentWeekOrders = workOrders.filter(order => {
-        if (!order.scheduled_date) return false
-        const scheduledDate = new Date(order.scheduled_date)
-        return scheduledDate >= currentWeek.start && scheduledDate <= currentWeek.end
-      })
-      
-      const nextWeekOrders = workOrders.filter(order => {
-        if (!order.scheduled_date) return false
-        const scheduledDate = new Date(order.scheduled_date)
-        return scheduledDate >= nextWeek.start && scheduledDate <= nextWeek.end
-      })
+      const currentWeekOrders = filterWorkOrdersByDateRange(workOrders, currentWeek.start, currentWeek.end)
+      const nextWeekOrders = filterWorkOrdersByDateRange(workOrders, nextWeek.start, nextWeek.end)
       
       if (currentWeekOrders.length === 0 && nextWeekOrders.length > 0) {
         setWeekendModeEnabled(true)
@@ -203,17 +82,12 @@ const Dashboard: React.FC = () => {
 
   // Helper function to calculate filters for work orders
   const calculateFilters = async (workOrders: any[]) => {
-    console.group('[DASHBOARD] 🔧 Calculate Filters')
-    console.log('[FILTER_CALC] Input work orders count:', workOrders?.length || 0)
     
     if (!workOrders || workOrders.length === 0) {
-      console.log('[FILTER_CALC] ⚠️ No work orders provided, returning null')
-      console.groupEnd()
       return null
     }
     
     // Log sample work order data
-    console.log('[FILTER_CALC] Sample work order data:', workOrders.slice(0, 2))
     
     // Map work orders for API - using FIXED transformation logic
     const mappedWorkOrders = workOrders.map(wo => ({
@@ -227,8 +101,6 @@ const Dashboard: React.FC = () => {
       address: wo.address || ''
     }))
     
-    console.log('[FILTER_CALC] Mapped work orders:', mappedWorkOrders.slice(0, 2))
-    console.log('[FILTER_CALC] Service codes in mapped data:', [...new Set(mappedWorkOrders.map(wo => wo.serviceCode))])
     
     // Extract dispensers from work orders (same as Filters page does)
     const allDispensers: any[] = []
@@ -273,7 +145,6 @@ const Dashboard: React.FC = () => {
       }
     })
     
-    console.log('[FILTER_CALC] Extracted dispensers:', {
       totalDispensers: allDispensers.length,
       workOrdersWithServiceItems,
       workOrdersWithDispensers
@@ -303,7 +174,6 @@ const Dashboard: React.FC = () => {
       }
     })
     
-    console.log('[FILTER_CALC] Transformed dispensers sample:', transformedDispensers.slice(0, 2))
     
     const requestData = {
       workOrders: mappedWorkOrders,
@@ -311,8 +181,6 @@ const Dashboard: React.FC = () => {
       overrides: {}
     }
     
-    console.log('[FILTER_CALC] 📤 Sending API request to /api/v1/filters/calculate')
-    console.log('[FILTER_CALC] Request payload structure:', {
       workOrdersCount: requestData.workOrders.length,
       dispensersCount: requestData.dispensers.length,
       overridesKeys: Object.keys(requestData.overrides)
@@ -321,14 +189,10 @@ const Dashboard: React.FC = () => {
     try {
       const response = await api.post(`/api/v1/filters/calculate`, requestData)
       
-      console.log('[FILTER_CALC] ✅ API response received')
-      console.log('[FILTER_CALC] Response status:', response.status)
-      console.log('[FILTER_CALC] Response data:', response.data)
       
       const result = response.data as FilterCalculationResult
       
       if (result) {
-        console.log('[FILTER_CALC] Parsed result:', {
           totalFilters: result.totalFilters || 0,
           totalBoxes: result.totalBoxes || 0,
           summaryCount: result.summary?.length || 0,
@@ -337,7 +201,6 @@ const Dashboard: React.FC = () => {
         
         // Log summary details
         if (result.summary && result.summary.length > 0) {
-          console.log('[FILTER_CALC] Filter summary:', result.summary.map(f => ({
             partNumber: f.partNumber,
             description: f.description,
             quantity: f.quantity
@@ -346,25 +209,19 @@ const Dashboard: React.FC = () => {
         
         // Log warnings
         if (result.warnings && result.warnings.length > 0) {
-          console.log('[FILTER_CALC] Warnings:', result.warnings.map(w => ({
             message: w.message,
             severity: w.severity
           })))
         }
       } else {
-        console.log('[FILTER_CALC] ⚠️ Result is null/undefined')
       }
       
-      console.groupEnd()
       return result
     } catch (error) {
-      console.error('[FILTER_CALC] ❌ API request failed:', error)
-      console.error('[FILTER_CALC] Error details:', {
         message: error.message,
         response: error.response?.data,
         status: error.response?.status
       })
-      console.groupEnd()
       return null
     }
   }
@@ -373,23 +230,18 @@ const Dashboard: React.FC = () => {
   const { data: currentWeekFilters, isLoading: currentWeekFiltersLoading, error: currentWeekFiltersError } = useQuery({
     queryKey: ['filters', 'current', currentUserId, currentWeek.start, currentWeek.end],
     queryFn: async () => {
-      console.group('[DASHBOARD] 📋 Current Week Filter Query')
-      console.log('[CURRENT_FILTERS] Week range:', {
         start: currentWeek.start.toISOString().split('T')[0],
         end: currentWeek.end.toISOString().split('T')[0]
       })
-      console.log('[CURRENT_FILTERS] Total work orders available:', workOrders?.length || 0)
       
       const weekOrders = workOrders?.filter(order => {
         if (!order.scheduled_date) {
-          console.log('[CURRENT_FILTERS] Skipping order without scheduled_date:', order.id || order.external_id)
           return false
         }
         const scheduledDate = new Date(order.scheduled_date)
         const inRange = scheduledDate >= currentWeek.start && scheduledDate <= currentWeek.end
         
         if (!inRange) {
-          console.log('[CURRENT_FILTERS] Order outside current week:', {
             id: order.id || order.external_id,
             scheduledDate: scheduledDate.toISOString().split('T')[0],
             inRange: false
@@ -399,8 +251,6 @@ const Dashboard: React.FC = () => {
         return inRange
       }) || []
       
-      console.log('[CURRENT_FILTERS] Filtered work orders for current week:', weekOrders.length)
-      console.log('[CURRENT_FILTERS] Current week orders sample:', weekOrders.slice(0, 3).map(order => ({
         id: order.id || order.external_id,
         scheduledDate: order.scheduled_date,
         serviceCode: order.service_code,
@@ -408,8 +258,6 @@ const Dashboard: React.FC = () => {
       })))
       
       const result = await calculateFilters(weekOrders)
-      console.log('[CURRENT_FILTERS] Final result:', result ? 'Has data' : 'No data')
-      console.groupEnd()
       
       return result
     },
@@ -421,23 +269,18 @@ const Dashboard: React.FC = () => {
   const { data: nextWeekFilters, isLoading: nextWeekFiltersLoading, error: nextWeekFiltersError } = useQuery({
     queryKey: ['filters', 'next', currentUserId, nextWeek.start, nextWeek.end],
     queryFn: async () => {
-      console.group('[DASHBOARD] 📋 Next Week Filter Query')
-      console.log('[NEXT_FILTERS] Week range:', {
         start: nextWeek.start.toISOString().split('T')[0],
         end: nextWeek.end.toISOString().split('T')[0]
       })
-      console.log('[NEXT_FILTERS] Total work orders available:', workOrders?.length || 0)
       
       const weekOrders = workOrders?.filter(order => {
         if (!order.scheduled_date) {
-          console.log('[NEXT_FILTERS] Skipping order without scheduled_date:', order.id || order.external_id)
           return false
         }
         const scheduledDate = new Date(order.scheduled_date)
         const inRange = scheduledDate >= nextWeek.start && scheduledDate <= nextWeek.end
         
         if (!inRange) {
-          console.log('[NEXT_FILTERS] Order outside next week:', {
             id: order.id || order.external_id,
             scheduledDate: scheduledDate.toISOString().split('T')[0],
             inRange: false
@@ -447,8 +290,6 @@ const Dashboard: React.FC = () => {
         return inRange
       }) || []
       
-      console.log('[NEXT_FILTERS] Filtered work orders for next week:', weekOrders.length)
-      console.log('[NEXT_FILTERS] Next week orders sample:', weekOrders.slice(0, 3).map(order => ({
         id: order.id || order.external_id,
         scheduledDate: order.scheduled_date,
         serviceCode: order.service_code,
@@ -456,8 +297,6 @@ const Dashboard: React.FC = () => {
       })))
       
       const result = await calculateFilters(weekOrders)
-      console.log('[NEXT_FILTERS] Final result:', result ? 'Has data' : 'No data')
-      console.groupEnd()
       
       return result
     },
@@ -467,41 +306,24 @@ const Dashboard: React.FC = () => {
 
   // Track React Query state changes
   useEffect(() => {
-    console.group('[DASHBOARD] 🔄 React Query State Change - Work Orders')
-    console.log('[REACT_QUERY] Work Orders Loading:', workOrdersLoading)
-    console.log('[REACT_QUERY] Work Orders Error:', workOrdersError)
-    console.log('[REACT_QUERY] Work Orders Data:', workOrders ? `${workOrders.length} orders` : 'No data')
-    console.groupEnd()
   }, [workOrdersLoading, workOrdersError, workOrders])
 
   useEffect(() => {
-    console.group('[DASHBOARD] 🔄 React Query State Change - Current Week Filters')
-    console.log('[REACT_QUERY] Current Week Filters Loading:', currentWeekFiltersLoading)
-    console.log('[REACT_QUERY] Current Week Filters Error:', currentWeekFiltersError)
-    console.log('[REACT_QUERY] Current Week Filters Data:', currentWeekFilters ? 'Has data' : 'No data')
     if (currentWeekFilters) {
-      console.log('[REACT_QUERY] Current Week Filters Summary:', {
         totalFilters: currentWeekFilters.totalFilters,
         totalBoxes: currentWeekFilters.totalBoxes,
         summaryLength: currentWeekFilters.summary?.length || 0
       })
     }
-    console.groupEnd()
   }, [currentWeekFiltersLoading, currentWeekFiltersError, currentWeekFilters])
 
   useEffect(() => {
-    console.group('[DASHBOARD] 🔄 React Query State Change - Next Week Filters')
-    console.log('[REACT_QUERY] Next Week Filters Loading:', nextWeekFiltersLoading)
-    console.log('[REACT_QUERY] Next Week Filters Error:', nextWeekFiltersError)
-    console.log('[REACT_QUERY] Next Week Filters Data:', nextWeekFilters ? 'Has data' : 'No data')
     if (nextWeekFilters) {
-      console.log('[REACT_QUERY] Next Week Filters Summary:', {
         totalFilters: nextWeekFilters.totalFilters,
         totalBoxes: nextWeekFilters.totalBoxes,
         summaryLength: nextWeekFilters.summary?.length || 0
       })
     }
-    console.groupEnd()
   }, [nextWeekFiltersLoading, nextWeekFiltersError, nextWeekFilters])
 
   // Analyze work orders by store and week
@@ -625,7 +447,7 @@ const Dashboard: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <ProgressLoader size="lg" className="mx-auto mb-4" />
+          <LoadingSpinner />
           <p className="text-muted-foreground">Loading dashboard data...</p>
         </div>
       </div>
@@ -639,7 +461,7 @@ const Dashboard: React.FC = () => {
         <header className="mb-8">
           <div className="flex flex-col items-center space-y-4">
             <h1 className="text-3xl font-bold tracking-tight">
-              <GradientText text="Fossa Monitor Dashboard" gradient="from-blue-600 to-purple-600" />
+              <h1 className="text-2xl font-bold text-blue-600">Fossa Monitor Dashboard</h1>
             </h1>
             <div className="flex items-center gap-4">
               {preferences?.work_week && (
@@ -666,7 +488,6 @@ const Dashboard: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  console.log('[DASHBOARD] Manual refresh triggered')
                   refetchWorkOrders()
                   queryClient.invalidateQueries({ queryKey: ['filters'] })
                 }}
@@ -697,7 +518,7 @@ const Dashboard: React.FC = () => {
 
         {/* Weekend Mode Banner */}
         {weekendModeEnabled && (
-          <AnimatedCard className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
+          <Card className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
             <CardContent className="py-3">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -712,20 +533,20 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             </CardContent>
-          </AnimatedCard>
+          </Card>
         )}
 
         {/* Main Dashboard Content */}
         <div className="space-y-6">
           {/* Total Work Orders */}
-          <AnimatedCard hover="lift" animate="slide" delay={0.1}>
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Work Orders</CardTitle>
               <Store className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                <GradientText text={String(totalWorkOrders)} gradient="from-purple-600 to-pink-600" />
+                <span className="text-3xl font-bold text-purple-600">{totalWorkOrders}</span>
               </div>
               <p className="text-xs text-muted-foreground mb-2">
                 All work orders in system
@@ -820,12 +641,12 @@ const Dashboard: React.FC = () => {
                 </div>
               )}
             </CardContent>
-          </AnimatedCard>
+          </Card>
 
           {/* Weekly Store Breakdown with Integrated Filters */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Current Week Card */}
-            <GlowCard glowColor="rgba(59, 130, 246, 0.3)">
+            <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -839,7 +660,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold">
-                      <GradientText text={String(currentWeekTotal)} gradient="from-blue-600 to-cyan-600" />
+                      <span className="text-3xl font-bold text-blue-600">{currentWeekTotal}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       visits
@@ -892,14 +713,6 @@ const Dashboard: React.FC = () => {
 
                 {/* Filter Summary */}
                 {(() => {
-                  console.group('[DASHBOARD] 🎨 Current Week Filter Display Logic')
-                  console.log('[FILTER_DISPLAY] Loading:', currentWeekFiltersLoading)
-                  console.log('[FILTER_DISPLAY] Has filters data:', !!currentWeekFilters)
-                  console.log('[FILTER_DISPLAY] Total filters:', currentWeekFilters?.totalFilters || 0)
-                  console.log('[FILTER_DISPLAY] Store count:', storeAnalysis.currentWeek.size)
-                  console.log('[FILTER_DISPLAY] Should show filters:', !currentWeekFiltersLoading && currentWeekFilters && currentWeekFilters.totalFilters > 0)
-                  console.log('[FILTER_DISPLAY] Should show "no filters":', !currentWeekFiltersLoading && storeAnalysis.currentWeek.size > 0 && (!currentWeekFilters || currentWeekFilters.totalFilters === 0))
-                  console.groupEnd()
                   return null
                 })()}
                 {currentWeekFiltersLoading ? (
@@ -988,10 +801,10 @@ const Dashboard: React.FC = () => {
                   </div>
                 ) : null}
               </CardContent>
-            </GlowCard>
+            </Card>
 
             {/* Next Week Card */}
-            <GlowCard glowColor="rgba(34, 197, 94, 0.3)">
+            <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -1015,7 +828,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-bold">
-                      <GradientText text={String(nextWeekTotal)} gradient="from-green-600 to-emerald-600" />
+                      <span className="text-3xl font-bold text-green-600">{nextWeekTotal}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       visits
@@ -1068,14 +881,6 @@ const Dashboard: React.FC = () => {
 
                 {/* Filter Summary */}
                 {(() => {
-                  console.group('[DASHBOARD] 🎨 Next Week Filter Display Logic')
-                  console.log('[FILTER_DISPLAY] Loading:', nextWeekFiltersLoading)
-                  console.log('[FILTER_DISPLAY] Has filters data:', !!nextWeekFilters)
-                  console.log('[FILTER_DISPLAY] Total filters:', nextWeekFilters?.totalFilters || 0)
-                  console.log('[FILTER_DISPLAY] Store count:', storeAnalysis.nextWeek.size)
-                  console.log('[FILTER_DISPLAY] Should show filters:', !nextWeekFiltersLoading && nextWeekFilters && nextWeekFilters.totalFilters > 0)
-                  console.log('[FILTER_DISPLAY] Should show "no filters":', !nextWeekFiltersLoading && storeAnalysis.nextWeek.size > 0 && (!nextWeekFilters || nextWeekFilters.totalFilters === 0))
-                  console.groupEnd()
                   return null
                 })()}
                 {nextWeekFiltersLoading ? (
@@ -1164,7 +969,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 ) : null}
               </CardContent>
-            </GlowCard>
+            </Card>
           </div>
         </div>
       </div>

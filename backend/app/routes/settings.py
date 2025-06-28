@@ -8,6 +8,7 @@ SMTP configuration, work order filters, automation delays, and other preferences
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 import json
@@ -20,6 +21,13 @@ import aiofiles
 import asyncio
 
 from ..database import get_db
+from ..core.exceptions import (
+    ValidationError,
+    ConfigurationError,
+    DatabaseError,
+    EmailNotificationError,
+    handle_exceptions
+)
 from ..services.user_management import UserManagementService
 from ..services.logging_service import LoggingService
 from ..auth.dependencies import get_current_user
@@ -141,8 +149,17 @@ async def load_settings(user_id: str, setting_type: str, default: Dict[str, Any]
             async with aiofiles.open(settings_path, 'r') as f:
                 content = await f.read()
                 return json.loads(content)
+        except FileNotFoundError:
+            logger.info(f"No {setting_type} settings file found for user {user_id}, using defaults")
+        except PermissionError as e:
+            logger.error(f"Permission denied accessing {setting_type} settings for user {user_id}: {str(e)}")
+            raise ConfigurationError(setting_type, f"Unable to access {setting_type} settings")
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in {setting_type} settings for user {user_id}: {str(e)}")
+            raise ConfigurationError(setting_type, f"Invalid {setting_type} settings format")
         except Exception as e:
             logger.warning(f"Failed to load {setting_type} settings: {str(e)}")
+            raise ConfigurationError(setting_type, f"Failed to load {setting_type} settings")
     
     return default
 
@@ -155,9 +172,12 @@ async def save_settings(user_id: str, setting_type: str, settings: Dict[str, Any
             await f.write(json.dumps(settings, indent=2))
         logger.info(f"Successfully saved {setting_type} settings for user {user_id}")
         return True
+    except PermissionError as e:
+        logger.error(f"Permission denied saving {setting_type} settings for user {user_id}: {str(e)}")
+        raise ConfigurationError(setting_type, f"Unable to save {setting_type} settings")
     except Exception as e:
         logger.error(f"Failed to save {setting_type} settings for user {user_id}: {str(e)}")
-        return False
+        raise ConfigurationError(setting_type, f"Failed to save {setting_type} settings")
 
 
 # SMTP Settings endpoints
@@ -199,9 +219,15 @@ async def get_smtp_settings(
         
     except HTTPException:
         raise
+    except FileNotFoundError:
+        logger.warning(f"SMTP settings file not found for user {user_id}")
+        raise ConfigurationError("smtp", "SMTP settings not configured")
+    except PermissionError:
+        logger.error(f"Permission denied accessing SMTP settings for user {user_id}")
+        raise ConfigurationError("smtp", "Unable to access SMTP settings")
     except Exception as e:
         await logging_service.log_error(f"Failed to get SMTP settings: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise ConfigurationError("smtp", f"Failed to load SMTP settings: {str(e)}")
 
 
 @router.post("/smtp/{user_id}")

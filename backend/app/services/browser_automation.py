@@ -31,21 +31,14 @@ except ImportError:
     class Playwright:
         pass
 
-# Forward declare error recovery decorator to avoid circular imports
-ERROR_RECOVERY_AVAILABLE = False
-error_recovery_service = None
-
-def with_error_recovery(operation_type: str):
-    """Decorator for error recovery - will be properly initialized later"""
-    def decorator(func):
-        if ERROR_RECOVERY_AVAILABLE and error_recovery_service:
-            # Use the actual decorator when available
-            from .error_recovery import with_error_recovery as actual_decorator
-            return actual_decorator(operation_type)(func)
-        else:
-            # No-op when error recovery not available
-            return func
-    return decorator
+# Import exception handling
+from ..core.exceptions import (
+    BrowserError,
+    BrowserInitializationError,
+    PageLoadError,
+    ElementNotFoundError,
+    AuthenticationError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -348,23 +341,9 @@ class BrowserAutomationService:
         self.screenshots_dir = Path("data/screenshots")
         self.screenshots_dir.mkdir(parents=True, exist_ok=True)
         
-        # Initialize error recovery integration if needed
-        self._setup_error_recovery()
-        
+        # Browser automation service initialized
         if not PLAYWRIGHT_AVAILABLE:
             logger.warning("Playwright not available. Install with: pip install playwright")
-    
-    def _setup_error_recovery(self):
-        """Setup error recovery integration using dependency injection"""
-        global ERROR_RECOVERY_AVAILABLE, error_recovery_service
-        try:
-            from .error_recovery import error_recovery_service as recovery_service
-            recovery_service.set_browser_automation(self)
-            error_recovery_service = recovery_service
-            ERROR_RECOVERY_AVAILABLE = True
-            logger.info("Error recovery integration enabled")
-        except ImportError:
-            logger.warning("Error recovery service not available")
     
     async def initialize(self) -> bool:
         """Initialize browser automation system"""
@@ -478,7 +457,6 @@ class BrowserAutomationService:
             logger.error(f"Failed to close session {session_id}: {e}")
             return False
     
-    @with_error_recovery(operation_type="workfossa_login")
     async def navigate_to_workfossa(self, session_id: str, credentials: Dict[str, str]) -> bool:
         """Navigate to WorkFossa and login"""
         try:
@@ -520,7 +498,6 @@ class BrowserAutomationService:
             logger.error(f"WorkFossa login failed for session {session_id}: {e}")
             return False
     
-    @with_error_recovery(operation_type="visit_automation")
     async def process_visit_automation(self, session_id: str, visit_url: str, 
                                      dispensers: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Process visit automation - main automation workflow"""

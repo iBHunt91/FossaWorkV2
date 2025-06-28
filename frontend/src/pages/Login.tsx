@@ -153,15 +153,12 @@ const Login: React.FC = () => {
       if (response.ok) {
         const data = await response.json()
         const token = data.access_token
-        const userData = data.user
+        const userId = data.user_id
+        const email = data.email
 
-        if (token && userData) {
-          // Use the auth context to properly login
-          login(token, {
-            id: userData.id,
-            email: userData.email,
-            username: userData.display_name || userData.username || userData.email
-          })
+        if (token && userId && email) {
+          // Use the auth context to properly login with simplified response
+          login(token, userId, email)
           
           if (setupStatus?.setup_required) {
             setSuccess('Account created successfully! Redirecting to dashboard...')
@@ -417,11 +414,7 @@ const Login: React.FC = () => {
                         
                         if (response.ok) {
                           const data = await response.json()
-                          login(data.access_token, {
-                            id: data.user_id,
-                            email: data.user.email,
-                            username: data.username
-                          })
+                          login(data.access_token, data.user_id, data.email)
                           navigate('/work-orders')
                         } else {
                           setError('Demo login failed')

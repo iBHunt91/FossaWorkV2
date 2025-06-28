@@ -8,8 +8,8 @@ import sys
 import traceback
 
 # Change to backend directory
-os.chdir('/Users/ibhunt/Documents/GitHub/FossaWorkV2-security-fixes/backend')
-sys.path.insert(0, '.')
+os.chdir('/Users/ibhunt/Documents/GitHub/FossaWorkV2/backend')
+sys.path.insert(0, '/Users/ibhunt/Documents/GitHub/FossaWorkV2/backend')
 
 # Load environment variables
 from dotenv import load_dotenv

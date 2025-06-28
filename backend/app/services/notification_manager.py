@@ -1,136 +1,69 @@
 #!/usr/bin/env python3
 """
-Unified Notification Manager
+Simplified Notification Manager
 
-Coordinated notification system that manages both email and Pushover notifications
-with user preferences, scheduling, digest reports, and integration with automation services.
+Desktop app appropriate notification system with only Email + Desktop channels.
+Removed enterprise complexity for desktop tool use case.
 """
 
 import asyncio
-import json
 import logging
-from datetime import datetime, timedelta, time
-from typing import Dict, Any, List, Optional, Set
+from datetime import datetime
+from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
-from sqlalchemy.orm import Session
 
-from ..services.email_notification import EmailNotificationService, EmailSettings, NotificationType
-from ..services.pushover_notification import PushoverNotificationService, PushoverSettings, PushoverPriority
-from ..services.desktop_notification import DesktopNotificationService, DesktopNotificationSettings, NotificationPriority as DesktopPriority
-from ..services.logging_service import LoggingService
-from ..services.user_management import UserManagementService
-from ..database import get_db
+from .email_notification import EmailNotificationService, EmailSettings, NotificationType, NotificationPriority
+from .desktop_notification import DesktopNotificationService, DesktopNotificationSettings
+from .logging_service import LoggingService
 
 logger = logging.getLogger(__name__)
 
 
-class NotificationChannel(Enum):
-    """Available notification channels"""
-    EMAIL = "email"
-    PUSHOVER = "pushover"
-    DESKTOP = "desktop"
-    EMAIL_PUSHOVER = "email_pushover"
-    EMAIL_DESKTOP = "email_desktop"
-    PUSHOVER_DESKTOP = "pushover_desktop"
-    ALL = "all"
-
-
 class NotificationTrigger(Enum):
-    """Notification trigger events"""
+    """Simple notification triggers"""
     AUTOMATION_STARTED = "automation_started"
     AUTOMATION_COMPLETED = "automation_completed"
     AUTOMATION_FAILED = "automation_failed"
-    AUTOMATION_PROGRESS = "automation_progress"
-    SCHEDULE_CHANGE = "schedule_change"
-    DAILY_DIGEST = "daily_digest"
-    WEEKLY_SUMMARY = "weekly_summary"
     ERROR_ALERT = "error_alert"
-    SYSTEM_MAINTENANCE = "system_maintenance"
 
 
 @dataclass
 class NotificationPreferences:
-    """User notification preferences"""
+    """Simple user notification preferences - 8 toggles maximum"""
     user_id: str
+    
+    # Channel toggles (4 toggles)
     email_enabled: bool = True
-    pushover_enabled: bool = False
     desktop_enabled: bool = True
     
-    # Channel preferences for each trigger
-    automation_started: NotificationChannel = NotificationChannel.EMAIL_DESKTOP
-    automation_completed: NotificationChannel = NotificationChannel.ALL
-    automation_failed: NotificationChannel = NotificationChannel.ALL
-    automation_progress: NotificationChannel = NotificationChannel.PUSHOVER_DESKTOP
-    schedule_change: NotificationChannel = NotificationChannel.EMAIL_DESKTOP
-    daily_digest: NotificationChannel = NotificationChannel.EMAIL
-    weekly_summary: NotificationChannel = NotificationChannel.EMAIL
-    error_alert: NotificationChannel = NotificationChannel.ALL
-    
-    # Timing preferences
-    digest_time: time = time(8, 0)  # 8:00 AM
-    quiet_hours_start: time = time(22, 0)  # 10:00 PM
-    quiet_hours_end: time = time(7, 0)   # 7:00 AM
-    
-    # Pushover specific
-    pushover_user_key: Optional[str] = None
-    pushover_device: Optional[str] = None
-    pushover_sound: str = "pushover"
-    
-    # Desktop specific
-    desktop_sound_enabled: bool = True
-    desktop_auto_close_time: int = 10
-    desktop_quiet_hours_enabled: bool = False
-
-
-@dataclass
-class DigestData:
-    """Daily/weekly digest data structure"""
-    user_id: str
-    period_start: datetime
-    period_end: datetime
-    total_jobs: int
-    successful_jobs: int
-    failed_jobs: int
-    dispensers_processed: int
-    stations_automated: Set[str]
-    average_duration: float
-    recent_jobs: List[Dict[str, Any]]
-    schedule_changes: List[Dict[str, Any]]
-    error_summary: List[Dict[str, Any]]
+    # Trigger toggles (4 toggles)
+    automation_started_enabled: bool = True
+    automation_completed_enabled: bool = True
+    automation_failed_enabled: bool = True
+    error_alert_enabled: bool = True
 
 
 class NotificationManager:
-    """Unified notification management service"""
+    """Simplified notification management service"""
     
-    def __init__(self, db: Session, email_settings: EmailSettings, pushover_settings: PushoverSettings, desktop_settings: DesktopNotificationSettings = None):
-        self.db = db
+    def __init__(self, email_settings: EmailSettings, desktop_settings: DesktopNotificationSettings = None):
         self.logging_service = LoggingService()
-        self.user_service = UserManagementService()
         
-        # Initialize notification services
-        self.email_service = EmailNotificationService(db, email_settings)
-        self.pushover_service = PushoverNotificationService(db, pushover_settings)
-        self.desktop_service = DesktopNotificationService(db, desktop_settings or DesktopNotificationSettings())
+        # Initialize simplified services
+        self.email_service = EmailNotificationService(email_settings)
+        self.desktop_service = DesktopNotificationService(desktop_settings or DesktopNotificationSettings())
         
-        # Background tasks
-        self.digest_scheduler_running = False
-        self.notification_processor_running = False
-        
+        # Simple preferences storage
+        self.user_preferences: Dict[str, NotificationPreferences] = {}
+    
     async def initialize(self) -> bool:
         """Initialize notification manager"""
         try:
-            # Initialize services
-            pushover_init = await self.pushover_service.initialize()
             desktop_init = await self.desktop_service.initialize()
             
-            # Start background tasks
-            asyncio.create_task(self._digest_scheduler())
-            asyncio.create_task(self._notification_processor())
-            
             await self.logging_service.log_info(
-                f"Notification manager initialized successfully - "
-                f"Pushover: {pushover_init}, Desktop: {desktop_init}"
+                f"Simplified notification manager initialized - Desktop: {desktop_init}"
             )
             return True
             
@@ -143,52 +76,43 @@ class NotificationManager:
         user_id: str,
         trigger: NotificationTrigger,
         data: Dict[str, Any],
-        priority: Optional[PushoverPriority] = None
+        priority: NotificationPriority = NotificationPriority.NORMAL
     ) -> Dict[str, bool]:
-        """Send notification via appropriate channels based on user preferences"""
+        """Send notification via enabled channels"""
         try:
             # Get user preferences
-            preferences = await self._get_user_preferences(user_id)
-            if not preferences:
-                logger.warning(f"No notification preferences found for user {user_id}")
-                return {"email": False, "pushover": False, "desktop": False}
+            preferences = self._get_user_preferences(user_id)
             
-            # Determine which channels to use
-            channel = self._get_trigger_channel(trigger, preferences)
+            # Check if this trigger is enabled
+            if not self._is_trigger_enabled(trigger, preferences):
+                return {"email": True, "desktop": True}  # Return success for disabled triggers
             
-            results = {"email": True, "pushover": True, "desktop": True}  # Default to success for disabled channels
+            results = {"email": True, "desktop": True}  # Default to success for disabled channels
             
-            # Send email notification
-            if self._should_send_email(channel, preferences):
-                email_type = self._trigger_to_email_type(trigger)
+            # Send email notification if enabled
+            if preferences.email_enabled:
+                notification_type = self._trigger_to_notification_type(trigger)
                 results["email"] = await self.email_service.send_automation_notification(
-                    user_id, email_type, data, self._pushover_to_email_priority(priority)
+                    user_id, notification_type, data, priority
                 )
             
-            # Send Pushover notification
-            if self._should_send_pushover(channel, preferences):
-                results["pushover"] = await self.pushover_service.send_automation_notification(
-                    user_id, trigger.value, data, priority
-                )
-            
-            # Send Desktop notification
-            if self._should_send_desktop(channel, preferences):
-                desktop_priority = self._pushover_to_desktop_priority(priority)
+            # Send desktop notification if enabled
+            if preferences.desktop_enabled:
                 results["desktop"] = await self.desktop_service.send_automation_notification(
-                    user_id, trigger.value, data, desktop_priority
+                    user_id, trigger.value, data, 
+                    self.desktop_service.NotificationPriority.URGENT if priority == NotificationPriority.URGENT 
+                    else self.desktop_service.NotificationPriority.NORMAL
                 )
             
             # Log notification attempt
             channels_used = []
-            if self._should_send_email(channel, preferences):
+            if preferences.email_enabled:
                 channels_used.append("email")
-            if self._should_send_pushover(channel, preferences):
-                channels_used.append("pushover")
-            if self._should_send_desktop(channel, preferences):
+            if preferences.desktop_enabled:
                 channels_used.append("desktop")
             
             success_count = sum(1 for r in results.values() if r)
-            total_count = len([c for c in channels_used])
+            total_count = len(channels_used)
             
             await self.logging_service.log_info(
                 f"Notification sent - User: {user_id}, Trigger: {trigger.value}, "
@@ -201,102 +125,49 @@ class NotificationManager:
             await self.logging_service.log_error(
                 f"Error sending automation notification: {str(e)}"
             )
-            return {"email": False, "pushover": False, "desktop": False}
+            return {"email": False, "desktop": False}
     
-    async def send_daily_digest(self, user_id: str) -> bool:
-        """Generate and send daily digest"""
-        try:
-            # Get user preferences
-            preferences = await self._get_user_preferences(user_id)
-            if not preferences or not preferences.email_enabled:
-                return True  # Not an error if disabled
-            
-            # Check if user wants daily digest
-            channel = preferences.daily_digest
-            if channel == NotificationChannel.PUSHOVER:
-                # Skip email digest if user only wants Pushover
-                return True
-            
-            # Generate digest data
-            digest_data = await self._generate_digest_data(user_id, "daily")
-            if not digest_data:
-                logger.info(f"No digest data for user {user_id}")
-                return True
-            
-            # Convert to notification format
-            notification_data = {
-                "date": digest_data.period_start.strftime("%Y-%m-%d"),
-                "total_jobs": digest_data.total_jobs,
-                "successful_jobs": digest_data.successful_jobs,
-                "failed_jobs": digest_data.failed_jobs,
-                "dispensers_processed": digest_data.dispensers_processed,
-                "recent_jobs": digest_data.recent_jobs[:5],  # Limit to 5 most recent
-                "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-            }
-            
-            # Send email digest
-            success = await self.email_service.send_daily_digest(user_id, notification_data)
-            
-            # Send Pushover summary if enabled
-            if channel == NotificationChannel.BOTH and preferences.pushover_enabled:
-                await self.pushover_service.send_automation_notification(
-                    user_id, "daily_summary", notification_data, PushoverPriority.LOW
-                )
-            
-            return success
-            
-        except Exception as e:
-            await self.logging_service.log_error(
-                f"Error sending daily digest: {str(e)}"
-            )
-            return False
-    
-    async def send_emergency_alert(
+    async def send_system_alert(
         self,
         user_id: str,
         title: str,
-        message: str,
-        force_all_channels: bool = True
+        message: str
     ) -> Dict[str, bool]:
-        """Send emergency alert via all available channels"""
+        """Send system alert via all enabled channels"""
         try:
-            preferences = await self._get_user_preferences(user_id)
-            results = {"email": True, "pushover": True, "desktop": True}
+            preferences = self._get_user_preferences(user_id)
             
-            # Send via email (high priority)
-            if (force_all_channels or preferences.email_enabled):
+            # Check if error alerts are enabled
+            if not preferences.error_alert_enabled:
+                return {"email": True, "desktop": True}
+            
+            results = {"email": True, "desktop": True}
+            
+            # Send via email if enabled
+            if preferences.email_enabled:
                 data = {
-                    "station_name": "System Alert",
-                    "job_id": "EMERGENCY",
-                    "work_order_id": "ALERT",
+                    "error_type": "System Alert",
                     "error_message": message,
-                    "failure_time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
-                    "progress_percentage": 0,
-                    "retry_available": False
+                    "component": "System",
+                    "timestamp": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
                 }
                 results["email"] = await self.email_service.send_automation_notification(
-                    user_id, NotificationType.AUTOMATION_FAILED, data
+                    user_id, NotificationType.ERROR_ALERT, data, NotificationPriority.URGENT
                 )
             
-            # Send via Pushover (emergency priority)
-            if (force_all_channels or preferences.pushover_enabled) and preferences.pushover_user_key:
-                results["pushover"] = await self.pushover_service.send_emergency_alert(
-                    user_id, title, message
-                )
-            
-            # Send via Desktop (critical priority)
-            if (force_all_channels or preferences.desktop_enabled):
+            # Send via desktop if enabled
+            if preferences.desktop_enabled:
                 results["desktop"] = await self.desktop_service.send_system_alert(
-                    user_id, message, DesktopPriority.CRITICAL
+                    user_id, message, self.desktop_service.NotificationPriority.URGENT
                 )
             
             return results
             
         except Exception as e:
             await self.logging_service.log_error(
-                f"Error sending emergency alert: {str(e)}"
+                f"Error sending system alert: {str(e)}"
             )
-            return {"email": False, "pushover": False, "desktop": False}
+            return {"email": False, "desktop": False}
     
     async def update_user_preferences(
         self,
@@ -305,20 +176,19 @@ class NotificationManager:
     ) -> bool:
         """Update user notification preferences"""
         try:
-            # Validate Pushover user key if provided
-            if preferences.get("pushover_enabled") and preferences.get("pushover_user_key"):
-                is_valid = await self.pushover_service.validate_user_key(
-                    preferences["pushover_user_key"]
-                )
-                if not is_valid:
-                    raise ValueError("Invalid Pushover user key")
+            # Convert dict to NotificationPreferences
+            user_prefs = NotificationPreferences(user_id=user_id)
+            
+            # Update from provided preferences
+            for key, value in preferences.items():
+                if hasattr(user_prefs, key):
+                    setattr(user_prefs, key, value)
             
             # Store preferences
-            result = await self.user_service.update_user_preferences(user_id, "notification_preferences", preferences)
+            self.user_preferences[user_id] = user_prefs
             
-            if not result:
-                await self.logging_service.log_error(f"Failed to store notification preferences for user {user_id}")
-                return False
+            # Persist to file for simple storage
+            await self._persist_user_preferences(user_id, user_prefs)
             
             await self.logging_service.log_info(
                 f"Notification preferences updated for user {user_id}"
@@ -332,280 +202,114 @@ class NotificationManager:
             )
             return False
     
-    async def _get_user_preferences(self, user_id: str) -> Optional[NotificationPreferences]:
-        """Get user notification preferences"""
-        try:
-            prefs_data = self.user_service.get_user_preference(user_id, "notification_preferences")
-            if not prefs_data:
-                # Return default preferences
-                return NotificationPreferences(user_id=user_id)
-            
-            # Convert dict to NotificationPreferences
-            preferences = NotificationPreferences(user_id=user_id)
-            
-            # Update from stored preferences
-            for key, value in prefs_data.items():
-                if hasattr(preferences, key):
-                    if key in ["digest_time", "quiet_hours_start", "quiet_hours_end"]:
-                        # Handle time fields
-                        if isinstance(value, str):
-                            hour, minute = map(int, value.split(":"))
-                            setattr(preferences, key, time(hour, minute))
-                    elif key.startswith("automation_") or key in ["schedule_change", "daily_digest", "weekly_summary", "error_alert"]:
-                        # Handle channel preferences
-                        setattr(preferences, key, NotificationChannel(value))
-                    else:
-                        setattr(preferences, key, value)
-            
-            return preferences
-            
-        except Exception as e:
-            logger.warning(f"Error getting user preferences: {e}")
-            return NotificationPreferences(user_id=user_id)
+    def get_user_preferences(self, user_id: str) -> Dict[str, Any]:
+        """Get user notification preferences as dict"""
+        preferences = self._get_user_preferences(user_id)
+        return {
+            'email_enabled': preferences.email_enabled,
+            'desktop_enabled': preferences.desktop_enabled,
+            'automation_started_enabled': preferences.automation_started_enabled,
+            'automation_completed_enabled': preferences.automation_completed_enabled,
+            'automation_failed_enabled': preferences.automation_failed_enabled,
+            'error_alert_enabled': preferences.error_alert_enabled
+        }
     
-    def _get_trigger_channel(self, trigger: NotificationTrigger, preferences: NotificationPreferences) -> NotificationChannel:
-        """Get notification channel for trigger based on preferences"""
+    async def get_pending_desktop_notifications(self, user_id: str) -> list:
+        """Get pending desktop notifications for web polling"""
+        return await self.desktop_service.get_pending_notifications(user_id)
+    
+    def _get_user_preferences(self, user_id: str) -> NotificationPreferences:
+        """Get user notification preferences with defaults"""
+        if user_id in self.user_preferences:
+            return self.user_preferences[user_id]
+        
+        # Try to load from file
+        preferences = self._load_user_preferences(user_id)
+        if preferences:
+            self.user_preferences[user_id] = preferences
+            return preferences
+        
+        # Return defaults
+        default_prefs = NotificationPreferences(user_id=user_id)
+        self.user_preferences[user_id] = default_prefs
+        return default_prefs
+    
+    def _is_trigger_enabled(self, trigger: NotificationTrigger, preferences: NotificationPreferences) -> bool:
+        """Check if notification trigger is enabled"""
         trigger_mapping = {
-            NotificationTrigger.AUTOMATION_STARTED: preferences.automation_started,
-            NotificationTrigger.AUTOMATION_COMPLETED: preferences.automation_completed,
-            NotificationTrigger.AUTOMATION_FAILED: preferences.automation_failed,
-            NotificationTrigger.AUTOMATION_PROGRESS: preferences.automation_progress,
-            NotificationTrigger.SCHEDULE_CHANGE: preferences.schedule_change,
-            NotificationTrigger.DAILY_DIGEST: preferences.daily_digest,
-            NotificationTrigger.WEEKLY_SUMMARY: preferences.weekly_summary,
-            NotificationTrigger.ERROR_ALERT: preferences.error_alert,
+            NotificationTrigger.AUTOMATION_STARTED: preferences.automation_started_enabled,
+            NotificationTrigger.AUTOMATION_COMPLETED: preferences.automation_completed_enabled,
+            NotificationTrigger.AUTOMATION_FAILED: preferences.automation_failed_enabled,
+            NotificationTrigger.ERROR_ALERT: preferences.error_alert_enabled,
         }
         
-        return trigger_mapping.get(trigger, NotificationChannel.EMAIL)
+        return trigger_mapping.get(trigger, True)
     
-    def _trigger_to_email_type(self, trigger: NotificationTrigger) -> NotificationType:
+    def _trigger_to_notification_type(self, trigger: NotificationTrigger) -> NotificationType:
         """Convert trigger to email notification type"""
         mapping = {
             NotificationTrigger.AUTOMATION_STARTED: NotificationType.AUTOMATION_STARTED,
             NotificationTrigger.AUTOMATION_COMPLETED: NotificationType.AUTOMATION_COMPLETED,
             NotificationTrigger.AUTOMATION_FAILED: NotificationType.AUTOMATION_FAILED,
-            NotificationTrigger.SCHEDULE_CHANGE: NotificationType.SCHEDULE_CHANGE,
-            NotificationTrigger.DAILY_DIGEST: NotificationType.DAILY_DIGEST,
-            NotificationTrigger.WEEKLY_SUMMARY: NotificationType.WEEKLY_SUMMARY,
             NotificationTrigger.ERROR_ALERT: NotificationType.ERROR_ALERT,
-            NotificationTrigger.SYSTEM_MAINTENANCE: NotificationType.SYSTEM_MAINTENANCE,
         }
         
-        return mapping.get(trigger, NotificationType.AUTOMATION_COMPLETED)
+        return mapping.get(trigger, NotificationType.ERROR_ALERT)
     
-    def _pushover_to_email_priority(self, pushover_priority: Optional[PushoverPriority]):
-        """Convert Pushover priority to email priority (placeholder)"""
-        # Email service uses NotificationPriority from email_notification.py
-        # This is a simple mapping - adjust based on actual email priority system
-        from ..services.email_notification import NotificationPriority
-        
-        if not pushover_priority:
-            return NotificationPriority.NORMAL
-        
-        mapping = {
-            PushoverPriority.LOWEST: NotificationPriority.LOW,
-            PushoverPriority.LOW: NotificationPriority.LOW,
-            PushoverPriority.NORMAL: NotificationPriority.NORMAL,
-            PushoverPriority.HIGH: NotificationPriority.HIGH,
-            PushoverPriority.EMERGENCY: NotificationPriority.URGENT,
-        }
-        
-        return mapping.get(pushover_priority, NotificationPriority.NORMAL)
-    
-    def _pushover_to_desktop_priority(self, pushover_priority: Optional[PushoverPriority]) -> DesktopPriority:
-        """Convert Pushover priority to desktop priority"""
-        if not pushover_priority:
-            return DesktopPriority.NORMAL
-        
-        mapping = {
-            PushoverPriority.LOWEST: DesktopPriority.LOW,
-            PushoverPriority.LOW: DesktopPriority.LOW,
-            PushoverPriority.NORMAL: DesktopPriority.NORMAL,
-            PushoverPriority.HIGH: DesktopPriority.HIGH,
-            PushoverPriority.EMERGENCY: DesktopPriority.CRITICAL,
-        }
-        
-        return mapping.get(pushover_priority, DesktopPriority.NORMAL)
-    
-    def _should_send_email(self, channel: NotificationChannel, preferences: NotificationPreferences) -> bool:
-        """Check if email notification should be sent"""
-        return (channel in [
-            NotificationChannel.EMAIL, 
-            NotificationChannel.EMAIL_PUSHOVER, 
-            NotificationChannel.EMAIL_DESKTOP,
-            NotificationChannel.ALL
-        ] and preferences.email_enabled)
-    
-    def _should_send_pushover(self, channel: NotificationChannel, preferences: NotificationPreferences) -> bool:
-        """Check if Pushover notification should be sent"""
-        return (channel in [
-            NotificationChannel.PUSHOVER, 
-            NotificationChannel.EMAIL_PUSHOVER, 
-            NotificationChannel.PUSHOVER_DESKTOP,
-            NotificationChannel.ALL
-        ] and preferences.pushover_enabled)
-    
-    def _should_send_desktop(self, channel: NotificationChannel, preferences: NotificationPreferences) -> bool:
-        """Check if desktop notification should be sent"""
-        return (channel in [
-            NotificationChannel.DESKTOP, 
-            NotificationChannel.EMAIL_DESKTOP, 
-            NotificationChannel.PUSHOVER_DESKTOP,
-            NotificationChannel.ALL
-        ] and preferences.desktop_enabled)
-    
-    async def _generate_digest_data(self, user_id: str, period: str) -> Optional[DigestData]:
-        """Generate digest data for user"""
+    def _load_user_preferences(self, user_id: str) -> Optional[NotificationPreferences]:
+        """Load user preferences from file"""
         try:
-            # Calculate period
-            now = datetime.utcnow()
-            if period == "daily":
-                period_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=1)
-                period_end = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            elif period == "weekly":
-                days_since_monday = now.weekday()
-                period_start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days_since_monday + 7)
-                period_end = period_start + timedelta(days=7)
-            else:
-                return None
+            import json
+            from pathlib import Path
             
-            # Get user activities for the period
-            activities = self.user_service.get_user_activities(
-                user_id, period_start, period_end
-            )
-            
-            # Process activities to generate digest data
-            total_jobs = 0
-            successful_jobs = 0
-            failed_jobs = 0
-            dispensers_processed = 0
-            stations_automated = set()
-            durations = []
-            recent_jobs = []
-            
-            for activity in activities:
-                if activity.activity_type in ["automation_job_completed", "automation_job_failed", "full_automation_executed"]:
-                    total_jobs += 1
-                    
-                    data = activity.data or {}
-                    
-                    if activity.activity_type == "automation_job_completed" or "successful" in str(data):
-                        successful_jobs += 1
-                    else:
-                        failed_jobs += 1
-                    
-                    # Extract dispenser count
-                    dispensers_processed += data.get("dispenser_count", 1)
-                    
-                    # Extract station name
-                    station_name = data.get("station_name", "Unknown Station")
-                    stations_automated.add(station_name)
-                    
-                    # Add to recent jobs
-                    recent_jobs.append({
-                        "station_name": station_name,
-                        "status": "completed" if activity.activity_type == "automation_job_completed" else "failed",
-                        "time": activity.created_at.strftime("%H:%M")
-                    })
-            
-            # Only generate digest if there's activity
-            if total_jobs == 0:
-                return None
-            
-            average_duration = sum(durations) / len(durations) if durations else 0
-            
-            digest_data = DigestData(
-                user_id=user_id,
-                period_start=period_start,
-                period_end=period_end,
-                total_jobs=total_jobs,
-                successful_jobs=successful_jobs,
-                failed_jobs=failed_jobs,
-                dispensers_processed=dispensers_processed,
-                stations_automated=stations_automated,
-                average_duration=average_duration,
-                recent_jobs=sorted(recent_jobs, key=lambda x: x["time"], reverse=True),
-                schedule_changes=[],  # TODO: Get from schedule detection service
-                error_summary=[]      # TODO: Get from error logs
-            )
-            
-            return digest_data
-            
+            prefs_path = Path(f"data/users/{user_id}/settings/notification_preferences.json")
+            if prefs_path.exists():
+                with open(prefs_path, 'r') as f:
+                    data = json.load(f)
+                
+                preferences = NotificationPreferences(user_id=user_id)
+                for key, value in data.items():
+                    if hasattr(preferences, key):
+                        setattr(preferences, key, value)
+                
+                return preferences
         except Exception as e:
-            logger.error(f"Error generating digest data: {e}")
-            return None
+            logger.warning(f"Error loading user preferences: {e}")
+        
+        return None
     
-    async def _digest_scheduler(self):
-        """Background task to schedule digest notifications"""
-        if self.digest_scheduler_running:
-            return
-        
-        self.digest_scheduler_running = True
-        
+    async def _persist_user_preferences(self, user_id: str, preferences: NotificationPreferences):
+        """Persist user preferences to file"""
         try:
-            while True:
-                now = datetime.utcnow()
-                
-                # Check if it's time to send daily digests (8 AM UTC by default)
-                if now.hour == 8 and now.minute == 0:
-                    await self._send_scheduled_digests()
-                
-                # Sleep for 1 minute
-                await asyncio.sleep(60)
+            import json
+            from pathlib import Path
+            
+            prefs_dir = Path(f"data/users/{user_id}/settings")
+            prefs_dir.mkdir(parents=True, exist_ok=True)
+            
+            prefs_path = prefs_dir / "notification_preferences.json"
+            
+            data = {
+                'email_enabled': preferences.email_enabled,
+                'desktop_enabled': preferences.desktop_enabled,
+                'automation_started_enabled': preferences.automation_started_enabled,
+                'automation_completed_enabled': preferences.automation_completed_enabled,
+                'automation_failed_enabled': preferences.automation_failed_enabled,
+                'error_alert_enabled': preferences.error_alert_enabled
+            }
+            
+            with open(prefs_path, 'w') as f:
+                json.dump(data, f, indent=2)
                 
         except Exception as e:
-            logger.error(f"Digest scheduler error: {e}")
-        finally:
-            self.digest_scheduler_running = False
-    
-    async def _send_scheduled_digests(self):
-        """Send scheduled digest notifications to all users"""
-        try:
-            # Get all users with digest enabled
-            users = self.user_service.get_all_users()
-            
-            for user in users:
-                try:
-                    preferences = await self._get_user_preferences(user.user_id)
-                    if preferences and preferences.email_enabled:
-                        await self.send_daily_digest(user.user_id)
-                except Exception as e:
-                    logger.warning(f"Error sending digest to user {user.user_id}: {e}")
-                    
-        except Exception as e:
-            logger.error(f"Error in scheduled digest sending: {e}")
-    
-    async def _notification_processor(self):
-        """Background task to process pending notifications"""
-        if self.notification_processor_running:
-            return
-        
-        self.notification_processor_running = True
-        
-        try:
-            while True:
-                # Process pending email notifications
-                await self.email_service.process_pending_notifications()
-                
-                # Process pending Pushover messages
-                await self.pushover_service.process_pending_messages()
-                
-                # Sleep for 30 seconds
-                await asyncio.sleep(30)
-                
-        except Exception as e:
-            logger.error(f"Notification processor error: {e}")
-        finally:
-            self.notification_processor_running = False
+            logger.error(f"Error persisting user preferences: {e}")
     
     async def cleanup(self):
         """Cleanup notification manager resources"""
         try:
-            await self.email_service.cleanup()
-            await self.pushover_service.cleanup()
             await self.desktop_service.cleanup()
             
-            await self.logging_service.log_info("Notification manager cleaned up")
+            await self.logging_service.log_info("Simplified notification manager cleaned up")
             
         except Exception as e:
             logger.error(f"Error during notification manager cleanup: {e}")
@@ -613,15 +317,11 @@ class NotificationManager:
 
 # Factory function for dependency injection
 def get_notification_manager(
-    db: Session = None,
     email_settings: EmailSettings = None,
-    pushover_settings: PushoverSettings = None,
     desktop_settings: DesktopNotificationSettings = None,
     user_id: str = None
 ) -> NotificationManager:
-    """Factory function for creating notification manager"""
-    if db is None:
-        db = next(get_db())
+    """Factory function for creating simplified notification manager"""
     
     # Load user-specific SMTP settings
     if email_settings is None and user_id:
@@ -656,13 +356,7 @@ def get_notification_manager(
             password="app_specific_password"
         )
     
-    if pushover_settings is None:
-        pushover_settings = PushoverSettings(
-            api_token="azrfbwsp4w3mjnuxvuk9s96n6j2jg2",
-            user_key=""
-        )
-    
     if desktop_settings is None:
         desktop_settings = DesktopNotificationSettings()
     
-    return NotificationManager(db, email_settings, pushover_settings, desktop_settings)
+    return NotificationManager(email_settings, desktop_settings)

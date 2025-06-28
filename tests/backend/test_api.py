@@ -7,7 +7,7 @@ Tests all routes and functionality
 import json
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append('/Users/ibhunt/Documents/GitHub/FossaWorkV2/backend')
 
 from datetime import datetime
 import uuid

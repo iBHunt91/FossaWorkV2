@@ -16,9 +16,7 @@ import { MobileNavigation } from './components/MobileNavigation'
 import { MobileDrawer } from './components/MobileDrawer'
 import { HamburgerMenu } from './components/HamburgerMenu'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { ScrapingStatusProvider } from './contexts/ScrapingStatusContext'
-import { logger } from './services/fileLoggingService'
-import chromeDevToolsLogger from './services/chromeDevToolsLogger'
+// Removed logging service imports for simplified UI
 import LoadingSpinner from './components/LoadingSpinner'
 import ToastContainer from './components/ToastContainer'
 import { useToast } from './hooks/useToast'
@@ -28,18 +26,7 @@ function AppContent() {
   const { isAuthenticated, loading } = useAuth()
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
 
-  React.useEffect(() => {
-    logger.componentLifecycle('App', 'mount');
-    logger.info('app.startup', '✅ FossaWork V2 Frontend mounted successfully');
-    
-    // Initialize Chrome DevTools logging
-    logger.info('app.startup', '🔧 Initializing Chrome DevTools logging capture');
-    
-    return () => {
-      logger.componentLifecycle('App', 'unmount');
-      chromeDevToolsLogger.destroy();
-    };
-  }, []);
+  // Component lifecycle tracking (removed excessive logging)
 
   if (loading) {
     return (
@@ -111,10 +98,8 @@ function App() {
   
   return (
     <AuthProvider>
-      <ScrapingStatusProvider>
-        <AppContent />
-        <ToastContainer toasts={toasts} onDismiss={removeToast} />
-      </ScrapingStatusProvider>
+      <AppContent />
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
     </AuthProvider>
   )
 }

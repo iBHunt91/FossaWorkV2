@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 # Add project root to path
-sys.path.insert(0, '.')
+sys.path.insert(0, '/Users/ibhunt/Documents/GitHub/FossaWorkV2/backend')
 
 # Load environment variables from .env file
 from dotenv import load_dotenv

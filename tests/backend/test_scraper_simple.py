@@ -3,7 +3,7 @@
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append('/Users/ibhunt/Documents/GitHub/FossaWorkV2/backend')
 
 import sqlite3
 

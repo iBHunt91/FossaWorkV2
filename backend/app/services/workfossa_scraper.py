@@ -17,16 +17,15 @@ from .browser_automation import BrowserAutomationService, browser_automation
 from .url_generator import WorkFossaURLGenerator
 from .dispenser_scraper import dispenser_scraper
 
-# Import error recovery
-try:
-    from .error_recovery import with_error_recovery, error_recovery_service
-    ERROR_RECOVERY_AVAILABLE = True
-except ImportError:
-    ERROR_RECOVERY_AVAILABLE = False
-    def with_error_recovery(operation_type: str):
-        def decorator(func):
-            return func
-        return decorator
+# Import exception handling
+from ..core.exceptions import (
+    ScrapingError,
+    WorkOrderExtractionError,
+    DispenserExtractionError,
+    BrowserError,
+    PageLoadError,
+    ElementNotFoundError
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,9 +135,7 @@ class WorkFossaScraper:
         self.progress_callbacks: List[Callable] = []
         self.selectors = WorkFossaSelectors()
         
-        # Set up error recovery integration
-        if ERROR_RECOVERY_AVAILABLE:
-            error_recovery_service.scraper = self
+        # Scraper service initialized
         
         # Scraping configuration - OPTIMIZED for speed (Phase 1) with DEBUG
         self.config = {
@@ -162,7 +159,6 @@ class WorkFossaScraper:
             except Exception as e:
                 logger.warning(f"Progress callback error: {e}")
     
-    @with_error_recovery(operation_type="work_order_scraping")
     async def scrape_work_orders(self, session_id: str, date_range: Optional[Dict[str, Any]] = None, page: Optional[Any] = None) -> List[WorkOrderData]:
         """
         Scrape work orders from WorkFossa
@@ -2948,7 +2944,6 @@ class WorkFossaScraper:
             logger.error(f"❌ [EXTRACT] Traceback: {traceback.format_exc()}")
             return []
     
-    @with_error_recovery(operation_type="dispenser_scraping")
     async def scrape_dispenser_details(self, session_id: str, work_order_id: str, customer_url: Optional[str] = None) -> List[Dict[str, Any]]:
         """Scrape detailed dispenser information for a work order using customer location page"""
         logger.info(f"🔍 [DISPENSER] Starting dispenser scraping for work order {work_order_id}")

@@ -17,16 +17,14 @@ from pathlib import Path
 from .browser_automation import BrowserAutomationService, browser_automation
 from .url_generator import WorkFossaURLGenerator
 
-# Import error recovery
-try:
-    from .error_recovery import with_error_recovery, error_recovery_service
-    ERROR_RECOVERY_AVAILABLE = True
-except ImportError:
-    ERROR_RECOVERY_AVAILABLE = False
-    def with_error_recovery(operation_type: str):
-        def decorator(func):
-            return func
-        return decorator
+# Import exception handling
+from ..core.exceptions import (
+    FormSubmissionError,
+    BrowserError,
+    ElementNotFoundError,
+    ValidationError,
+    WorkOrderProcessingError
+)
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -245,9 +243,7 @@ class FormAutomationService:
         self.active_jobs: Dict[str, AutomationJob] = {}
         self.progress_callbacks: List[Callable] = []
         
-        # Set up error recovery integration
-        if ERROR_RECOVERY_AVAILABLE:
-            error_recovery_service.form_automation = self
+        # Form automation service initialized
         
         # Configuration based on V1 patterns with URL generator
         self.url_generator = WorkFossaURLGenerator()
@@ -279,7 +275,6 @@ class FormAutomationService:
             except Exception as e:
                 logger.error(f"Progress callback error: {e}")
     
-    @with_error_recovery(operation_type="form_automation")
     async def process_visit(self, user_id: str, visit_url: str, work_order_id: str, 
                           dispensers: List[Dict[str, Any]], options: Dict[str, Any] = None) -> str:
         """
@@ -457,7 +452,6 @@ class FormAutomationService:
             
             raise
     
-    @with_error_recovery(operation_type="dispenser_automation")
     async def _process_dispenser(self, form_handler: AccuMeasureFormHandler, 
                                dispenser: Dict[str, Any]) -> bool:
         """Process individual dispenser automation"""

@@ -38,7 +38,7 @@ class User(Base):
     
     # Core user information (V1 compatible)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    password_hash = Column(Text, nullable=True)  # Optional - WorkFossa-only auth doesn't need this
+    password_hash = Column(Text, nullable=False)  # bcrypt hash (V1 had plaintext)
     label = Column(String(255))  # Display name like "Bruce Hunt"
     friendly_name = Column(String(100))  # Short name like "Bruce"
     configured_email = Column(String(255))  # Notification email

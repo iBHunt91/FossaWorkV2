@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime
 
 # Add the backend directory to Python path
-sys.path.insert(0, '.')
+sys.path.insert(0, '/Users/ibhunt/Documents/GitHub/FossaWorkV2/backend')
 
 async def test_auth_endpoints():
     """Test auth endpoints step by step to find the error"""
@@ -86,7 +86,7 @@ async def test_auth_endpoints():
 
 if __name__ == "__main__":
     # Change to backend directory
-    os.chdir('/Users/ibhunt/Documents/GitHub/FossaWorkV2-security-fixes/backend')
+    os.chdir('/Users/ibhunt/Documents/GitHub/FossaWorkV2/backend')
     
     # Run the test
     asyncio.run(test_auth_endpoints())

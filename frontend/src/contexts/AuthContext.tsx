@@ -10,7 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   token: string | null
   user: User | null
-  login: (token: string, user: User) => void
+  login: (token: string, userId: string, email: string) => void
   logout: () => void
   loading: boolean
 }
@@ -30,22 +30,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Helper function to extract user from token
+  const extractUserFromToken = (tokenString: string): User | null => {
+    try {
+      const payload = JSON.parse(atob(tokenString.split('.')[1]))
+      if (payload.sub && payload.email && payload.exp > Date.now() / 1000) {
+        return {
+          id: payload.sub,
+          email: payload.email,
+          username: payload.email
+        }
+      }
+    } catch (error) {
+      // Invalid token format
+    }
+    return null
+  }
+
+  // Initialize auth state from localStorage on startup
   useEffect(() => {
-    // Check for existing token and user on startup
     const savedToken = localStorage.getItem('authToken')
-    const savedUser = localStorage.getItem('authUser')
-    if (savedToken && savedUser) {
-      setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+    if (savedToken) {
+      const extractedUser = extractUserFromToken(savedToken)
+      if (extractedUser) {
+        setToken(savedToken)
+        setUser(extractedUser)
+      } else {
+        localStorage.removeItem('authToken')
+      }
     }
     setLoading(false)
   }, [])
 
+  // Listen for auth logout events from API interceptor
   useEffect(() => {
-    // Listen for auth logout events from API interceptor
     const handleAuthLogout = () => {
       setToken(null)
       setUser(null)
+      localStorage.removeItem('authToken')
     }
 
     window.addEventListener('auth:logout', handleAuthLogout)
@@ -54,18 +76,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
-  const login = (newToken: string, newUser: User) => {
+  const login = (newToken: string, userId: string, email: string) => {
+    const newUser = {
+      id: userId,
+      email: email,
+      username: email
+    }
     setToken(newToken)
     setUser(newUser)
     localStorage.setItem('authToken', newToken)
-    localStorage.setItem('authUser', JSON.stringify(newUser))
   }
 
   const logout = () => {
     setToken(null)
     setUser(null)
     localStorage.removeItem('authToken')
-    localStorage.removeItem('authUser')
   }
 
   const isAuthenticated = !!token && !!user

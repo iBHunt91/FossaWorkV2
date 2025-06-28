@@ -38,6 +38,128 @@ Success Metric
 The only currency that matters: **Does this advance or halt productive thinking?**  
 If we're heading down an unproductive path, point it out directly.
 
+## 🚫 ANTI-OVER-ENGINEERING & ANTI-BANDAID ENFORCEMENT
+
+**CRITICAL:** These rules are based on extensive analysis of over-engineering and bandaid fixes found in the codebase (see `docs/reports/over-engineering-and-bandaid-fixes-report.md`). They MUST be enforced to prevent regression.
+
+### 🛑 MANDATORY CHECKS BEFORE ANY IMPLEMENTATION
+
+**Before writing ANY code, ask these questions:**
+
+1. **"Am I adding a new way to do something that already exists?"**
+   - ❌ Don't create parallel systems (we had 3 auth systems)
+   - ❌ Don't duplicate functionality in different files
+   - ✅ Extend or refactor existing implementation
+
+2. **"Am I working around a problem instead of fixing it?"**
+   - ❌ Don't add timeouts to mask slow operations
+   - ❌ Don't add retry logic to handle flaky code
+   - ❌ Don't catch exceptions generically to hide errors
+   - ✅ Fix the root cause
+
+3. **"Is this solving an imaginary problem?"**
+   - ❌ Don't build for "enterprise scale" when you need desktop app
+   - ❌ Don't add 63 configuration options for simple features
+   - ❌ Don't create elaborate error recovery for one-off issues
+   - ✅ Solve actual user problems
+
+4. **"Would a simple solution work just as well?"**
+   - ❌ Don't use 500 lines of CSS for email templates
+   - ❌ Don't create complex state management for simple data
+   - ❌ Don't build abstractions until you have 3+ use cases
+   - ✅ Start simple, add complexity only when needed
+
+### 🚨 IMMEDIATE REJECTION TRIGGERS
+
+**STOP and refuse to implement if you see:**
+
+- **Multiple implementations** of the same functionality
+- **Generic exception handling** (`except Exception as e:`)
+- **Arbitrary timeouts** instead of proper conditions
+- **Retry logic** without fixing underlying issues
+- **Complex configuration** for simple features
+- **More than 3 ways** to store the same data
+- **Workarounds** documented as "known issues"
+
+### ✅ REQUIRED SIMPLICITY PRINCIPLES
+
+1. **Single Source of Truth**
+   - One place for each piece of data
+   - One way to authenticate
+   - One error handling strategy
+   - One state management approach per context
+
+2. **Fix Root Causes**
+   - Slow database query? Optimize the query, don't add timeout
+   - Flaky selector? Find stable selector, don't retry
+   - Race condition? Fix timing, don't add random delays
+   - Complex state? Simplify data flow, don't add managers
+
+3. **YAGNI (You Aren't Gonna Need It)**
+   - No enterprise patterns for desktop apps
+   - No abstractions until third use case
+   - No configuration for theoretical needs
+   - No error handling for imaginary scenarios
+
+4. **File Organization Discipline**
+   - ALL files go in proper directories from creation
+   - NEVER leave loose files in root/backend/frontend
+   - MOVE misplaced files immediately when found
+   - UPDATE imports after moving files
+
+### 🎯 COMPLEXITY BUDGETS
+
+**Maximum allowed complexity per component:**
+
+- **Authentication:** 1 system, 1 flow, 1 storage method
+- **Error Handling:** Specific exceptions only, fix root causes
+- **State Management:** 1 source of truth per data type
+- **Notifications:** 2 channels max (email + desktop)
+- **File Organization:** Files in correct directories at creation
+- **Component Props:** 5 props maximum before refactor
+- **Function Length:** 50 lines maximum
+- **File Length:** 300 lines maximum for components
+
+### 📋 MANDATORY CODE REVIEW CHECKLIST
+
+Before submitting ANY code:
+
+- [ ] **Single Implementation:** No duplicate functionality
+- [ ] **Root Cause Fixed:** No workarounds or bandaids
+- [ ] **Specific Exceptions:** No generic `except Exception`
+- [ ] **Proper Waits:** No arbitrary timeouts
+- [ ] **Simple Configuration:** No complex option matrices
+- [ ] **File Placement:** All files in correct directories
+- [ ] **Import Validation:** All imports work after changes
+- [ ] **Documentation Updated:** Changes reflected in docs
+
+### 🚫 ANTI-PATTERNS TO NEVER REPEAT
+
+Based on actual problems found in codebase:
+
+1. **Authentication Over-Engineering**
+   - ❌ Multiple credential storage systems
+   - ❌ Parallel authentication flows
+   - ❌ Redundant encryption implementations
+   - ✅ Single auth system with clear flow
+
+2. **Error Handling Bandaids**
+   - ❌ 862-line generic error recovery systems
+   - ❌ Timeout workarounds for slow operations
+   - ❌ Generic exception catching
+   - ✅ Specific error handling that fixes problems
+
+3. **Frontend State Chaos**
+   - ❌ Data stored in 4+ places simultaneously
+   - ❌ Multiple context providers for simple state
+   - ❌ Complex state synchronization
+   - ✅ Single source of truth per data type
+
+4. **File Organization Neglect**
+   - ❌ 509 files in wrong directories as "known issue"
+   - ❌ Test files scattered throughout codebase
+   - ❌ Documentation spread across multiple locations
+   - ✅ Files in proper directories from creation
 
 ## Sub-Agent Delegation & Oversight System
 

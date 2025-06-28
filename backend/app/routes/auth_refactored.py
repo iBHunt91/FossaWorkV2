@@ -5,20 +5,11 @@ Single WorkFossa authentication flow with database-only credential storage
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import logging
 
 from ..database import get_db
-from ..core.exceptions import (
-    AuthenticationError,
-    WorkFossaAuthenticationError,
-    DatabaseError,
-    DatabaseConnectionError,
-    ValidationError,
-    handle_exceptions
-)
 from ..auth.security import (
     create_access_token,
     get_current_user,
@@ -62,14 +53,14 @@ class AuthenticationService:
         Authenticate user with WorkFossa credentials
         Returns tuple of (User, is_new_user) or None if authentication fails
         """
-        logger.info(f"Authenticating with WorkFossa: {username}")
-        
-        # Basic validation
-        if not username or not password:
-            logger.warning("Missing username or password")
-            raise ValidationError("username", username or password or "", "Username and password are required")
-        
         try:
+            logger.info(f"Authenticating with WorkFossa: {username}")
+            
+            # Basic validation
+            if not username or not password:
+                logger.warning("Missing username or password")
+                return None
+            
             # Verify credentials with WorkFossa
             session_id = f"auth_{username}_{datetime.utcnow().timestamp()}"
             verification_result = await self.workfossa.verify_credentials(
@@ -80,7 +71,7 @@ class AuthenticationService:
             
             if not verification_result.get("success", False):
                 logger.warning(f"WorkFossa verification failed: {verification_result.get('message', 'Unknown')}")
-                raise WorkFossaAuthenticationError(f"WorkFossa verification failed: {verification_result.get('message', 'Invalid credentials')}")
+                return None
                 
             logger.info(f"WorkFossa credentials verified for: {username}")
             
@@ -187,20 +178,12 @@ class AuthenticationService:
             logger.info(f"Successfully created new user profile: {user_id}")
             return new_user, True
             
-        except SQLAlchemyError as e:
-            logger.error(f"Database error during authentication: {str(e)}")
-            self.db.rollback()
-            raise DatabaseError(f"Database operation failed: {str(e)}", "authentication")
-        except (WorkFossaAuthenticationError, ValidationError):
-            # Re-raise our custom exceptions
-            raise
         except Exception as e:
-            logger.error(f"Unexpected authentication error: {str(e)}")
+            logger.error(f"Authentication error: {str(e)}")
             self.db.rollback()
-            raise AuthenticationError(f"Authentication failed: {str(e)}")
+            return None
 
 @router.post("/login", response_model=Token)
-@handle_exceptions
 async def login(
     form_data: LoginRequest,
     db: Session = Depends(get_db)

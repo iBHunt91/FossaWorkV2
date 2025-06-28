@@ -6,6 +6,7 @@ Work Order API routes - Clean RESTful endpoints
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.exc import SQLAlchemyError
 from typing import List, Dict, Any
 import uuid
 import logging
@@ -13,6 +14,15 @@ import asyncio
 from datetime import datetime
 
 from ..database import get_db
+from ..core.exceptions import (
+    RecordNotFoundError,
+    DatabaseError,
+    UnauthorizedError,
+    BrowserError,
+    ScrapingError,
+    WorkOrderExtractionError,
+    handle_exceptions
+)
 from ..models import User, WorkOrder, Dispenser
 from ..utils.query_profiler import QueryProfiler
 from ..services.browser_automation import browser_automation, BrowserAutomationService
@@ -412,9 +422,14 @@ async def get_work_orders(
         
         return result
         
+    except SQLAlchemyError as e:
+        logger.error(f"[WORK_ORDERS] Database error fetching work orders: {str(e)}", exc_info=True)
+        raise DatabaseError(f"Database operation failed: {str(e)}", "work_order_fetch")
+    except UnauthorizedError:
+        raise
     except Exception as e:
-        logger.error(f"[WORK_ORDERS] Failed to fetch work orders: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to fetch work orders: {str(e)}")
+        logger.error(f"[WORK_ORDERS] Unexpected error fetching work orders: {str(e)}", exc_info=True)
+        raise DatabaseError(f"Failed to fetch work orders: {str(e)}", "work_order_fetch")
 
 @router.get("/{work_order_id}", response_model=Dict[str, Any])
 async def get_work_order(
@@ -534,8 +549,12 @@ async def get_work_order(
         
     except HTTPException:
         raise
+    except SQLAlchemyError as e:
+        logger.error(f"Database error fetching work order {work_order_id}: {str(e)}")
+        raise DatabaseError(f"Database operation failed: {str(e)}", "work_order_get")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch work order: {str(e)}")
+        logger.error(f"Unexpected error fetching work order {work_order_id}: {str(e)}")
+        raise RecordNotFoundError("work_order", work_order_id)
 
 @router.get("/scrape/progress/{user_id}")
 async def get_scraping_progress(
@@ -638,8 +657,12 @@ async def trigger_scrape(
         
     except HTTPException:
         raise
+    except BrowserError as e:
+        logger.error(f"Browser error during scraping: {str(e)}")
+        raise BrowserError(f"Browser automation failed: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start scraping: {str(e)}")
+        logger.error(f"Unexpected error starting scraping: {str(e)}")
+        raise ScrapingError(f"Failed to start scraping: {str(e)}")
 
 @router.post("/{work_order_id}/open-visit")
 async def open_work_order_visit(
