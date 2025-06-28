@@ -2,6 +2,23 @@
 
 A complete rebuild of the FossaWork application with modern architecture, **enterprise-grade security**, and multi-user support.
 
+## 🚀 Quick Start
+
+**macOS/Linux:**
+```bash
+./tools/unix/start-fossawork.sh
+```
+
+**Windows:**
+```cmd
+tools\windows\start-fossawork.bat
+```
+
+This will automatically start:
+- Backend API (port 8000)
+- Frontend (port 5173)  
+- Scheduler Daemon (background process for automated syncs)
+
 ## 🔒 Security Status
 
 **Security Score: 95/100** - Production-ready with comprehensive security infrastructure. See [Security Implementation Summary](docs/security/SECURITY_IMPLEMENTATION_SUMMARY.md) for details.

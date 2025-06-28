@@ -440,8 +440,18 @@ class WorkFossaAutomationService:
             
             # Fill login form (V1 pattern)
             logger.info("[LOG] Filling login credentials")
-            await page.fill(self.LOGIN_SELECTORS['email'], credentials.email)
-            await page.fill(self.LOGIN_SELECTORS['password'], credentials.password)
+            # Handle both dictionary and object formats for credentials
+            if isinstance(credentials, dict):
+                username = credentials.get('username', '')
+                password = credentials.get('password', '')
+            else:
+                # WorkFossaCredentials object uses 'email' property
+                username = getattr(credentials, 'email', '')
+                password = getattr(credentials, 'password', '')
+            
+            logger.info(f"[LOG] Using username: {username}")
+            await page.fill(self.LOGIN_SELECTORS['email'], username)
+            await page.fill(self.LOGIN_SELECTORS['password'], password)
             
             # Submit form
             await page.click(self.LOGIN_SELECTORS['submit'])

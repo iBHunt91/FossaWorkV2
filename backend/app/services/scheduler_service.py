@@ -56,6 +56,7 @@ async def execute_work_order_scraping(user_id: str, trigger_type: str = "schedul
     success = False
     error_message = None
     items_processed = 0
+    error_log_path = None  # Initialize here to make it available in the finally block
     
     logger.info("=" * 50)
     logger.info(f"🚀 SCHEDULED JOB STARTING")
@@ -75,26 +76,43 @@ async def execute_work_order_scraping(user_id: str, trigger_type: str = "schedul
     try:
         logger.info(f"Starting scheduled work order scraping for user {user_id}")
         
-        # Get user credentials from database
-        from ..models.user_models import UserCredential
+        # Get user credentials using credential manager
+        from ..services.credential_manager import credential_manager
         
-        db = SessionLocal()
-        try:
-            user_credential = db.query(UserCredential).filter(
-                UserCredential.user_id == user_id,
-                UserCredential.service_name == 'workfossa'
-            ).first()
-            
-            if not user_credential:
-                raise Exception("No WorkFossa credentials found")
-            
-            # Convert to expected format
-            credentials = {
-                'username': user_credential.username,
-                'password': user_credential.password
-            }
-        finally:
-            db.close()
+        # Set FOSSAWORK_MASTER_KEY environment variable if not set
+        if not os.environ.get('FOSSAWORK_MASTER_KEY'):
+            # Load from .env if available
+            import sys
+            env_path = Path(__file__).parent.parent.parent / '.env'
+            if env_path.exists():
+                with open(env_path, 'r') as f:
+                    for line in f:
+                        if line.startswith('FOSSAWORK_MASTER_KEY='):
+                            key = line.split('=', 1)[1].strip().strip('"\'')
+                            os.environ['FOSSAWORK_MASTER_KEY'] = key
+                            logger.info("Loaded FOSSAWORK_MASTER_KEY from .env")
+                            break
+        
+        # Retrieve credentials using credential manager
+        secure_credentials = credential_manager.retrieve_credentials(user_id)
+        
+        if not secure_credentials:
+            raise Exception("No WorkFossa credentials found in credential manager")
+        
+        username = secure_credentials.username
+        password = secure_credentials.password
+        
+        logger.info(f"Retrieved username: {username}")
+        logger.info(f"Password retrieved: {'Yes' if password else 'No'}")
+        
+        # Convert to expected format
+        credentials = {
+            'username': username,
+            'password': password
+        }
+        
+        # Update last used timestamp
+        credential_manager.update_last_used(user_id)
         logger.info(f"Successfully retrieved WorkFossa credentials for user {user_id}")
         
         # Initialize progress tracking for UI
@@ -324,12 +342,36 @@ async def execute_work_order_scraping(user_id: str, trigger_type: str = "schedul
         error_message = str(e)
         logger.exception(f"Error during scheduled work order scraping: {e}")
         
+        # Capture detailed error information
+        import traceback
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc(),
+            "timestamp": datetime.utcnow().isoformat(),
+            "user_id": user_id
+        }
+        
+        # Save error log to file for later retrieval
+        import json
+        error_log_dir = Path("data/logs/scraping_errors")
+        error_log_dir.mkdir(parents=True, exist_ok=True)
+        
+        error_filename = f"{user_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_error.json"
+        error_log_path = error_log_dir / error_filename
+        
+        with open(error_log_path, 'w') as f:
+            json.dump(error_details, f, indent=2)
+        
+        logger.info(f"Error details saved to: {error_log_path}")
+        
         # Update progress to failed
         try:
             from ..routes.work_orders import scraping_progress
             if user_id in scraping_progress:
                 scraping_progress[user_id]["status"] = "failed"
                 scraping_progress[user_id]["error"] = str(e)
+                scraping_progress[user_id]["error_log_path"] = str(error_log_path)
                 scraping_progress[user_id]["completed_at"] = datetime.now().isoformat()
         except:
             pass
@@ -355,6 +397,11 @@ async def execute_work_order_scraping(user_id: str, trigger_type: str = "schedul
             error_message=error_message,
             trigger_type=trigger_type  # Use the provided trigger type
         )
+        
+        # Add error details if available
+        if error_log_path:
+            history.error_details = {"error_log_path": str(error_log_path)}
+            
         db.add(history)
         logger.info(f"Created ScrapingHistory record - success: {success}, items: {items_processed}")
         

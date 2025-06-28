@@ -833,8 +833,9 @@ async def send_test_notification_channel(
         original_prefs = await notification_manager._get_user_preferences(user_id)
         
         if channel == "email":
+            from ..services.email_notification import NotificationType
             results = await notification_manager.email_service.send_automation_notification(
-                user_id, NotificationTrigger.AUTOMATION_COMPLETED.value, test_data
+                user_id, NotificationType.AUTOMATION_COMPLETED, test_data
             )
             results = {"email": results, "pushover": True, "desktop": True}  # Mark others as skipped
             

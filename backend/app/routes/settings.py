@@ -16,6 +16,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
+import aiofiles
+import asyncio
 
 from ..database import get_db
 from ..services.user_management import UserManagementService
@@ -86,6 +88,7 @@ class BrowserSettings(BaseModel):
     viewport_height: int = Field(720, ge=600, le=2160)
     disable_images: bool = Field(False, description="Disable loading images for faster automation")
     clear_cache_on_start: bool = Field(True, description="Clear browser cache on startup")
+    show_browser_during_sync: bool = Field(False, description="Show browser window during scheduled sync operations")
 
 
 class NotificationDisplaySettings(BaseModel):
@@ -129,26 +132,28 @@ def get_settings_path(user_id: str, setting_type: str) -> Path:
     return base_path / f"{setting_type}.json"
 
 
-def load_settings(user_id: str, setting_type: str, default: Dict[str, Any]) -> Dict[str, Any]:
+async def load_settings(user_id: str, setting_type: str, default: Dict[str, Any]) -> Dict[str, Any]:
     """Load settings from file or return defaults"""
     settings_path = get_settings_path(user_id, setting_type)
     
     if settings_path.exists():
         try:
-            with open(settings_path, 'r') as f:
-                return json.load(f)
-        except Exception:
-            pass
+            async with aiofiles.open(settings_path, 'r') as f:
+                content = await f.read()
+                return json.loads(content)
+        except Exception as e:
+            logger.warning(f"Failed to load {setting_type} settings: {str(e)}")
     
     return default
 
 
-def save_settings(user_id: str, setting_type: str, settings: Dict[str, Any]) -> bool:
+async def save_settings(user_id: str, setting_type: str, settings: Dict[str, Any]) -> bool:
     """Save settings to file"""
     try:
         settings_path = get_settings_path(user_id, setting_type)
-        with open(settings_path, 'w') as f:
-            json.dump(settings, f, indent=2)
+        async with aiofiles.open(settings_path, 'w') as f:
+            await f.write(json.dumps(settings, indent=2))
+        logger.info(f"Successfully saved {setting_type} settings for user {user_id}")
         return True
     except Exception as e:
         logger.error(f"Failed to save {setting_type} settings for user {user_id}: {str(e)}")
@@ -180,7 +185,7 @@ async def get_smtp_settings(
             from_name="FossaWork Automation"
         ).model_dump()
         
-        settings = load_settings(user_id, "smtp", default_settings)
+        settings = await load_settings(user_id, "smtp", default_settings)
         
         # Mask password for security
         if settings.get("password"):
@@ -217,13 +222,21 @@ async def update_smtp_settings(
     settings_dict = settings.model_dump()
     if settings_dict.get("password") == "*" * 8:
         # Load existing password
-        existing = load_settings(user_id, "smtp", {})
+        existing = await load_settings(user_id, "smtp", {})
         if existing.get("password"):
             settings_dict["password"] = existing["password"]
     
-    # Save settings
-    if not save_settings(user_id, "smtp", settings_dict):
-        raise HTTPException(status_code=500, detail="Failed to save SMTP settings")
+    # Save settings with timeout
+    try:
+        save_success = await asyncio.wait_for(
+            save_settings(user_id, "smtp", settings_dict),
+            timeout=5.0  # 5 second timeout for saving
+        )
+        if not save_success:
+            raise HTTPException(status_code=500, detail="Failed to save SMTP settings")
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout saving SMTP settings for user {user_id}")
+        raise HTTPException(status_code=504, detail="Request timeout while saving settings")
     
     # Track activity
     background_tasks.add_task(
@@ -259,7 +272,7 @@ async def test_smtp_settings(
         raise HTTPException(status_code=403, detail="Not authorized to test these settings")
     
     # Load SMTP settings
-    settings_dict = load_settings(user_id, "smtp", {})
+    settings_dict = await load_settings(user_id, "smtp", {})
     if not settings_dict.get("username") or not settings_dict.get("password"):
         raise HTTPException(status_code=400, detail="SMTP settings not configured")
     
@@ -334,7 +347,7 @@ async def get_filter_settings(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     default_settings = WorkOrderFilterSettings().model_dump()
-    settings = load_settings(user_id, "work_order_filters", default_settings)
+    settings = await load_settings(user_id, "work_order_filters", default_settings)
     
     return {
         "success": True,
@@ -353,8 +366,17 @@ async def update_filter_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "work_order_filters", settings.model_dump()):
-        raise HTTPException(status_code=500, detail="Failed to save filter settings")
+    # Save settings with timeout
+    try:
+        save_success = await asyncio.wait_for(
+            save_settings(user_id, "work_order_filters", settings.model_dump()),
+            timeout=5.0  # 5 second timeout for saving
+        )
+        if not save_success:
+            raise HTTPException(status_code=500, detail="Failed to save filter settings")
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout saving filter settings for user {user_id}")
+        raise HTTPException(status_code=504, detail="Request timeout while saving settings")
     
     return {
         "success": True,
@@ -374,7 +396,7 @@ async def get_automation_delays(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     default_settings = AutomationDelaySettings().model_dump()
-    settings = load_settings(user_id, "automation_delays", default_settings)
+    settings = await load_settings(user_id, "automation_delays", default_settings)
     
     return {
         "success": True,
@@ -393,8 +415,17 @@ async def update_automation_delays(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "automation_delays", settings.model_dump()):
-        raise HTTPException(status_code=500, detail="Failed to save delay settings")
+    # Save settings with timeout
+    try:
+        save_success = await asyncio.wait_for(
+            save_settings(user_id, "automation_delays", settings.model_dump()),
+            timeout=5.0  # 5 second timeout for saving
+        )
+        if not save_success:
+            raise HTTPException(status_code=500, detail="Failed to save delay settings")
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout saving automation delay settings for user {user_id}")
+        raise HTTPException(status_code=504, detail="Request timeout while saving settings")
     
     return {
         "success": True,
@@ -414,7 +445,7 @@ async def get_prover_settings(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     default_settings = ProverSettings().model_dump()
-    settings = load_settings(user_id, "prover_preferences", default_settings)
+    settings = await load_settings(user_id, "prover_preferences", default_settings)
     
     return {
         "success": True,
@@ -433,8 +464,17 @@ async def update_prover_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "prover_preferences", settings.model_dump()):
-        raise HTTPException(status_code=500, detail="Failed to save prover settings")
+    # Save settings with timeout
+    try:
+        save_success = await asyncio.wait_for(
+            save_settings(user_id, "prover_preferences", settings.model_dump()),
+            timeout=5.0  # 5 second timeout for saving
+        )
+        if not save_success:
+            raise HTTPException(status_code=500, detail="Failed to save prover settings")
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout saving prover settings for user {user_id}")
+        raise HTTPException(status_code=504, detail="Request timeout while saving settings")
     
     return {
         "success": True,
@@ -454,7 +494,7 @@ async def get_browser_settings(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     default_settings = BrowserSettings().model_dump()
-    settings = load_settings(user_id, "browser_settings", default_settings)
+    settings = await load_settings(user_id, "browser_settings", default_settings)
     
     return {
         "success": True,
@@ -473,8 +513,17 @@ async def update_browser_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "browser_settings", settings.model_dump()):
-        raise HTTPException(status_code=500, detail="Failed to save browser settings")
+    # Save settings with timeout
+    try:
+        save_success = await asyncio.wait_for(
+            save_settings(user_id, "browser_settings", settings.model_dump()),
+            timeout=5.0  # 5 second timeout for saving
+        )
+        if not save_success:
+            raise HTTPException(status_code=500, detail="Failed to save browser settings")
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout saving browser settings for user {user_id}")
+        raise HTTPException(status_code=504, detail="Request timeout while saving settings")
     
     return {
         "success": True,
@@ -494,7 +543,7 @@ async def get_notification_display_settings(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     default_settings = NotificationDisplaySettings().model_dump()
-    settings = load_settings(user_id, "notification_display", default_settings)
+    settings = await load_settings(user_id, "notification_display", default_settings)
     
     return {
         "success": True,
@@ -513,8 +562,17 @@ async def update_notification_display_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "notification_display", settings.model_dump()):
-        raise HTTPException(status_code=500, detail="Failed to save display settings")
+    # Save settings with timeout
+    try:
+        save_success = await asyncio.wait_for(
+            save_settings(user_id, "notification_display", settings.model_dump()),
+            timeout=5.0  # 5 second timeout for saving
+        )
+        if not save_success:
+            raise HTTPException(status_code=500, detail="Failed to save display settings")
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout saving notification display settings for user {user_id}")
+        raise HTTPException(status_code=504, detail="Request timeout while saving settings")
     
     return {
         "success": True,
@@ -534,7 +592,7 @@ async def get_schedule_settings(
         raise HTTPException(status_code=403, detail="Not authorized")
     
     default_settings = ScheduleSettings().model_dump()
-    settings = load_settings(user_id, "schedule_settings", default_settings)
+    settings = await load_settings(user_id, "schedule_settings", default_settings)
     
     return {
         "success": True,
@@ -553,8 +611,17 @@ async def update_schedule_settings(
     if current_user.id != user_id and not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    if not save_settings(user_id, "schedule_settings", settings.model_dump()):
-        raise HTTPException(status_code=500, detail="Failed to save schedule settings")
+    # Save settings with timeout
+    try:
+        save_success = await asyncio.wait_for(
+            save_settings(user_id, "schedule_settings", settings.model_dump()),
+            timeout=5.0  # 5 second timeout for saving
+        )
+        if not save_success:
+            raise HTTPException(status_code=500, detail="Failed to save schedule settings")
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout saving schedule settings for user {user_id}")
+        raise HTTPException(status_code=504, detail="Request timeout while saving settings")
     
     return {
         "success": True,

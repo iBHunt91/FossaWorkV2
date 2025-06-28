@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // Increase timeout to 30 seconds
+  timeout: 15000, // Reduced default timeout to 15 seconds
   headers: {
     'Content-Type': 'application/json',
   },
@@ -101,10 +101,11 @@ apiClient.interceptors.response.use(
     })
     
     // Handle 401 Unauthorized by clearing auth and redirecting to login
-    if (status === 401 && !error.config?.url?.includes('/api/auth/login')) {
+    if (status === 401 && !error.config?.url?.includes('/api/auth/login') && !error.config?.url?.includes('/api/setup/status') && !error.config?.url?.includes('/api/test/health')) {
       localStorage.removeItem('authToken')
       localStorage.removeItem('authUser')
-      window.location.href = '/login'
+      // Use a custom event to trigger navigation instead of window.location
+      window.dispatchEvent(new CustomEvent('auth:logout'))
     }
     
     return Promise.reject(error)
@@ -580,6 +581,18 @@ export const sendTestNotification = async (
   return response.data
 }
 
+export const sendTestNotificationChannel = async (
+  channel: string
+): Promise<any> => {
+  const response = await apiClient.post(`/api/notifications/test/${channel}`)
+  return response.data
+}
+
+export const getNotificationChannelsStatus = async (): Promise<any> => {
+  const response = await apiClient.get('/api/notifications/channels/status')
+  return response.data
+}
+
 export const validatePushoverKey = async (
   userId: string, 
   pushoverUserKey: string
@@ -622,17 +635,20 @@ export interface SMTPSettings {
 
 export const getSMTPSettings = async (userId: string): Promise<any> => {
   const response = await apiClient.get(`/api/settings/smtp/${userId}`)
-  return response.data
+  return response.data.settings || response.data
 }
 
 export const updateSMTPSettings = async (userId: string, settings: SMTPSettings): Promise<any> => {
-  const response = await apiClient.post(`/api/settings/smtp/${userId}`, settings)
+  const response = await apiClient.post(`/api/settings/smtp/${userId}`, settings, {
+    timeout: 10000 // 10 second timeout for SMTP save
+  })
   return response.data
 }
 
 export const testSMTPSettings = async (userId: string, testEmail: string): Promise<any> => {
   const response = await apiClient.post(`/api/settings/smtp/${userId}/test`, null, {
-    params: { test_email: testEmail }
+    params: { test_email: testEmail },
+    timeout: 20000 // 20 second timeout for SMTP test (email sending)
   })
   return response.data
 }
@@ -651,7 +667,7 @@ export interface WorkOrderFilterSettings {
 
 export const getFilterSettings = async (userId: string): Promise<any> => {
   const response = await apiClient.get(`/api/settings/filters/${userId}`)
-  return response.data
+  return response.data.settings || response.data
 }
 
 export const updateFilterSettings = async (userId: string, settings: WorkOrderFilterSettings): Promise<any> => {
@@ -673,7 +689,7 @@ export interface AutomationDelaySettings {
 
 export const getAutomationDelays = async (userId: string): Promise<any> => {
   const response = await apiClient.get(`/api/settings/automation-delays/${userId}`)
-  return response.data
+  return response.data.settings || response.data
 }
 
 export const updateAutomationDelays = async (userId: string, settings: AutomationDelaySettings): Promise<any> => {
@@ -699,7 +715,7 @@ export interface ProverSettings {
 
 export const getProverSettings = async (userId: string): Promise<any> => {
   const response = await apiClient.get(`/api/settings/provers/${userId}`)
-  return response.data
+  return response.data.settings || response.data
 }
 
 export const updateProverSettings = async (userId: string, settings: ProverSettings): Promise<any> => {

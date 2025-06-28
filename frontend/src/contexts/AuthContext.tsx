@@ -41,6 +41,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false)
   }, [])
 
+  useEffect(() => {
+    // Listen for auth logout events from API interceptor
+    const handleAuthLogout = () => {
+      setToken(null)
+      setUser(null)
+    }
+
+    window.addEventListener('auth:logout', handleAuthLogout)
+    return () => {
+      window.removeEventListener('auth:logout', handleAuthLogout)
+    }
+  }, [])
+
   const login = (newToken: string, newUser: User) => {
     setToken(newToken)
     setUser(newUser)

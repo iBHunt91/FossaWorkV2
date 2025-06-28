@@ -1,0 +1,22 @@
+{
+  "id": "sync-history-realtime",
+  "started": "2025-01-28T10:30:00Z",
+  "lastUpdated": "2025-01-28T10:45:00Z",
+  "status": "complete",
+  "phase": "complete",
+  "progress": {
+    "discovery": { "answered": 5, "total": 5 },
+    "detail": { "answered": 5, "total": 5 }
+  },
+  "contextFiles": [
+    "/frontend/src/components/ScrapingScheduleEnhanced.tsx",
+    "/frontend/src/pages/Settings.tsx",
+    "/backend/app/routes/work_orders.py",
+    "/backend/app/routes/scraping_schedules.py"
+  ],
+  "relatedFeatures": [
+    "Work order scraping progress",
+    "Toast notifications",
+    "Schedule management"
+  ]
+}

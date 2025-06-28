@@ -10,9 +10,12 @@ and processed by the separate scheduler_daemon.py process.
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from pydantic import BaseModel, Field
+from pathlib import Path
+import json
 
 from ..database import get_db
 from ..auth.dependencies import get_current_user
@@ -308,11 +311,79 @@ async def get_daemon_status(
     }
 
 
+@router.get("/{schedule_id}/history/{history_id}/error-log")
+async def get_error_log(
+    schedule_id: int,
+    history_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get error log for a failed scraping attempt"""
+    # Verify schedule ownership
+    schedule = db.query(ScrapingSchedule).filter(
+        and_(
+            ScrapingSchedule.id == schedule_id,
+            ScrapingSchedule.user_id == current_user.id
+        )
+    ).first()
+    
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    
+    # Get history record
+    history = db.query(ScrapingHistory).filter(
+        and_(
+            ScrapingHistory.id == history_id,
+            ScrapingHistory.user_id == current_user.id,
+            ScrapingHistory.schedule_type == schedule.schedule_type
+        )
+    ).first()
+    
+    if not history:
+        raise HTTPException(status_code=404, detail="History record not found")
+    
+    # Check if there's an error log path
+    if not history.error_details or 'error_log_path' not in history.error_details:
+        raise HTTPException(status_code=404, detail="No error log available for this run")
+    
+    error_log_path = Path(history.error_details['error_log_path'])
+    
+    # Verify the file exists
+    if not error_log_path.exists():
+        raise HTTPException(status_code=404, detail="Error log file not found")
+    
+    # Read and return the error log
+    try:
+        with open(error_log_path, 'r') as f:
+            error_data = json.load(f)
+        
+        return JSONResponse(content={
+            "success": True,
+            "error_log": error_data,
+            "history_id": history_id,
+            "timestamp": history.started_at.isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Failed to read error log: {e}")
+        raise HTTPException(status_code=500, detail="Failed to read error log")
+
+
 def _format_schedule_response(schedule: ScrapingSchedule) -> ScheduleResponse:
     """Format schedule for API response"""
     status = "active" if schedule.enabled else "paused"
     if schedule.consecutive_failures >= 5:
         status = "failed"
+    
+    # Ensure UTC timezone suffix for datetime fields
+    def format_datetime_utc(dt):
+        if dt:
+            # If datetime is naive, we know it's stored as UTC in the database
+            iso_str = dt.isoformat()
+            # Add 'Z' suffix if not already present to indicate UTC
+            if not iso_str.endswith('Z') and '+' not in iso_str:
+                iso_str += 'Z'
+            return iso_str
+        return None
     
     return ScheduleResponse(
         id=schedule.id,
@@ -321,10 +392,10 @@ def _format_schedule_response(schedule: ScrapingSchedule) -> ScheduleResponse:
         interval_hours=schedule.interval_hours,
         active_hours=schedule.active_hours,
         enabled=schedule.enabled,
-        last_run=schedule.last_run.isoformat() if schedule.last_run else None,
-        next_run=schedule.next_run.isoformat() if schedule.next_run else None,
+        last_run=format_datetime_utc(schedule.last_run),
+        next_run=format_datetime_utc(schedule.next_run),
         consecutive_failures=schedule.consecutive_failures,
-        created_at=schedule.created_at.isoformat(),
-        updated_at=schedule.updated_at.isoformat(),
+        created_at=format_datetime_utc(schedule.created_at),
+        updated_at=format_datetime_utc(schedule.updated_at),
         status=status
     )

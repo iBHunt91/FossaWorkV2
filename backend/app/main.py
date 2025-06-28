@@ -14,7 +14,7 @@ from .database import get_db, create_tables
 from .models.user_models import User
 from .core_models import WorkOrder, Dispenser
 from .auth.dependencies import get_current_user
-from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters, testing
+from .routes import auth, setup, users, work_orders, automation, logging, file_logging, url_generation, credentials, schedule_detection, form_automation, user_preferences, settings, metrics, notifications, scraping_schedules, filters, testing, testing_safe, testing_fixed, browser_management
 # monitoring temporarily disabled for merge
 # Temporarily disabled due to FastAPI validation errors: filter_calculation, filter_inventory, filter_scheduling, filter_cost, advanced_scheduling
 from .services.logging_service import get_logger, log_api_request
@@ -51,11 +51,15 @@ except ImportError as e:
         scheduler_service = None
         scheduler_type = "none"
 
+# Import lifespan handler
+from .core.startup import lifespan
+
 # Create FastAPI app
 app = FastAPI(
     title="FossaWork V2 API", 
     version="2.0.0",
-    description="Modern Fuel Dispenser Automation System with Browser Automation and Real-time Logging"
+    description="Modern Fuel Dispenser Automation System with Browser Automation and Real-time Logging",
+    lifespan=lifespan
 )
 
 # Environment-based CORS configuration
@@ -226,6 +230,9 @@ app.include_router(notifications.router)
 app.include_router(scraping_schedules.router)
 app.include_router(filters.router)
 app.include_router(testing.router)
+app.include_router(testing_safe.router)
+app.include_router(testing_fixed.router)
+app.include_router(browser_management.router)
 # app.include_router(monitoring.router)  # Temporarily disabled for merge
 # Temporarily disabled routes due to FastAPI validation errors:
 # app.include_router(filter_calculation.router, prefix="/api/filters", tags=["filters"])

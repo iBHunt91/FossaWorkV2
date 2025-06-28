@@ -41,16 +41,26 @@ const Login: React.FC = () => {
   const checkSetupStatus = async () => {
     try {
       const response = await fetch('http://localhost:8000/api/setup/status', {
-        credentials: 'include'
+        credentials: 'include',
+        // Add a timeout to prevent hanging requests
+        signal: AbortSignal.timeout(5000)
       })
       if (response.ok) {
         const data = await response.json()
         setSetupStatus(data)
+      } else if (response.status === 429) {
+        // Rate limit hit - just set a default status
+        setSetupStatus({ setup_required: false, user_count: 0, message: 'System ready' })
       } else {
         setError('Unable to connect to server. Please ensure the backend is running.')
       }
     } catch (err) {
-      setError('Unable to connect to server. Please ensure the backend is running.')
+      if (err.name === 'AbortError') {
+        // Timeout - set default status
+        setSetupStatus({ setup_required: false, user_count: 0, message: 'System ready' })
+      } else {
+        setError('Unable to connect to server. Please ensure the backend is running.')
+      }
     } finally {
       setLoading(false)
     }

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, User, Bell, Shield, Database, TestTube, Trash2, Moon, Sun, Monitor, Palette, Calendar, Mail, Send, Key, CheckCircle, XCircle, AlertCircle, Settings2, Server, Filter, Clock, Gauge, Eye, ChevronDown, ChevronRight, Zap, Globe } from 'lucide-react'
+import { Save, User, Bell, Shield, Database, TestTube, Trash2, Moon, Sun, Monitor, Palette, Calendar, Mail, Send, Key, CheckCircle, XCircle, AlertCircle, Settings2, Server, Filter, Clock, Gauge, Eye, ChevronDown, ChevronRight, Zap, Globe, Download, Upload, AlertTriangle, Search, HelpCircle, Sparkles, ArrowRight } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { 
   getUserPreferences, 
@@ -12,6 +12,8 @@ import {
   getNotificationPreferences,
   updateNotificationPreferences,
   sendTestNotification,
+  sendTestNotificationChannel,
+  getNotificationChannelsStatus,
   validatePushoverKey,
   type NotificationPreferences,
   type TestNotificationRequest,
@@ -41,7 +43,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Separator } from '@/components/ui/separator'
 import LoadingSpinner from '../components/LoadingSpinner'
 import CredentialManager from '../components/CredentialManager'
-import ScrapingSchedule from '../components/ScrapingSchedule'
+import ScrapingScheduleEnhanced from '../components/ScrapingScheduleEnhanced'
+import DesktopNotificationSettings from '../components/DesktopNotificationSettings'
 import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animated-text'
 import { AnimatedCard, GlowCard } from '@/components/ui/animated-card'
 import { AnimatedButton, RippleButton, MagneticButton } from '@/components/ui/animated-button'
@@ -50,10 +53,128 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import CollapsibleSection from '../components/CollapsibleSection'
+import { detectSMTPProvider, type SMTPProviderConfig } from '../services/smtpProviders'
+
+// Form validation utilities
+const validationRules = {
+  email: (value: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(value) ? null : 'Please enter a valid email address'
+  },
+  port: (value: string) => {
+    const port = parseInt(value)
+    return (port >= 1 && port <= 65535) ? null : 'Port must be between 1 and 65535'
+  },
+  required: (value: string) => {
+    return value.trim() ? null : 'This field is required'
+  },
+  url: (value: string) => {
+    try {
+      new URL(value)
+      return null
+    } catch {
+      return 'Please enter a valid URL'
+    }
+  },
+  timeout: (value: string) => {
+    const num = parseInt(value)
+    return (num >= 5000 && num <= 60000) ? null : 'Timeout must be between 5000 and 60000 ms'
+  },
+  delay: (value: string) => {
+    const num = parseInt(value)
+    return (num >= 0 && num <= 10000) ? null : 'Delay must be between 0 and 10000 ms'
+  },
+  multiplier: (value: string) => {
+    const num = parseFloat(value)
+    return (num >= 0.5 && num <= 3.0) ? null : 'Multiplier must be between 0.5 and 3.0'
+  },
+  retries: (value: string) => {
+    const num = parseInt(value)
+    return (num >= 1 && num <= 10) ? null : 'Retries must be between 1 and 10'
+  }
+}
+
+// Enhanced input component with validation
+const ValidatedInput: React.FC<{
+  label: string
+  value: string
+  onChange: (value: string) => void
+  onBlur?: () => void
+  validation?: string[]
+  type?: string
+  placeholder?: string
+  required?: boolean
+  helpText?: string
+}> = ({ label, value, onChange, onBlur, validation = [], type = 'text', placeholder, required, helpText }) => {
+  const [error, setError] = useState<string | null>(null)
+  const [touched, setTouched] = useState(false)
+
+  const validate = (val: string) => {
+    for (const rule of validation) {
+      const validationFunc = validationRules[rule as keyof typeof validationRules]
+      if (validationFunc) {
+        const result = validationFunc(val)
+        if (result) {
+          setError(result)
+          return
+        }
+      }
+    }
+    setError(null)
+  }
+
+  const handleBlur = () => {
+    setTouched(true)
+    validate(value)
+    onBlur?.()
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value
+    onChange(newValue)
+    if (touched) {
+      validate(newValue)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Label htmlFor={label.toLowerCase().replace(/\s+/g, '-')} className="flex items-center gap-1">
+          {label}
+          {required && <span className="text-red-500">*</span>}
+        </Label>
+        {helpText && (
+          <div className="group relative">
+            <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
+              {helpText}
+            </div>
+          </div>
+        )}
+      </div>
+      <Input
+        id={label.toLowerCase().replace(/\s+/g, '-')}
+        type={type}
+        value={value}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        className={error ? 'border-red-500 focus:border-red-500' : ''}
+      />
+      {error && touched && (
+        <div className="flex items-center gap-1 text-sm text-red-600">
+          <AlertCircle className="w-4 h-4" />
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const Settings: React.FC = () => {
   const [searchParams] = useSearchParams()
-  const [activeTab, setActiveTab] = useState('profile')
+  const [activeTab, setActiveTab] = useState('appearance')
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [workfossaCredentials, setWorkfossaCredentials] = useState({
     username: '',
@@ -64,11 +185,70 @@ const Settings: React.FC = () => {
   const [pushoverValidationResult, setPushoverValidationResult] = useState<string | null>(null)
   const [smtpTestResult, setSMTPTestResult] = useState<string | null>(null)
   const [smtpTestEmail, setSMTPTestEmail] = useState('')
+  const [channelTestResult, setChannelTestResult] = useState<string | null>(null)
+  const [showSetupWizard, setShowSetupWizard] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [localSMTPSettings, setLocalSMTPSettings] = useState<SMTPSettings | null>(null)
+  const [detectedProvider, setDetectedProvider] = useState<SMTPProviderConfig | null>(null)
+  const [emailForDetection, setEmailForDetection] = useState('')
   const queryClient = useQueryClient()
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
   
   const currentUserId = user?.id || 'demo' // Fallback to demo user if not authenticated
+  
+  // Calculate setup completion progress with better guidance
+  const calculateSetupProgress = () => {
+    const checks = [
+      { 
+        name: 'Theme Selected', 
+        completed: !!theme,
+        description: 'Choose your preferred visual appearance',
+        action: 'Go to Appearance tab',
+        tab: 'appearance',
+        section: null
+      },
+      { 
+        name: 'Logged In', 
+        completed: !!user?.id && user?.id !== 'demo',
+        description: 'Sign in with your WorkFossa account',
+        action: 'Already logged in via login screen',
+        tab: null,
+        section: null
+      },
+      { 
+        name: 'Email Configured', 
+        completed: !!smtpSettings?.smtp_server,
+        description: 'Set up email notifications for important updates',
+        action: 'Go to Technical tab → SMTP Configuration',
+        tab: 'advanced',
+        section: 'smtp-settings'
+      },
+      { 
+        name: 'Notifications Setup', 
+        completed: !!notificationPreferences?.preferences?.email_enabled || !!notificationPreferences?.preferences?.pushover_enabled,
+        description: 'Enable at least one notification channel',
+        action: 'Go to Notifications tab',
+        tab: 'notifications',
+        section: 'notification-preferences'
+      },
+      { 
+        name: 'Automation Ready', 
+        completed: !!automationDelays?.form_field_delay,
+        description: 'Configure automation timing and behavior',
+        action: 'Go to Automation tab',
+        tab: 'automation',
+        section: 'automation-delays'
+      }
+    ]
+    
+    const completed = checks.filter(check => check.completed).length
+    const total = checks.length
+    const percentage = Math.round((completed / total) * 100)
+    
+    return { checks, completed, total, percentage }
+  }
+
   
   // Debug logging
   console.log('Settings page - Current user:', user)
@@ -87,9 +267,7 @@ const Settings: React.FC = () => {
         setExpandedSections(new Set([sectionParam]))
       } else {
         // For direct tab navigation, expand relevant sections
-        if (tabParam === 'scraping') {
-          setExpandedSections(new Set(['scraping-schedule']))
-        } else if (tabParam === 'notifications') {
+        if (tabParam === 'notifications') {
           // Expand all notification sections by default for better UX
           setExpandedSections(new Set([
             'email-notifications',
@@ -150,7 +328,7 @@ const Settings: React.FC = () => {
     }
   }, [notificationPreferences, notificationError])
 
-  const { data: smtpSettings, isLoading: smtpLoading, refetch: refetchSMTP } = useQuery({
+  const { data: smtpSettings, isLoading: smtpLoading, refetch: refetchSMTP, error: smtpError } = useQuery({
     queryKey: ['smtp-settings', currentUserId],
     queryFn: () => getSMTPSettings(currentUserId),
     onSuccess: (data) => {
@@ -160,6 +338,17 @@ const Settings: React.FC = () => {
       console.error('Failed to load SMTP settings:', error)
     }
   })
+  
+  // Debug SMTP loading state
+  useEffect(() => {
+    console.log('SMTP Debug:', {
+      isLoading: smtpLoading,
+      error: smtpError,
+      data: smtpSettings,
+      localSMTPSettings,
+      currentUserId
+    })
+  }, [smtpLoading, smtpError, smtpSettings, localSMTPSettings, currentUserId])
 
   const { data: filterSettings } = useQuery({
     queryKey: ['filter-settings', currentUserId],
@@ -180,6 +369,26 @@ const Settings: React.FC = () => {
     queryKey: ['browser-settings', currentUserId],
     queryFn: () => getBrowserSettings(currentUserId),
   })
+
+  // Sync SMTP settings to local state
+  useEffect(() => {
+    if (smtpSettings && !localSMTPSettings) {
+      setLocalSMTPSettings(smtpSettings)
+    } else if (!smtpSettings && !localSMTPSettings) {
+      // Initialize with default values if no settings exist
+      setLocalSMTPSettings({
+        smtp_server: '',
+        smtp_port: 587,
+        username: '',
+        password: '',
+        use_tls: true,
+        use_ssl: false,
+        from_email: '',
+        from_name: 'FossaWork Automation',
+        timeout: 30
+      })
+    }
+  }, [smtpSettings, localSMTPSettings])
 
   const updatePreferenceMutation = useMutation({
     mutationFn: ({ type, data }: { type: string; data: any }) =>
@@ -307,7 +516,7 @@ const Settings: React.FC = () => {
     }
   })
 
-  const updateFilterMutation = useMutation({
+  const updateFilterSettingsMutation = useMutation({
     mutationFn: (settings: WorkOrderFilterSettings) =>
       updateFilterSettings(currentUserId, settings),
     onSuccess: () => {
@@ -315,7 +524,7 @@ const Settings: React.FC = () => {
     }
   })
 
-  const updateDelayMutation = useMutation({
+  const updateAutomationDelaysMutation = useMutation({
     mutationFn: (settings: AutomationDelaySettings) =>
       updateAutomationDelays(currentUserId, settings),
     onSuccess: () => {
@@ -323,7 +532,7 @@ const Settings: React.FC = () => {
     }
   })
 
-  const updateDisplayMutation = useMutation({
+  const updateDisplaySettingsMutation = useMutation({
     mutationFn: (settings: NotificationDisplaySettings) =>
       updateNotificationDisplaySettings(currentUserId, settings),
     onSuccess: () => {
@@ -331,12 +540,24 @@ const Settings: React.FC = () => {
     }
   })
 
-  const updateBrowserMutation = useMutation({
+  const updateBrowserSettingsMutation = useMutation({
     mutationFn: (settings: BrowserSettings) =>
       updateBrowserSettings(currentUserId, settings),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['browser-settings', currentUserId] })
       refetchBrowserSettings()
+    }
+  })
+
+  const testChannelMutation = useMutation({
+    mutationFn: (channel: string) => sendTestNotificationChannel(channel),
+    onSuccess: (data, channel) => {
+      setChannelTestResult(`✅ ${channel.charAt(0).toUpperCase() + channel.slice(1)} test sent successfully!`)
+      setTimeout(() => setChannelTestResult(null), 3000)
+    },
+    onError: (error: any, channel) => {
+      setChannelTestResult(`❌ ${channel.charAt(0).toUpperCase() + channel.slice(1)} test failed: ${error.response?.data?.detail || error.message}`)
+      setTimeout(() => setChannelTestResult(null), 5000)
     }
   })
 
@@ -410,44 +631,331 @@ const Settings: React.FC = () => {
     }
   }, [savedCredentials])
 
+  // Calculate setup progress with memoization to prevent excessive re-renders
+  const setupProgress = useMemo(() => {
+    // Always calculate progress, even if some data is still loading
+    return calculateSetupProgress()
+  }, [savedCredentials, smtpSettings, notificationPreferences, automationDelays, theme])
+
   const tabs = [
-    { id: 'profile', label: 'Profile', icon: User },
     { id: 'appearance', label: 'Appearance', icon: Palette },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'system', label: 'System', icon: Database },
-    { id: 'scraping', label: 'Scraping', icon: Clock },
-    { id: 'advanced', label: 'Advanced', icon: Settings2 },
+    { id: 'automation', label: 'Automation', icon: Zap },
+    { id: 'filters', label: 'Filters & Data', icon: Filter },
+    { id: 'advanced', label: 'Technical', icon: Settings2 },
   ]
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <DotsLoader />
-          <AnimatedText text="Loading settings..." animationType="fade" className="text-muted-foreground" />
-        </div>
-      </div>
-    )
-  }
+  // Filter tabs based on search query
+  const filteredTabs = tabs.filter(tab => 
+    searchQuery === '' || 
+    tab.label.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  // Don't block the entire UI if just some data is loading
+  // The individual sections can show loading states if needed
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6 space-y-8">
-        {/* Header */}
-        <header className="animate-slide-in-from-top">
-          <h1 className="text-4xl font-bold mb-2">
-            <GradientText text="Settings" gradient="from-blue-600 via-purple-600 to-pink-600" />
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            <AnimatedText text="Configure your FossaWork V2 preferences" animationType="split" delay={0.2} />
-          </p>
+      <div className="container mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
+        {/* Enhanced Header with Progress and Search */}
+        <header className="animate-slide-in-from-top space-y-4 lg:space-y-6">
+          <div className="flex flex-col gap-4">
+            {/* Title Row */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-1 sm:mb-2">
+                  <GradientText text="Settings" gradient="from-blue-600 via-purple-600 to-pink-600" />
+                </h1>
+                <p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
+                  <AnimatedText text="Configure your FossaWork V2 preferences" animationType="split" delay={0.2} />
+                </p>
+              </div>
+              
+              {/* Mobile Quick Actions */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Navigate to first incomplete item
+                    const firstIncomplete = setupProgress.checks.find(check => !check.completed)
+                    if (firstIncomplete) {
+                      if (firstIncomplete.tab) {
+                        setActiveTab(firstIncomplete.tab)
+                        if (firstIncomplete.section) {
+                          setExpandedSections(new Set([firstIncomplete.section]))
+                          setTimeout(() => {
+                            const element = document.getElementById(firstIncomplete.section)
+                            if (element) {
+                              element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            }
+                          }, 100)
+                        }
+                      } else if (firstIncomplete.name === 'Logged In') {
+                        window.location.href = '/login'
+                      }
+                    }
+                  }}
+                  className="flex items-center gap-2 text-xs sm:text-sm"
+                >
+                  <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">Setup Guide</span>
+                  <span className="sm:hidden">Setup</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open('/docs/guides/QUICK_START_GUIDE.md', '_blank')}
+                className="hidden lg:flex items-center gap-2"
+              >
+                <HelpCircle className="w-4 h-4" />
+                Help
+              </Button>
+            </div>
+          </div>
+
+          {/* Setup Progress Banner */}
+          {setupProgress.percentage === 100 ? (
+            <Card className="border-green-500/20 bg-green-50 dark:bg-green-950/20">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0">
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-green-800 dark:text-green-200">Setup Complete!</h3>
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Your FossaWork V2 is fully configured and ready to use. All core features are properly set up.
+                    </p>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="text-green-700 border-green-300 hover:bg-green-100 dark:text-green-300 dark:border-green-700 dark:hover:bg-green-900"
+                    onClick={() => window.location.href = '/dashboard'}
+                  >
+                    Go to Dashboard
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : setupProgress.percentage < 100 && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    <h3 className="font-semibold">Setup Progress</h3>
+                    <Badge variant="secondary">{setupProgress.completed}/{setupProgress.total}</Badge>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{setupProgress.percentage}% complete</span>
+                </div>
+                
+                <div className="w-full bg-secondary rounded-full h-2 mb-3">
+                  <div 
+                    className="bg-primary h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${setupProgress.percentage}%` }}
+                  />
+                </div>
+                
+                {/* Next Steps Guidance */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-muted-foreground">Next Steps:</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {setupProgress.checks
+                      .filter(check => !check.completed)
+                      .slice(0, 2) // Show only first 2 pending items to avoid clutter
+                      .map((check, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            if (check.tab) {
+                              setActiveTab(check.tab)
+                              if (check.section) {
+                                setExpandedSections(new Set([check.section]))
+                                // Scroll to section after a short delay
+                                setTimeout(() => {
+                                  const element = document.getElementById(check.section)
+                                  if (element) {
+                                    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                  }
+                                }, 100)
+                              }
+                            } else if (check.name === 'Logged In') {
+                              // If not logged in, redirect to login
+                              window.location.href = '/login'
+                            }
+                          }}
+                          className="flex items-start gap-3 p-3 rounded-lg bg-background/50 border border-border/50 hover:bg-background/80 hover:border-primary/50 transition-all cursor-pointer text-left w-full"
+                        >
+                          <div className="mt-0.5">
+                            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{check.name}</div>
+                            <div className="text-xs text-muted-foreground mt-1 break-words">{check.description}</div>
+                            <div className="text-xs text-primary mt-1 font-medium hover:underline">{check.action}</div>
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                  
+                  {setupProgress.checks.filter(check => !check.completed).length > 2 && (
+                    <div className="text-xs text-muted-foreground">
+                      +{setupProgress.checks.filter(check => !check.completed).length - 2} more steps to complete
+                    </div>
+                  )}
+                </div>
+                
+                {/* Quick Status Overview */}
+                <div className="mt-4 pt-3 border-t border-border/50">
+                  <div className="flex flex-wrap gap-2">
+                    {setupProgress.checks.map((check, index) => (
+                      <button
+                        key={index}
+                        onClick={() => {
+                          if (!check.completed) {
+                            if (check.tab) {
+                              setActiveTab(check.tab)
+                              if (check.section) {
+                                setExpandedSections(new Set([check.section]))
+                                setTimeout(() => {
+                                  const element = document.getElementById(check.section)
+                                  if (element) {
+                                    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                                  }
+                                }, 100)
+                              }
+                            } else if (check.name === 'Logged In') {
+                              window.location.href = '/login'
+                            }
+                          }
+                        }}
+                        className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full transition-all ${
+                          check.completed 
+                            ? 'cursor-default' 
+                            : 'cursor-pointer hover:bg-muted/50'
+                        }`}
+                        disabled={check.completed}
+                      >
+                        {check.completed ? (
+                          <CheckCircle className="w-3 h-3 text-green-600" />
+                        ) : (
+                          <XCircle className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={check.completed ? 'text-green-600' : 'text-muted-foreground hover:text-foreground'}>
+                          {check.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      // Navigate to first incomplete item
+                      const firstIncomplete = setupProgress.checks.find(check => !check.completed)
+                      if (firstIncomplete) {
+                        if (firstIncomplete.tab) {
+                          setActiveTab(firstIncomplete.tab)
+                          if (firstIncomplete.section) {
+                            setExpandedSections(new Set([firstIncomplete.section]))
+                            setTimeout(() => {
+                              const element = document.getElementById(firstIncomplete.section)
+                              if (element) {
+                                element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                              }
+                            }, 100)
+                          }
+                        } else if (firstIncomplete.name === 'Logged In') {
+                          window.location.href = '/login'
+                        }
+                      }
+                    }}
+                    className="mt-3 w-full lg:w-auto"
+                  >
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    Continue Setup
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Input
+              placeholder="Search settings..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 max-w-md"
+            />
+          </div>
+          </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[250px_1fr] gap-8">
-          {/* Tab Navigation */}
-          <nav className="space-y-2">
-            {tabs.map((tab, index) => {
+        <div className="flex flex-col lg:grid lg:grid-cols-[250px_1fr] gap-4 lg:gap-8">
+          {/* Mobile Tab Navigation - Horizontal Scroll */}
+          <nav className="lg:hidden">
+            {searchQuery && (
+              <div className="text-sm text-muted-foreground mb-3">
+                {filteredTabs.length === 0 ? 'No settings found' : `${filteredTabs.length} result(s)`}
+              </div>
+            )}
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {filteredTabs.map((tab, index) => {
+                const Icon = tab.icon
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActiveTab(tab.id)
+                      // Automatically expand sections for better UX
+                      if (tab.id === 'notifications') {
+                        setExpandedSections(new Set([
+                          'notification-status',
+                          'email-notifications',
+                          'pushover-notifications',
+                          'desktop-notifications',
+                          'notification-preferences'
+                        ]))
+                      } else if (tab.id === 'automation') {
+                        setExpandedSections(new Set([
+                          'scraping-schedule',
+                          'automation-delays'
+                        ]))
+                      } else if (tab.id === 'filters') {
+                        setExpandedSections(new Set(['filter-settings']))
+                      } else if (tab.id === 'advanced') {
+                        setExpandedSections(new Set(['smtp-settings']))
+                      } else {
+                        setExpandedSections(new Set())
+                      }
+                    }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg whitespace-nowrap transition-all text-sm font-medium ${
+                      activeTab === tab.id 
+                        ? 'bg-primary text-primary-foreground shadow-md' 
+                        : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span>{tab.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </nav>
+
+          {/* Desktop Tab Navigation - Vertical */}
+          <nav className="hidden lg:block space-y-2">
+            {searchQuery && (
+              <div className="text-sm text-muted-foreground mb-4">
+                {filteredTabs.length === 0 ? 'No settings found' : `${filteredTabs.length} result(s)`}
+              </div>
+            )}
+            {filteredTabs.map((tab, index) => {
               const Icon = tab.icon
               return (
                 <MagneticButton
@@ -457,17 +965,22 @@ const Settings: React.FC = () => {
                     // Automatically expand sections for better UX
                     if (tab.id === 'notifications') {
                       setExpandedSections(new Set([
+                        'notification-status',
                         'email-notifications',
                         'pushover-notifications',
+                        'desktop-notifications',
                         'notification-preferences'
                       ]))
-                    } else if (tab.id === 'scraping') {
-                      setExpandedSections(new Set(['scraping-schedule']))
+                    } else if (tab.id === 'automation') {
+                      setExpandedSections(new Set([
+                        'scraping-schedule',
+                        'automation-delays'
+                      ]))
+                    } else if (tab.id === 'filters') {
+                      setExpandedSections(new Set(['filter-settings']))
                     } else if (tab.id === 'advanced') {
-                      // Optionally expand some advanced sections
                       setExpandedSections(new Set(['smtp-settings']))
                     } else {
-                      // Clear expanded sections for other tabs
                       setExpandedSections(new Set())
                     }
                   }}
@@ -485,32 +998,23 @@ const Settings: React.FC = () => {
 
           {/* Tab Content */}
           <div className="min-h-[600px]">
-            {activeTab === 'profile' && (
-              <div className="space-y-4">
-                <Alert>
-                  <User className="h-4 w-4" />
-                  <AlertDescription>
-                    Your profile information is managed through your WorkFossa account.
-                    All details are synchronized from WorkFossa during login.
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
 
             {activeTab === 'appearance' && (
               <div className="space-y-4">
-                <CollapsibleSection
-                  id="theme-settings"
-                  title="Theme Settings"
-                  description="Customize how FossaWork looks"
-                  icon={Palette}
-                  isExpanded={expandedSections.has('theme-settings')}
-                  onToggle={() => toggleSection('theme-settings')}
-                >
-                  <div className="space-y-4">
+                <Card className="animate-slide-in-from-bottom">
+                  <CardHeader>
+                    <div className="flex items-center space-x-3">
+                      <Palette className="w-5 h-5 text-primary" />
+                      <div>
+                        <CardTitle>Theme Settings</CardTitle>
+                        <CardDescription>Customize how FossaWork looks</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
                     <div>
                       <h3 className="text-sm font-medium mb-4">Theme Mode</h3>
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                         {[
                           { value: 'light' as const, icon: Sun, label: 'Light' },
                           { value: 'dark' as const, icon: Moon, label: 'Dark' },
@@ -521,13 +1025,13 @@ const Settings: React.FC = () => {
                             <div
                               key={option.value}
                               onClick={() => setTheme(option.value)}
-                              className={`relative flex flex-col items-center justify-center p-4 rounded-lg border-2 cursor-pointer transition-all card-hover ${
+                              className={`relative flex flex-col sm:flex-col items-center justify-center p-3 sm:p-4 rounded-lg border-2 cursor-pointer transition-all card-hover ${
                                 theme === option.value 
                                   ? 'border-primary bg-primary/5' 
                                   : 'border-border hover:border-primary/50'
                               }`}
                             >
-                              <Icon className={`w-8 h-8 mb-2 ${theme === option.value ? 'text-primary' : 'text-muted-foreground'}`} />
+                              <Icon className={`w-6 h-6 sm:w-8 sm:h-8 mb-1 sm:mb-2 ${theme === option.value ? 'text-primary' : 'text-muted-foreground'}`} />
                               <span className="text-sm font-medium">{option.label}</span>
                               {theme === option.value && (
                                 <div className="absolute top-2 right-2">
@@ -549,8 +1053,8 @@ const Settings: React.FC = () => {
                         <ThemeToggle />
                       </div>
                     </div>
-                  </div>
-                </CollapsibleSection>
+                  </CardContent>
+                </Card>
               </div>
             )}
 
@@ -573,6 +1077,111 @@ const Settings: React.FC = () => {
                     </AlertDescription>
                   </Alert>
                 )}
+
+                {/* Notification Channels Status Overview */}
+                <CollapsibleSection
+                  id="notification-status"
+                  title="Notification Channels Status"
+                  description="Overview of your notification configuration and channel availability"
+                  icon={CheckCircle}
+                  isExpanded={expandedSections.has('notification-status')}
+                  onToggle={() => toggleSection('notification-status')}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4" />
+                          <span className="font-medium">Email</span>
+                        </div>
+                        <Badge variant={notificationPreferences?.preferences?.email_enabled ? "default" : "secondary"}>
+                          {notificationPreferences?.preferences?.email_enabled ? "Enabled" : "Disabled"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        SMTP configured: {smtpSettings?.settings?.smtp_server ? '✅' : '❌'}
+                      </p>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="w-full"
+                        disabled={testChannelMutation.isPending}
+                        onClick={() => testChannelMutation.mutate('email')}
+                      >
+                        <TestTube className="w-4 h-4 mr-2" />
+                        Test
+                      </Button>
+                    </div>
+
+                    <div className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Send className="w-4 h-4" />
+                          <span className="font-medium">Pushover</span>
+                        </div>
+                        <Badge variant={notificationPreferences?.preferences?.pushover_enabled ? "default" : "secondary"}>
+                          {notificationPreferences?.preferences?.pushover_enabled ? "Enabled" : "Disabled"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        User key set: {notificationPreferences?.preferences?.pushover_user_key ? '✅' : '❌'}
+                      </p>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="w-full"
+                        disabled={!notificationPreferences?.preferences?.pushover_enabled || testChannelMutation.isPending}
+                        onClick={() => testChannelMutation.mutate('pushover')}
+                      >
+                        <TestTube className="w-4 h-4 mr-2" />
+                        Test
+                      </Button>
+                    </div>
+
+                    <div className="border rounded-lg p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Monitor className="w-4 h-4" />
+                          <span className="font-medium">Desktop</span>
+                        </div>
+                        <Badge variant="default">
+                          Supported
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Browser notifications available
+                      </p>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="w-full"
+                        disabled={testChannelMutation.isPending}
+                        onClick={() => testChannelMutation.mutate('desktop')}
+                      >
+                        <TestTube className="w-4 h-4 mr-2" />
+                        Test
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-4">
+                    <AnimatedButton
+                      onClick={() => testChannelMutation.mutate('all')}
+                      disabled={testChannelMutation.isPending}
+                      animation="shimmer"
+                      className="flex-1"
+                    >
+                      <Zap className="w-4 h-4 mr-2" />
+                      Test All Channels
+                    </AnimatedButton>
+                  </div>
+
+                  {channelTestResult && (
+                    <Alert className={channelTestResult.includes('✅') ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}>
+                      <AlertDescription>{channelTestResult}</AlertDescription>
+                    </Alert>
+                  )}
+                </CollapsibleSection>
                 
                 {/* Debug helper - expand all sections button */}
                 <div className="flex justify-end mb-4">
@@ -581,9 +1190,13 @@ const Settings: React.FC = () => {
                     size="sm"
                     onClick={() => {
                       const allSections = [
+                        'notification-status',
                         'email-notifications',
                         'pushover-notifications', 
-                        'notification-preferences'
+                        'desktop-notifications',
+                        'notification-preferences',
+                        'notification-backup',
+                        'notification-help'
                       ]
                       const allExpanded = allSections.every(section => expandedSections.has(section))
                       if (allExpanded) {
@@ -593,7 +1206,7 @@ const Settings: React.FC = () => {
                       }
                     }}
                   >
-                    {expandedSections.size >= 3 ? 'Collapse All' : 'Expand All'}
+                    {expandedSections.size >= 7 ? 'Collapse All' : 'Expand All'}
                   </Button>
                 </div>
                 
@@ -617,56 +1230,38 @@ const Settings: React.FC = () => {
                         />
                       </div>
                       
-                      <div className="space-y-2">
-                        <Label htmlFor="email-recipient">Recipient Email</Label>
-                        <Input 
-                          id="email-recipient" 
-                          type="email" 
-                          value={user?.email || ''} 
-                          disabled 
-                          className="input-modern" 
-                          placeholder="Your email address"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Email notifications will be sent to your account email address
-                        </p>
-                      </div>
+                      <ValidatedInput
+                        label="Recipient Email"
+                        value={user?.email || ''}
+                        onChange={() => {}} // Disabled field
+                        validation={['email']}
+                        placeholder="Your email address"
+                        helpText="Email notifications will be sent to your account email address"
+                      />
 
-                      <div className="space-y-2">
-                        <Label htmlFor="digest-time">Daily Digest Time</Label>
-                        <Input 
-                          id="digest-time" 
-                          type="time" 
-                          value={notificationPreferences?.preferences?.digest_time || '08:00'}
-                          onChange={(e) => updateNotificationMutation.mutate({ digest_time: e.target.value })}
-                          className="input-modern" 
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Time to receive daily summary emails
-                        </p>
-                      </div>
+                      <ValidatedInput
+                        label="Daily Digest Time"
+                        value={notificationPreferences?.preferences?.digest_time || '08:00'}
+                        onChange={(value) => updateNotificationMutation.mutate({ digest_time: value })}
+                        type="time"
+                        helpText="Time to receive daily summary emails"
+                      />
 
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="quiet-start">Quiet Hours Start</Label>
-                          <Input 
-                            id="quiet-start" 
-                            type="time" 
-                            value={notificationPreferences?.preferences?.quiet_hours_start || '22:00'}
-                            onChange={(e) => updateNotificationMutation.mutate({ quiet_hours_start: e.target.value })}
-                            className="input-modern" 
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="quiet-end">Quiet Hours End</Label>
-                          <Input 
-                            id="quiet-end" 
-                            type="time" 
-                            value={notificationPreferences?.preferences?.quiet_hours_end || '07:00'}
-                            onChange={(e) => updateNotificationMutation.mutate({ quiet_hours_end: e.target.value })}
-                            className="input-modern" 
-                          />
-                        </div>
+                        <ValidatedInput
+                          label="Quiet Hours Start"
+                          value={notificationPreferences?.preferences?.quiet_hours_start || '22:00'}
+                          onChange={(value) => updateNotificationMutation.mutate({ quiet_hours_start: value })}
+                          type="time"
+                          helpText="Start of quiet period"
+                        />
+                        <ValidatedInput
+                          label="Quiet Hours End"
+                          value={notificationPreferences?.preferences?.quiet_hours_end || '07:00'}
+                          onChange={(value) => updateNotificationMutation.mutate({ quiet_hours_end: value })}
+                          type="time"
+                          helpText="End of quiet period"
+                        />
                       </div>
                     </div>
 
@@ -682,6 +1277,23 @@ const Settings: React.FC = () => {
                       >
                         <TestTube className="w-4 h-4 mr-2" />
                         Test Email
+                      </AnimatedButton>
+                      <AnimatedButton
+                        onClick={async () => {
+                          try {
+                            await sendTestNotificationChannel('email')
+                            setNotificationTestResult('✅ Email test sent successfully!')
+                            setTimeout(() => setNotificationTestResult(null), 3000)
+                          } catch (error: any) {
+                            setNotificationTestResult(`❌ Email test failed: ${error.response?.data?.detail || error.message}`)
+                            setTimeout(() => setNotificationTestResult(null), 5000)
+                          }
+                        }}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Mail className="w-4 h-4 mr-2" />
+                        Quick Test
                       </AnimatedButton>
                     </div>
                 </CollapsibleSection>
@@ -706,62 +1318,75 @@ const Settings: React.FC = () => {
                         />
                       </div>
                       
-                      <div className="space-y-2">
-                        <Label htmlFor="pushover-key">Pushover User Key</Label>
-                        <div className="flex gap-2">
-                          <Input 
-                            id="pushover-key" 
-                            type="password" 
+                      <div className="space-y-4">
+                        <div>
+                          <ValidatedInput
+                            label="Pushover User Key"
                             value={notificationPreferences?.preferences?.pushover_user_key || ''}
-                            onChange={(e) => updateNotificationMutation.mutate({ pushover_user_key: e.target.value })}
-                            className="input-modern flex-1" 
+                            onChange={(value) => updateNotificationMutation.mutate({ pushover_user_key: value })}
+                            type="password"
+                            validation={['required']}
                             placeholder="Enter your Pushover user key"
+                            helpText="Get your user key from pushover.net"
+                            required
                           />
-                          <Button
-                            onClick={() => {
-                              const key = notificationPreferences?.preferences?.pushover_user_key
-                              if (key) {
-                                validatePushoverMutation.mutate(key)
-                              }
-                            }}
-                            disabled={validatePushoverMutation.isPending || !notificationPreferences?.preferences?.pushover_user_key}
-                            variant="outline"
-                          >
-                            <Key className="w-4 h-4 mr-2" />
-                            Validate
-                          </Button>
+                          <div className="mt-2 flex gap-2">
+                            <Button
+                              onClick={() => {
+                                const key = notificationPreferences?.preferences?.pushover_user_key
+                                if (key) {
+                                  validatePushoverMutation.mutate(key)
+                                }
+                              }}
+                              disabled={validatePushoverMutation.isPending || !notificationPreferences?.preferences?.pushover_user_key}
+                              variant="outline"
+                              size="sm"
+                            >
+                              <Key className="w-4 h-4 mr-2" />
+                              {validatePushoverMutation.isPending ? 'Validating...' : 'Validate Key'}
+                            </Button>
+                            <Button
+                              onClick={() => window.open('https://pushover.net', '_blank')}
+                              variant="ghost"
+                              size="sm"
+                            >
+                              <Globe className="w-4 h-4 mr-2" />
+                              Get API Key
+                            </Button>
+                          </div>
+                          {pushoverValidationResult && (
+                            <Alert className={`mt-2 ${pushoverValidationResult.includes('✅') ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}`}>
+                              <AlertDescription>{pushoverValidationResult}</AlertDescription>
+                            </Alert>
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Get your user key from <a href="https://pushover.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">pushover.net</a>
-                        </p>
-                        {pushoverValidationResult && (
-                          <Alert className={pushoverValidationResult.includes('✅') ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}>
-                            <AlertDescription>{pushoverValidationResult}</AlertDescription>
-                          </Alert>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="pushover-device">Device (Optional)</Label>
-                        <Input 
-                          id="pushover-device" 
+                        
+                        <ValidatedInput
+                          label="Device Name (Optional)"
                           value={notificationPreferences?.preferences?.pushover_device || ''}
-                          onChange={(e) => updateNotificationMutation.mutate({ pushover_device: e.target.value })}
-                          className="input-modern" 
-                          placeholder="Leave blank for all devices"
+                          onChange={(value) => updateNotificationMutation.mutate({ pushover_device: value })}
+                          placeholder="Device name for targeting specific devices"
+                          helpText="Leave empty to send to all devices, or specify a device name"
                         />
-                        <p className="text-xs text-muted-foreground">
-                          Specify a device name to send notifications to a specific device only
-                        </p>
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="pushover-sound">Notification Sound</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="pushover-sound" className="flex items-center gap-2">
+                            Notification Sound
+                            <div className="group relative">
+                              <HelpCircle className="w-4 h-4 text-muted-foreground cursor-help" />
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-md shadow-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 whitespace-nowrap">
+                                Choose from Pushover's built-in sounds
+                              </div>
+                            </div>
+                          </Label>
+                        </div>
                         <select 
                           id="pushover-sound" 
                           value={notificationPreferences?.preferences?.pushover_sound || 'pushover'}
                           onChange={(e) => updateNotificationMutation.mutate({ pushover_sound: e.target.value })}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring input-modern"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus:border-primary transition-colors"
                         >
                           <option value="pushover">Pushover (default)</option>
                           <option value="bike">Bike</option>
@@ -802,7 +1427,37 @@ const Settings: React.FC = () => {
                         <TestTube className="w-4 h-4 mr-2" />
                         Test Pushover
                       </AnimatedButton>
+                      <AnimatedButton
+                        onClick={async () => {
+                          try {
+                            await sendTestNotificationChannel('pushover')
+                            setNotificationTestResult('✅ Pushover test sent successfully!')
+                            setTimeout(() => setNotificationTestResult(null), 3000)
+                          } catch (error: any) {
+                            setNotificationTestResult(`❌ Pushover test failed: ${error.response?.data?.detail || error.message}`)
+                            setTimeout(() => setNotificationTestResult(null), 5000)
+                          }
+                        }}
+                        disabled={!notificationPreferences?.preferences?.pushover_enabled}
+                        variant="outline"
+                        size="sm"
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Quick Test
+                      </AnimatedButton>
                     </div>
+                </CollapsibleSection>
+
+                {/* Desktop Notification Configuration */}
+                <CollapsibleSection
+                  id="desktop-notifications"
+                  title="Desktop Notifications"
+                  description="Configure desktop notification behavior and appearance"
+                  icon={Monitor}
+                  isExpanded={expandedSections.has('desktop-notifications')}
+                  onToggle={() => toggleSection('desktop-notifications')}
+                >
+                  <DesktopNotificationSettings className="border-0 shadow-none p-0" />
                 </CollapsibleSection>
 
                 {/* Notification Type Configuration */}
@@ -830,7 +1485,7 @@ const Settings: React.FC = () => {
                             <p className="text-sm text-muted-foreground">{notification.description}</p>
                           </div>
                           <div className="flex gap-2">
-                            {['email', 'pushover', 'both', 'none'].map((channel) => (
+                            {['email', 'pushover', 'desktop', 'all', 'none'].map((channel) => (
                               <label key={channel} className="flex items-center space-x-2 cursor-pointer">
                                 <input
                                   type="radio"
@@ -848,8 +1503,141 @@ const Settings: React.FC = () => {
                       ))}
                     </div>
 
+                    {/* Unified Testing Interface */}
+                    <Card className="border-muted bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 mt-6">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <TestTube className="w-5 h-5 text-primary" />
+                            <div>
+                              <h4 className="font-semibold">Notification Testing Center</h4>
+                              <p className="text-sm text-muted-foreground">Test all configured notification channels from one place</p>
+                            </div>
+                          </div>
+                          <Badge variant={notificationTestResult?.includes('✅') ? 'default' : 'secondary'}>
+                            {notificationTestResult?.includes('✅') ? 'Success' : 'Ready'}
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                          <Button
+                            onClick={async () => {
+                              try {
+                                await sendTestNotificationChannel('email')
+                                setNotificationTestResult('✅ Email test sent successfully!')
+                                setTimeout(() => setNotificationTestResult(null), 3000)
+                              } catch (error: any) {
+                                setNotificationTestResult(`❌ Email test failed: ${error.response?.data?.detail || error.message}`)
+                                setTimeout(() => setNotificationTestResult(null), 5000)
+                              }
+                            }}
+                            variant="outline"
+                            className="flex items-center gap-2 h-12"
+                            disabled={!notificationPreferences?.preferences?.email_enabled}
+                          >
+                            <Mail className="w-4 h-4" />
+                            <div className="text-left">
+                              <div className="font-medium">Email</div>
+                              <div className="text-xs text-muted-foreground">
+                                {notificationPreferences?.preferences?.email_enabled ? 'Enabled' : 'Disabled'}
+                              </div>
+                            </div>
+                          </Button>
+                          
+                          <Button
+                            onClick={async () => {
+                              try {
+                                await sendTestNotificationChannel('pushover')
+                                setNotificationTestResult('✅ Pushover test sent successfully!')
+                                setTimeout(() => setNotificationTestResult(null), 3000)
+                              } catch (error: any) {
+                                setNotificationTestResult(`❌ Pushover test failed: ${error.response?.data?.detail || error.message}`)
+                                setTimeout(() => setNotificationTestResult(null), 5000)
+                              }
+                            }}
+                            variant="outline"
+                            className="flex items-center gap-2 h-12"
+                            disabled={!notificationPreferences?.preferences?.pushover_enabled}
+                          >
+                            <Send className="w-4 h-4" />
+                            <div className="text-left">
+                              <div className="font-medium">Pushover</div>
+                              <div className="text-xs text-muted-foreground">
+                                {notificationPreferences?.preferences?.pushover_enabled ? 'Enabled' : 'Disabled'}
+                              </div>
+                            </div>
+                          </Button>
+                          
+                          <Button
+                            onClick={async () => {
+                              try {
+                                await sendTestNotificationChannel('desktop')
+                                setNotificationTestResult('✅ Desktop test sent successfully!')
+                                setTimeout(() => setNotificationTestResult(null), 3000)
+                              } catch (error: any) {
+                                setNotificationTestResult(`❌ Desktop test failed: ${error.response?.data?.detail || error.message}`)
+                                setTimeout(() => setNotificationTestResult(null), 5000)
+                              }
+                            }}
+                            variant="outline"
+                            className="flex items-center gap-2 h-12"
+                          >
+                            <Monitor className="w-4 h-4" />
+                            <div className="text-left">
+                              <div className="font-medium">Desktop</div>
+                              <div className="text-xs text-muted-foreground">Always Available</div>
+                            </div>
+                          </Button>
+                        </div>
+                        
+                        {/* Test All Button */}
+                        <div className="mt-4 pt-4 border-t border-border/50">
+                          <Button
+                            onClick={async () => {
+                              setNotificationTestResult('🔄 Testing all enabled channels...')
+                              let results = []
+                              
+                              // Test each enabled channel
+                              if (notificationPreferences?.preferences?.email_enabled) {
+                                try {
+                                  await sendTestNotificationChannel('email')
+                                  results.push('Email ✅')
+                                } catch {
+                                  results.push('Email ❌')
+                                }
+                              }
+                              
+                              if (notificationPreferences?.preferences?.pushover_enabled) {
+                                try {
+                                  await sendTestNotificationChannel('pushover')
+                                  results.push('Pushover ✅')
+                                } catch {
+                                  results.push('Pushover ❌')
+                                }
+                              }
+                              
+                              try {
+                                await sendTestNotificationChannel('desktop')
+                                results.push('Desktop ✅')
+                              } catch {
+                                results.push('Desktop ❌')
+                              }
+                              
+                              setNotificationTestResult(`📊 Test Results: ${results.join(' | ')}`)
+                              setTimeout(() => setNotificationTestResult(null), 10000)
+                            }}
+                            className="w-full"
+                            variant="default"
+                          >
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Test All Enabled Channels
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+
                     {notificationTestResult && (
-                      <Alert className={notificationTestResult.includes('✅') ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}>
+                      <Alert className={notificationTestResult.includes('✅') ? 'border-green-500 bg-green-50 dark:bg-green-950' : 'border-red-500 bg-red-50 dark:bg-red-950'}>
                         <AlertDescription>{notificationTestResult}</AlertDescription>
                       </Alert>
                     )}
@@ -858,59 +1646,929 @@ const Settings: React.FC = () => {
                       <AnimatedButton
                         onClick={() => testNotificationMutation.mutate({ 
                           notification_type: 'automation_completed',
-                          channel: 'both'
+                          channel: 'all'
                         })}
                         disabled={testNotificationMutation.isPending}
                         animation="shimmer"
                       >
                         <TestTube className="w-4 h-4 mr-2" />
-                        Test Both Channels
+                        Test All Channels
                       </AnimatedButton>
+                    </div>
+                </CollapsibleSection>
+
+                {/* Import/Export Settings */}
+                <CollapsibleSection
+                  id="notification-backup"
+                  title="Backup & Import Settings"
+                  description="Export or import your notification configuration"
+                  icon={Settings2}
+                  isExpanded={expandedSections.has('notification-backup')}
+                  onToggle={() => toggleSection('notification-backup')}
+                >
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <h4 className="font-medium">Export Settings</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Download your current notification settings as a backup
+                          </p>
+                          <Button
+                            onClick={() => {
+                              const settings = {
+                                notification_preferences: notificationPreferences,
+                                smtp_settings: smtpSettings,
+                                display_settings: displaySettings,
+                                exported_at: new Date().toISOString(),
+                                version: "2.0"
+                              }
+                              const blob = new Blob([JSON.stringify(settings, null, 2)], {
+                                type: 'application/json'
+                              })
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = `fossawork-notifications-${new Date().toISOString().split('T')[0]}.json`
+                              document.body.appendChild(a)
+                              a.click()
+                              document.body.removeChild(a)
+                              URL.revokeObjectURL(url)
+                            }}
+                            variant="outline"
+                            className="w-full"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Export Configuration
+                          </Button>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <h4 className="font-medium">Import Settings</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Restore notification settings from a backup file
+                          </p>
+                          <div className="relative">
+                            <input
+                              type="file"
+                              accept=".json"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  const reader = new FileReader()
+                                  reader.onload = (event) => {
+                                    try {
+                                      const settings = JSON.parse(event.target?.result as string)
+                                      
+                                      // Import notification preferences
+                                      if (settings.notification_preferences) {
+                                        updateNotificationMutation.mutate(settings.notification_preferences.preferences)
+                                      }
+                                      
+                                      // Import SMTP settings
+                                      if (settings.smtp_settings) {
+                                        updateSMTPMutation.mutate(settings.smtp_settings.settings)
+                                      }
+                                      
+                                      // Import display settings
+                                      if (settings.display_settings) {
+                                        updateDisplayMutation.mutate(settings.display_settings.settings)
+                                      }
+                                      
+                                      setNotificationTestResult('✅ Settings imported successfully!')
+                                      setTimeout(() => setNotificationTestResult(null), 3000)
+                                    } catch (error) {
+                                      setNotificationTestResult('❌ Failed to import settings: Invalid file format')
+                                      setTimeout(() => setNotificationTestResult(null), 5000)
+                                    }
+                                  }
+                                  reader.readAsText(file)
+                                }
+                              }}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                              id="import-file"
+                            />
+                            <Button variant="outline" className="w-full">
+                              <Upload className="w-4 h-4 mr-2" />
+                              Import Configuration
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <Alert>
+                        <AlertTriangle className="w-4 h-4" />
+                        <AlertDescription>
+                          Importing settings will overwrite your current notification configuration. 
+                          Consider exporting your current settings first as a backup.
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                </CollapsibleSection>
+
+                {/* Help & Documentation */}
+                <CollapsibleSection
+                  id="notification-help"
+                  title="Help & Setup Guides"
+                  description="Step-by-step guides for configuring notification services"
+                  icon={AlertCircle}
+                  isExpanded={expandedSections.has('notification-help')}
+                  onToggle={() => toggleSection('notification-help')}
+                >
+                    <div className="space-y-6">
+                      {/* Email Setup Guide */}
+                      <div className="border rounded-lg p-4 bg-blue-50 dark:bg-blue-950">
+                        <h4 className="font-medium mb-3 flex items-center">
+                          <Mail className="w-4 h-4 mr-2" />
+                          Email Notification Setup
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <p><strong>For Gmail users:</strong></p>
+                          <ol className="list-decimal list-inside space-y-1 ml-4">
+                            <li>Enable 2-factor authentication on your Google account</li>
+                            <li>Generate an "App Password" in Google Account settings</li>
+                            <li>Use your email address as username and the app password</li>
+                            <li>SMTP Server: smtp.gmail.com, Port: 587, TLS: Enabled</li>
+                          </ol>
+                          <p className="mt-3"><strong>For other providers:</strong></p>
+                          <ul className="list-disc list-inside space-y-1 ml-4">
+                            <li><strong>Outlook:</strong> smtp-mail.outlook.com:587 (TLS)</li>
+                            <li><strong>Yahoo:</strong> smtp.mail.yahoo.com:587 (TLS)</li>
+                            <li><strong>Custom SMTP:</strong> Contact your email provider for settings</li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      {/* Pushover Setup Guide */}
+                      <div className="border rounded-lg p-4 bg-orange-50 dark:bg-orange-950">
+                        <h4 className="font-medium mb-3 flex items-center">
+                          <Send className="w-4 h-4 mr-2" />
+                          Pushover Setup Guide
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <ol className="list-decimal list-inside space-y-1">
+                            <li>Create a free account at <a href="https://pushover.net" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">pushover.net</a></li>
+                            <li>Download the Pushover app on your mobile device</li>
+                            <li>Copy your User Key from the Pushover dashboard</li>
+                            <li>Paste the User Key in the settings above</li>
+                            <li>Optionally specify a device name to send to specific devices</li>
+                          </ol>
+                          <Alert className="mt-3">
+                            <AlertCircle className="w-4 h-4" />
+                            <AlertDescription>
+                              <strong>Cost:</strong> Pushover has a one-time fee after a free trial period. 
+                              Check their website for current pricing.
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      </div>
+
+                      {/* Desktop Notifications Guide */}
+                      <div className="border rounded-lg p-4 bg-green-50 dark:bg-green-950">
+                        <h4 className="font-medium mb-3 flex items-center">
+                          <Monitor className="w-4 h-4 mr-2" />
+                          Desktop Notifications
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <p>Desktop notifications work automatically in supported environments:</p>
+                          <ul className="list-disc list-inside space-y-1 ml-4">
+                            <li><strong>Electron App:</strong> Full support with system integration</li>
+                            <li><strong>Modern Browsers:</strong> Chrome, Firefox, Safari, Edge</li>
+                            <li><strong>Permission Required:</strong> Browser will prompt for notification permission</li>
+                          </ul>
+                          <div className="mt-3 p-2 bg-white dark:bg-gray-800 rounded border">
+                            <p><strong>Troubleshooting:</strong></p>
+                            <ul className="list-disc list-inside space-y-1 ml-4 text-xs">
+                              <li>If blocked, check browser notification settings</li>
+                              <li>Ensure "Do Not Disturb" mode is off on your system</li>
+                              <li>Test notifications may not appear during quiet hours</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Notification Types Explanation */}
+                      <div className="border rounded-lg p-4 bg-purple-50 dark:bg-purple-950">
+                        <h4 className="font-medium mb-3 flex items-center">
+                          <Bell className="w-4 h-4 mr-2" />
+                          Notification Types Explained
+                        </h4>
+                        <div className="space-y-3 text-sm">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <p><strong>Automation Started:</strong> When a form automation job begins</p>
+                              <p><strong>Automation Completed:</strong> When a job finishes successfully</p>
+                              <p><strong>Automation Failed:</strong> When a job encounters an error</p>
+                              <p><strong>Progress Updates:</strong> Real-time progress during automation</p>
+                            </div>
+                            <div>
+                              <p><strong>Schedule Changes:</strong> When work order schedules are modified</p>
+                              <p><strong>Daily Digest:</strong> Summary of the day's completed work</p>
+                              <p><strong>System Errors:</strong> Critical system errors and alerts</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Best Practices */}
+                      <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                        <h4 className="font-medium mb-3 flex items-center">
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Best Practices
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <ul className="list-disc list-inside space-y-1">
+                            <li><strong>Test Settings:</strong> Always test each notification channel after configuration</li>
+                            <li><strong>Quiet Hours:</strong> Set appropriate quiet hours to avoid disruptions</li>
+                            <li><strong>Channel Selection:</strong> Use "Email" for detailed reports, "Pushover" for immediate alerts</li>
+                            <li><strong>Desktop:</strong> Best for real-time progress updates when actively working</li>
+                            <li><strong>Backup Settings:</strong> Export your configuration before making major changes</li>
+                            <li><strong>Priority Levels:</strong> Adjust thresholds to avoid notification fatigue</li>
+                          </ul>
+                        </div>
+                      </div>
                     </div>
                 </CollapsibleSection>
               </div>
             )}
 
-            {activeTab === 'security' && (
+            {activeTab === 'automation' && (
               <div className="space-y-4">
+                {/* Work Order Sync Schedule */}
+                <Card className="animate-slide-in-from-bottom">
+                  <CardHeader>
+                    <div className="flex items-center space-x-3">
+                      <Clock className="w-5 h-5 text-primary" />
+                      <div>
+                        <CardTitle>Work Order Sync Schedule</CardTitle>
+                        <CardDescription>Configure automatic work order synchronization</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrapingScheduleEnhanced />
+                  </CardContent>
+                </Card>
 
+                {/* Automation Delays */}
+                <CollapsibleSection
+                  id="automation-delays"
+                  title="Automation Timing"
+                  description="Configure delays and timing for form automation"
+                  icon={Gauge}
+                  isExpanded={expandedSections.has('automation-delays')}
+                  onToggle={() => toggleSection('automation-delays')}
+                >
+                  <div className="space-y-6">
+                    {automationDelays && (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                        <Card className="p-4">
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Clock className="w-4 h-4" />
+                              Timing Settings
+                            </CardTitle>
+                            <CardDescription>Control the speed and delays for form interactions</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <ValidatedInput
+                              label="Form Field Delay"
+                              value={automationDelays.form_field_delay?.toString() || '500'}
+                              onChange={(value) => {
+                                const numValue = parseInt(value)
+                                if (!isNaN(numValue)) {
+                                  updateAutomationDelaysMutation.mutate({
+                                    ...automationDelays,
+                                    form_field_delay: numValue
+                                  })
+                                }
+                              }}
+                              type="number"
+                              validation={['delay']}
+                              placeholder="500"
+                              helpText="Delay between form field interactions (0-10000ms)"
+                            />
+                            <ValidatedInput
+                              label="Page Navigation Delay"
+                              value={automationDelays.page_navigation_delay?.toString() || '2000'}
+                              onChange={(value) => {
+                                const numValue = parseInt(value)
+                                if (!isNaN(numValue)) {
+                                  updateAutomationDelaysMutation.mutate({
+                                    ...automationDelays,
+                                    page_navigation_delay: numValue
+                                  })
+                                }
+                              }}
+                              type="number"
+                              validation={['delay']}
+                              placeholder="2000"
+                              helpText="Wait time after page navigation (0-10000ms)"
+                            />
+                          </CardContent>
+                        </Card>
+                        
+                        <Card className="p-4">
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Gauge className="w-4 h-4" />
+                              Performance Settings
+                            </CardTitle>
+                            <CardDescription>Adjust speed and reliability parameters</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <ValidatedInput
+                              label="Speed Multiplier"
+                              value={automationDelays.overall_speed_multiplier?.toString() || '1.0'}
+                              onChange={(value) => {
+                                const numValue = parseFloat(value)
+                                if (!isNaN(numValue)) {
+                                  updateAutomationDelaysMutation.mutate({
+                                    ...automationDelays,
+                                    overall_speed_multiplier: numValue
+                                  })
+                                }
+                              }}
+                              type="number"
+                              validation={['multiplier']}
+                              placeholder="1.0"
+                              helpText="Speed multiplier for all automation (0.5-3.0)"
+                            />
+                            <ValidatedInput
+                              label="Max Retries"
+                              value={automationDelays.max_retries?.toString() || '3'}
+                              onChange={(value) => {
+                                const numValue = parseInt(value)
+                                if (!isNaN(numValue)) {
+                                  updateAutomationDelaysMutation.mutate({
+                                    ...automationDelays,
+                                    max_retries: numValue
+                                  })
+                                }
+                              }}
+                              type="number"
+                              validation={['retries']}
+                              placeholder="3"
+                              helpText="Maximum retry attempts for failed operations (1-10)"
+                            />
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleSection>
+
+                {/* Browser Settings */}
+                <CollapsibleSection
+                  id="browser-settings"
+                  title="Browser Configuration"
+                  description="Configure browser automation settings"
+                  icon={Globe}
+                  isExpanded={expandedSections.has('browser-settings')}
+                  onToggle={() => toggleSection('browser-settings')}
+                >
+                  <div className="space-y-6">
+                    {browserSettings && (
+                      <Card className="p-6">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <Globe className="w-5 h-5" />
+                            Browser Automation Settings
+                          </CardTitle>
+                          <CardDescription>Configure browser behavior for automation tasks</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                                <div className="flex items-center gap-3">
+                                  <Eye className="w-4 h-4 text-muted-foreground" />
+                                  <div>
+                                    <Label htmlFor="headless-mode" className="font-medium">Headless Mode</Label>
+                                    <p className="text-xs text-muted-foreground">Run browser without visible window</p>
+                                  </div>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  id="headless-mode"
+                                  defaultChecked={browserSettings.headless}
+                                  onChange={(e) => {
+                                    updateBrowserSettingsMutation.mutate({
+                                      ...browserSettings,
+                                      headless: e.target.checked
+                                    })
+                                  }}
+                                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                                />
+                              </div>
+                              
+                              <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                                <div className="flex items-center gap-3">
+                                  <Settings2 className="w-4 h-4 text-muted-foreground" />
+                                  <div>
+                                    <Label htmlFor="dev-tools" className="font-medium">Developer Tools</Label>
+                                    <p className="text-xs text-muted-foreground">Open DevTools for debugging</p>
+                                  </div>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  id="dev-tools"
+                                  defaultChecked={browserSettings.devtools}
+                                  onChange={(e) => {
+                                    updateBrowserSettingsMutation.mutate({
+                                      ...browserSettings,
+                                      devtools: e.target.checked
+                                    })
+                                  }}
+                                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                              <ValidatedInput
+                                label="Browser Timeout"
+                                value={browserSettings.timeout?.toString() || '30000'}
+                                onChange={(value) => {
+                                  const numValue = parseInt(value)
+                                  if (!isNaN(numValue)) {
+                                    updateBrowserSettingsMutation.mutate({
+                                      ...browserSettings,
+                                      timeout: numValue
+                                    })
+                                  }
+                                }}
+                                type="number"
+                                validation={['timeout']}
+                                placeholder="30000"
+                                helpText="Maximum wait time for page loads (5000-60000ms)"
+                              />
+                              
+                              <Alert>
+                                <AlertCircle className="w-4 h-4" />
+                                <AlertDescription className="text-sm">
+                                  <strong>Note:</strong> Disabling headless mode may affect automation performance but is useful for debugging.
+                                </AlertDescription>
+                              </Alert>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </CollapsibleSection>
               </div>
             )}
 
-            {activeTab === 'system' && (
+            {activeTab === 'filters' && (
               <div className="space-y-4">
+                {/* Work Order Filters */}
                 <CollapsibleSection
-                  id="automation-settings"
-                  title="Automation Settings"
-                  description="Configure automated behaviors"
-                  icon={Zap}
-                  isExpanded={expandedSections.has('automation-settings')}
-                  onToggle={() => toggleSection('automation-settings')}
+                  id="filter-settings"
+                  title="Work Order Filters"
+                  description="Configure which work orders to display and process"
+                  icon={Filter}
+                  isExpanded={expandedSections.has('filter-settings')}
+                  onToggle={() => toggleSection('filter-settings')}
                 >
                   <div className="space-y-6">
-                    <div>
-                      <h3 className="text-sm font-medium mb-4">Automation</h3>
-                      <div className="space-y-3">
-                        {[
-                          { id: 'auto-scrape', label: 'Auto-scrape work orders every hour', defaultChecked: true },
-                          { id: 'auto-start', label: 'Auto-start dispensers when ready', defaultChecked: true },
-                          { id: 'send-notifications', label: 'Send notifications on completion', defaultChecked: false }
-                        ].map((option, index) => (
-                          <label 
-                            key={option.id} 
-                            className="flex items-center space-x-3 cursor-pointer animate-slide-in-from-left"
-                            style={{ animationDelay: `${index * 0.1}s` }}
-                          >
-                            <input 
-                              type="checkbox" 
-                              defaultChecked={option.defaultChecked}
-                              className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                            />
-                            <span className="text-sm">{option.label}</span>
-                          </label>
-                        ))}
+                    {filterSettings && (
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="filters-enabled"
+                            defaultChecked={filterSettings.enabled}
+                            onChange={(e) => {
+                              updateFilterSettingsMutation.mutate({
+                                ...filterSettings,
+                                enabled: e.target.checked
+                              })
+                            }}
+                          />
+                          <Label htmlFor="filters-enabled">Enable Filtering</Label>
+                        </div>
+                        
+                        <div>
+                          <Label htmlFor="store-filter">Store Numbers (comma-separated)</Label>
+                          <Input
+                            id="store-filter"
+                            placeholder="001, 002, 003"
+                            defaultValue={filterSettings.filter_by_stores?.join(', ')}
+                            onBlur={(e) => {
+                              updateFilterSettingsMutation.mutate({
+                                ...filterSettings,
+                                filter_by_stores: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                              })
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="customer-filter">Customer Names (comma-separated)</Label>
+                          <Input
+                            id="customer-filter"
+                            placeholder="7-Eleven, Wawa, Circle K"
+                            defaultValue={filterSettings.filter_by_customers?.join(', ')}
+                            onBlur={(e) => {
+                              updateFilterSettingsMutation.mutate({
+                                ...filterSettings,
+                                filter_by_customers: e.target.value.split(',').map(s => s.trim()).filter(s => s)
+                              })
+                            }}
+                          />
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="exclude-completed"
+                            defaultChecked={filterSettings.exclude_completed}
+                            onChange={(e) => {
+                              updateFilterSettingsMutation.mutate({
+                                ...filterSettings,
+                                exclude_completed: e.target.checked
+                              })
+                            }}
+                          />
+                          <Label htmlFor="exclude-completed">Exclude Completed Work Orders</Label>
+                        </div>
                       </div>
+                    )}
+                  </div>
+                </CollapsibleSection>
+
+                {/* Display Settings */}
+                <CollapsibleSection
+                  id="display-settings"
+                  title="Display Preferences"
+                  description="Configure how notifications and data are displayed"
+                  icon={Eye}
+                  isExpanded={expandedSections.has('display-settings')}
+                  onToggle={() => toggleSection('display-settings')}
+                >
+                  <div className="space-y-6">
+                    {displaySettings && (
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="show-store-number"
+                            defaultChecked={displaySettings.show_store_number}
+                            onChange={(e) => {
+                              updateDisplaySettingsMutation.mutate({
+                                ...displaySettings,
+                                show_store_number: e.target.checked
+                              })
+                            }}
+                          />
+                          <Label htmlFor="show-store-number">Show Store Numbers</Label>
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="show-customer-name"
+                            defaultChecked={displaySettings.show_customer_name}
+                            onChange={(e) => {
+                              updateDisplaySettingsMutation.mutate({
+                                ...displaySettings,
+                                show_customer_name: e.target.checked
+                              })
+                            }}
+                          />
+                          <Label htmlFor="show-customer-name">Show Customer Names</Label>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="show-service-details"
+                            defaultChecked={displaySettings.show_service_details}
+                            onChange={(e) => {
+                              updateDisplaySettingsMutation.mutate({
+                                ...displaySettings,
+                                show_service_details: e.target.checked
+                              })
+                            }}
+                          />
+                          <Label htmlFor="show-service-details">Show Service Details</Label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleSection>
+              </div>
+            )}
+
+            {activeTab === 'advanced' && (
+              <div className="space-y-4">
+                {/* SMTP Email Server Configuration */}
+                <CollapsibleSection
+                  id="smtp-settings"
+                  title="SMTP Email Server"
+                  description="Configure SMTP server for email notifications"
+                  icon={Mail}
+                  isExpanded={expandedSections.has('smtp-settings')}
+                  onToggle={() => toggleSection('smtp-settings')}
+                >
+                  <div className="space-y-6">
+                    {/* App Password Alert */}
+                    <Alert className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
+                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                      <AlertDescription className="text-sm">
+                        <strong>Important:</strong> Most email providers require an app-specific password:
+                        <ul className="mt-2 space-y-1 text-xs">
+                          <li>• <strong>Gmail:</strong> Enable 2FA, then create app password at <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">myaccount.google.com/apppasswords</a></li>
+                          <li>• <strong>Outlook:</strong> Create app password at <a href="https://account.microsoft.com/security" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">account.microsoft.com/security</a></li>
+                          <li>• <strong>Yahoo:</strong> Generate app password in Account Security settings</li>
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+
+                    {/* Email-based Auto-Detection */}
+                    <div className="space-y-4 p-4 bg-muted/30 rounded-lg border border-muted">
+                      <div className="flex items-start gap-3">
+                        <Sparkles className="w-5 h-5 text-primary mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="font-medium mb-1">Auto-Detect SMTP Settings</h4>
+                          <p className="text-sm text-muted-foreground mb-3">
+                            Enter your email address to automatically detect SMTP server settings
+                          </p>
+                          <div className="flex gap-2">
+                            <Input
+                              type="email"
+                              value={emailForDetection}
+                              onChange={(e) => setEmailForDetection(e.target.value)}
+                              placeholder="your-email@example.com"
+                              className="flex-1"
+                            />
+                            <Button
+                              onClick={() => {
+                                const detected = detectSMTPProvider(emailForDetection)
+                                if (detected) {
+                                  setDetectedProvider(detected)
+                                  // Apply detected settings
+                                  const currentSettings = localSMTPSettings || smtpSettings || {}
+                                  setLocalSMTPSettings({
+                                    ...currentSettings,
+                                    smtp_server: detected.smtp_server || currentSettings.smtp_server || '',
+                                    smtp_port: detected.smtp_port || currentSettings.smtp_port || 587,
+                                    use_tls: detected.use_tls !== undefined ? detected.use_tls : currentSettings.use_tls,
+                                    use_ssl: detected.use_ssl !== undefined ? detected.use_ssl : currentSettings.use_ssl,
+                                    username: emailForDetection, // Set the email as username
+                                    from_email: emailForDetection, // Also set as from_email
+                                  })
+                                  setSMTPTestResult(`✅ Auto-detected settings for ${detected.name}`)
+                                  setTimeout(() => setSMTPTestResult(null), 5000)
+                                  
+                                  // Also set the test email field for convenience
+                                  if (!smtpTestEmail) {
+                                    setSMTPTestEmail(emailForDetection)
+                                  }
+                                } else {
+                                  setSMTPTestResult('❌ Unable to auto-detect settings for this email provider')
+                                  setTimeout(() => setSMTPTestResult(null), 5000)
+                                }
+                              }}
+                              disabled={!emailForDetection || !emailForDetection.includes('@')}
+                              variant="secondary"
+                            >
+                              <Zap className="w-4 h-4 mr-2" />
+                              Auto-Detect
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {detectedProvider && detectedProvider.notes && (
+                        <Alert className="mt-3">
+                          <AlertCircle className="w-4 h-4" />
+                          <AlertDescription className="text-sm">
+                            <strong>{detectedProvider.name} Note:</strong> {detectedProvider.notes}
+                          </AlertDescription>
+                        </Alert>
+                      )}
                     </div>
+
+                    {/* Manual Configuration */}
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                          <div className="space-y-4">
+                            <ValidatedInput
+                              label="SMTP Server"
+                              value={localSMTPSettings?.smtp_server || smtpSettings?.smtp_server || ''}
+                              onChange={(value) => {
+                                const currentSettings = localSMTPSettings || smtpSettings || {}
+                                setLocalSMTPSettings({
+                                  ...currentSettings,
+                                  smtp_server: value
+                                })
+                              }}
+                              validation={['required']}
+                              placeholder="smtp.gmail.com"
+                              helpText="Your email provider's SMTP server address"
+                              required
+                            />
+                            
+                            <ValidatedInput
+                              label="Port"
+                              value={localSMTPSettings?.smtp_port?.toString() || smtpSettings?.smtp_port?.toString() || ''}
+                              onChange={(value) => {
+                                const currentSettings = localSMTPSettings || smtpSettings || {}
+                                setLocalSMTPSettings({
+                                  ...currentSettings,
+                                  smtp_port: parseInt(value) || 587
+                                })
+                              }}
+                              validation={['required', 'port']}
+                              type="number"
+                              placeholder="587"
+                              helpText="Common ports: 587 (TLS), 465 (SSL), 25 (unsecured)"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-4">
+                            <ValidatedInput
+                              label="Username"
+                              value={localSMTPSettings?.username || smtpSettings?.username || ''}
+                              onChange={(value) => {
+                                const currentSettings = localSMTPSettings || smtpSettings || {}
+                                setLocalSMTPSettings({
+                                  ...currentSettings,
+                                  username: value
+                                })
+                              }}
+                              validation={['required', 'email']}
+                              placeholder="your-email@example.com"
+                              helpText="Your email address used for authentication"
+                              required
+                            />
+                            
+                            <ValidatedInput
+                              label="App Password"
+                              value={localSMTPSettings?.password || smtpSettings?.password || ''}
+                              onChange={(value) => {
+                                const currentSettings = localSMTPSettings || smtpSettings || {}
+                                setLocalSMTPSettings({
+                                  ...currentSettings,
+                                  password: value
+                                })
+                              }}
+                              validation={['required']}
+                              type="password"
+                              placeholder="••••••••"
+                              helpText="Use an app-specific password, NOT your regular email password"
+                              required
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Security Settings */}
+                        <div className="space-y-3 p-3 bg-muted/20 rounded-lg">
+                          <h4 className="text-sm font-medium flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            Security Settings
+                          </h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="use-tls" className="text-sm cursor-pointer">Use TLS</Label>
+                              <input
+                                type="checkbox"
+                                id="use-tls"
+                                checked={localSMTPSettings?.use_tls ?? smtpSettings?.use_tls ?? true}
+                                onChange={(e) => {
+                                  const currentSettings = localSMTPSettings || smtpSettings || {}
+                                  setLocalSMTPSettings({
+                                    ...currentSettings,
+                                    use_tls: e.target.checked,
+                                    use_ssl: e.target.checked ? false : currentSettings.use_ssl // TLS and SSL are mutually exclusive
+                                  })
+                                }}
+                                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="use-ssl" className="text-sm cursor-pointer">Use SSL</Label>
+                              <input
+                                type="checkbox"
+                                id="use-ssl"
+                                checked={localSMTPSettings?.use_ssl ?? smtpSettings?.use_ssl ?? false}
+                                onChange={(e) => {
+                                  const currentSettings = localSMTPSettings || smtpSettings || {}
+                                  setLocalSMTPSettings({
+                                    ...currentSettings,
+                                    use_ssl: e.target.checked,
+                                    use_tls: e.target.checked ? false : currentSettings.use_tls // TLS and SSL are mutually exclusive
+                                  })
+                                }}
+                                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                              />
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {detectedProvider ? 
+                              `Auto-detected security settings for ${detectedProvider.name}` : 
+                              'TLS is recommended for port 587, SSL for port 465'
+                            }
+                          </p>
+                        </div>
+                        
+                        {/* Save Button */}
+                        <div className="flex justify-end mt-4">
+                          <Button
+                            onClick={() => {
+                              const currentSettings = localSMTPSettings || smtpSettings || {}
+                              const settingsToSave = {
+                                smtp_server: currentSettings.smtp_server || '',
+                                smtp_port: currentSettings.smtp_port || 587,
+                                username: currentSettings.username || '',
+                                password: currentSettings.password || '',
+                                use_tls: currentSettings.use_tls !== undefined ? currentSettings.use_tls : true,
+                                use_ssl: currentSettings.use_ssl !== undefined ? currentSettings.use_ssl : false,
+                                from_email: currentSettings.from_email || currentSettings.username || '',
+                                from_name: currentSettings.from_name || 'FossaWork Notifications',
+                                timeout: currentSettings.timeout || 30
+                              }
+                              updateSMTPMutation.mutate(settingsToSave)
+                            }}
+                            disabled={updateSMTPMutation.isPending || !localSMTPSettings}
+                            size="sm"
+                          >
+                            {updateSMTPMutation.isPending ? (
+                              <>
+                                <DotsLoader className="mr-2" />
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-4 h-4 mr-2" />
+                                Save SMTP Settings
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    
+                    {/* Enhanced Testing Interface */}
+                    <Card className="border-muted bg-muted/30">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">Test Configuration</h4>
+                          <Badge variant={smtpTestResult?.includes('success') ? 'default' : 'secondary'}>
+                            {smtpTestResult?.includes('success') ? 'Connected' : 'Not Tested'}
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <div className="flex-1">
+                            <Label htmlFor="test-email">Test Email Address</Label>
+                            <Input
+                              id="test-email"
+                              type="email"
+                              value={smtpTestEmail}
+                              onChange={(e) => setSMTPTestEmail(e.target.value)}
+                              placeholder="test@example.com"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <Button
+                              onClick={() => testSMTPMutation.mutate(smtpTestEmail)}
+                              disabled={testSMTPMutation.isPending || !smtpTestEmail}
+                              size="sm"
+                              className="whitespace-nowrap"
+                            >
+                              {testSMTPMutation.isPending ? (
+                                <>
+                                  <Gauge className="w-4 h-4 mr-2 animate-spin" />
+                                  Testing...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="w-4 h-4 mr-2" />
+                                  Send Test Email
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {smtpTestResult && (
+                          <Alert className={`mt-3 ${smtpTestResult.includes('success') ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                            <div className="flex items-center gap-2">
+                              {smtpTestResult.includes('success') ? (
+                                <CheckCircle className="w-4 h-4 text-green-600" />
+                              ) : (
+                                <XCircle className="w-4 h-4 text-red-600" />
+                              )}
+                              <AlertDescription className={smtpTestResult.includes('success') ? 'text-green-800' : 'text-red-800'}>
+                                {smtpTestResult}
+                              </AlertDescription>
+                            </div>
+                          </Alert>
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
                 </CollapsibleSection>
                     
@@ -935,900 +2593,11 @@ const Settings: React.FC = () => {
                             <option value="never">Never</option>
                           </select>
                         </div>
-                        <AnimatedButton variant="destructive" animation="pulse">
+                        <Button variant="destructive" size="sm">
                           <Trash2 className="w-4 h-4 mr-2" />
                           Clear All Data
-                        </AnimatedButton>
+                        </Button>
                   </div>
-                </CollapsibleSection>
-                    
-                <CollapsibleSection
-                  id="work-week"
-                  title="Work Week Configuration"
-                  description="Set your working days and schedule preferences"
-                  icon={Calendar}
-                  isExpanded={expandedSections.has('work-week')}
-                  onToggle={() => toggleSection('work-week')}
-                >
-                      <div className="space-y-4">
-                        <div className="space-y-3">
-                          <Label>Select Your Work Days</Label>
-                          <div className="grid grid-cols-7 gap-2">
-                            {[
-                              { day: 0, label: 'Sun' },
-                              { day: 1, label: 'Mon' },
-                              { day: 2, label: 'Tue' },
-                              { day: 3, label: 'Wed' },
-                              { day: 4, label: 'Thu' },
-                              { day: 5, label: 'Fri' },
-                              { day: 6, label: 'Sat' }
-                            ].map((dayInfo) => {
-                              // Get current work week days with proper fallback
-                              const currentWorkWeekDays = preferences?.work_week?.days || [1, 2, 3, 4, 5]
-                              const isSelected = currentWorkWeekDays.includes(dayInfo.day)
-                              
-                              const handleDayClick = () => {
-                                if (updatePreferenceMutation.isPending) {
-                                  console.log('Update in progress, ignoring click')
-                                  return
-                                }
-                                
-                                console.log('Day clicked:', dayInfo.day, 'Currently selected:', isSelected)
-                                
-                                let newDays: number[]
-                                
-                                if (!isSelected) {
-                                  // Add the day and sort
-                                  newDays = [...currentWorkWeekDays, dayInfo.day]
-                                    .filter((day, index, arr) => arr.indexOf(day) === index) // Remove duplicates
-                                    .sort((a, b) => a - b)
-                                } else {
-                                  // Remove the day
-                                  newDays = currentWorkWeekDays.filter(d => d !== dayInfo.day)
-                                }
-                                
-                                // Ensure at least one day is selected
-                                if (newDays.length === 0) {
-                                  console.log('Cannot remove last day, keeping selection')
-                                  return
-                                }
-                                
-                                console.log('Workweek update:', { currentDays: currentWorkWeekDays, newDays, dayClicked: dayInfo.day })
-                                
-                                handlePreferenceUpdate('work_week', {
-                                  days: newDays,
-                                  custom: true
-                                })
-                              }
-                              
-                              return (
-                                <div 
-                                  key={dayInfo.day}
-                                  onClick={handleDayClick}
-                                  className={`
-                                    relative flex flex-col items-center justify-center p-3 rounded-lg border-2 cursor-pointer transition-all
-                                    ${updatePreferenceMutation.isPending ? 'opacity-50 cursor-wait' : ''}
-                                    ${isSelected 
-                                      ? 'border-primary bg-primary/10 text-primary' 
-                                      : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
-                                    }
-                                  `}
-                                >
-                                  <span className="text-xs font-medium">{dayInfo.label}</span>
-                                  <div className={`w-2 h-2 rounded-full mt-1 ${isSelected ? 'bg-primary' : 'bg-transparent'}`} />
-                                  {updatePreferenceMutation.isPending && (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <div className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Select which days constitute your work week. This determines which days are included when calculating "current week" and "next week" on the dashboard.
-                        </p>
-                      </div>
-                </CollapsibleSection>
-                    
-                <CollapsibleSection
-                  id="api-config"
-                  title="API Configuration"
-                  description="Configure API settings and timeouts"
-                  icon={Globe}
-                  isExpanded={expandedSections.has('api-config')}
-                  onToggle={() => toggleSection('api-config')}
-                >
-                  <div className="space-y-4">
-                    <div className="grid gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="api-url">API Base URL</Label>
-                        <Input 
-                          id="api-url" 
-                          value="http://localhost:8000" 
-                          className="input-modern" 
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="timeout">Request Timeout (seconds)</Label>
-                        <Input 
-                          id="timeout" 
-                          type="number" 
-                          value="10" 
-                          className="input-modern" 
-                        />
-                      </div>
-                    </div>
-                    <AnimatedButton
-                      onClick={() => handlePreferenceUpdate('system', {
-                        auto_scrape: true,
-                        auto_start: true,
-                        cleanup_days: 30
-                      })}
-                      disabled={updatePreferenceMutation.isPending}
-                      animation="shimmer"
-                      className="w-full sm:w-auto"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save System Settings
-                    </AnimatedButton>
-                  </div>
-                </CollapsibleSection>
-              </div>
-            )}
-
-            {activeTab === 'scraping' && (
-              <div className="space-y-4">
-                <CollapsibleSection
-                  id="scraping-schedule"
-                  title="Work Order Sync Schedule"
-                  description="Configure automatic work order synchronization"
-                  icon={Clock}
-                  isExpanded={expandedSections.has('scraping-schedule')}
-                  onToggle={() => toggleSection('scraping-schedule')}
-                >
-                  <ScrapingSchedule />
-                </CollapsibleSection>
-              </div>
-            )}
-
-            {activeTab === 'advanced' && (
-              <div className="space-y-4">
-                {/* SMTP Email Server Configuration */}
-                <CollapsibleSection
-                  id="smtp-settings"
-                  title="SMTP Email Server"
-                  description="Configure custom SMTP server for sending email notifications"
-                  icon={Server}
-                  isExpanded={expandedSections.has('smtp-settings')}
-                  onToggle={() => toggleSection('smtp-settings')}
-                >
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp-server">SMTP Server</Label>
-                          <Input 
-                            id="smtp-server" 
-                            value={smtpSettings?.settings?.smtp_server || ''}
-                            onChange={(e) => updateSMTPMutation.mutate({
-                              ...smtpSettings?.settings,
-                              smtp_server: e.target.value
-                            })}
-                            className="input-modern" 
-                            placeholder="smtp.gmail.com"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp-port">Port</Label>
-                          <Input 
-                            id="smtp-port" 
-                            type="number"
-                            value={smtpSettings?.settings?.smtp_port || 587}
-                            onChange={(e) => updateSMTPMutation.mutate({
-                              ...smtpSettings?.settings,
-                              smtp_port: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            placeholder="587"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp-username">Username</Label>
-                          <Input 
-                            id="smtp-username" 
-                            value={smtpSettings?.settings?.username || ''}
-                            onChange={(e) => updateSMTPMutation.mutate({
-                              ...smtpSettings?.settings,
-                              username: e.target.value
-                            })}
-                            className="input-modern" 
-                            placeholder="your-email@gmail.com"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="smtp-password">Password</Label>
-                          <Input 
-                            id="smtp-password" 
-                            type="password"
-                            value={smtpSettings?.settings?.password || ''}
-                            onChange={(e) => updateSMTPMutation.mutate({
-                              ...smtpSettings?.settings,
-                              password: e.target.value
-                            })}
-                            className="input-modern" 
-                            placeholder="App-specific password"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            For Gmail, use an app-specific password
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="from-email">From Email</Label>
-                          <Input 
-                            id="from-email" 
-                            type="email"
-                            value={smtpSettings?.settings?.from_email || ''}
-                            onChange={(e) => updateSMTPMutation.mutate({
-                              ...smtpSettings?.settings,
-                              from_email: e.target.value
-                            })}
-                            className="input-modern" 
-                            placeholder="noreply@yourdomain.com"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="from-name">From Name</Label>
-                          <Input 
-                            id="from-name" 
-                            value={smtpSettings?.settings?.from_name || 'FossaWork Automation'}
-                            onChange={(e) => updateSMTPMutation.mutate({
-                              ...smtpSettings?.settings,
-                              from_name: e.target.value
-                            })}
-                            className="input-modern" 
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-3">
-                        <Label>Security Settings</Label>
-                        <div className="flex items-center space-x-6">
-                          <label className="flex items-center space-x-2 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={smtpSettings?.settings?.use_tls ?? true}
-                              onChange={(e) => updateSMTPMutation.mutate({
-                                ...smtpSettings?.settings,
-                                use_tls: e.target.checked
-                              })}
-                              className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                            />
-                            <span className="text-sm">Use TLS</span>
-                          </label>
-                          <label className="flex items-center space-x-2 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={smtpSettings?.settings?.use_ssl ?? false}
-                              onChange={(e) => updateSMTPMutation.mutate({
-                                ...smtpSettings?.settings,
-                                use_ssl: e.target.checked
-                              })}
-                              className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                            />
-                            <span className="text-sm">Use SSL</span>
-                          </label>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Port 587: TLS, Port 465: SSL, Port 25: None
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="smtp-test-email">Test Email Address</Label>
-                        <div className="flex gap-2">
-                          <Input 
-                            id="smtp-test-email" 
-                            type="email"
-                            value={smtpTestEmail}
-                            onChange={(e) => setSMTPTestEmail(e.target.value)}
-                            className="input-modern flex-1" 
-                            placeholder="test@example.com"
-                          />
-                          <AnimatedButton
-                            onClick={() => {
-                              if (smtpTestEmail) {
-                                testSMTPMutation.mutate(smtpTestEmail)
-                              }
-                            }}
-                            disabled={testSMTPMutation.isPending || !smtpTestEmail}
-                            variant="secondary"
-                            animation="pulse"
-                          >
-                            <TestTube className="w-4 h-4 mr-2" />
-                            Test SMTP
-                          </AnimatedButton>
-                        </div>
-                      </div>
-
-                      {smtpTestResult && (
-                        <Alert className={smtpTestResult.includes('✅') ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'}>
-                          <AlertDescription>{smtpTestResult}</AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <AnimatedButton
-                        onClick={() => {
-                          if (smtpSettings?.settings) {
-                            updateSMTPMutation.mutate(smtpSettings.settings)
-                          }
-                        }}
-                        disabled={updateSMTPMutation.isPending}
-                        animation="shimmer"
-                      >
-                        <Save className="w-4 h-4 mr-2" />
-                        Save SMTP Settings
-                      </AnimatedButton>
-                    </div>
-                </CollapsibleSection>
-
-                {/* Work Order Filter Settings */}
-                <CollapsibleSection
-                  id="filter-settings"
-                  title="Work Order Filters"
-                  description="Configure filters to automatically include or exclude specific work orders"
-                  icon={Filter}
-                  isExpanded={expandedSections.has('filter-settings')}
-                  onToggle={() => toggleSection('filter-settings')}
-                >
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">Enable Filtering</Label>
-                        <input 
-                          type="checkbox" 
-                          checked={filterSettings?.settings?.enabled ?? true}
-                          onChange={(e) => updateFilterMutation.mutate({
-                            ...filterSettings?.settings,
-                            enabled: e.target.checked
-                          })}
-                          className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Include Store Numbers</Label>
-                        <Input 
-                          value={filterSettings?.settings?.filter_by_stores?.join(', ') || ''}
-                          onChange={(e) => updateFilterMutation.mutate({
-                            ...filterSettings?.settings,
-                            filter_by_stores: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                          })}
-                          className="input-modern" 
-                          placeholder="001, 002, 003 (comma separated)"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Only show work orders for these store numbers
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Include Locations</Label>
-                        <Input 
-                          value={filterSettings?.settings?.filter_by_locations?.join(', ') || ''}
-                          onChange={(e) => updateFilterMutation.mutate({
-                            ...filterSettings?.settings,
-                            filter_by_locations: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                          })}
-                          className="input-modern" 
-                          placeholder="Dallas, Houston, Austin (comma separated)"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Customer Types</Label>
-                        <Input 
-                          value={filterSettings?.settings?.filter_by_customers?.join(', ') || ''}
-                          onChange={(e) => updateFilterMutation.mutate({
-                            ...filterSettings?.settings,
-                            filter_by_customers: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                          })}
-                          className="input-modern" 
-                          placeholder="7-Eleven, Circle K, Wawa (comma separated)"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Service Codes</Label>
-                        <Input 
-                          value={filterSettings?.settings?.filter_by_service_codes?.join(', ') || ''}
-                          onChange={(e) => updateFilterMutation.mutate({
-                            ...filterSettings?.settings,
-                            filter_by_service_codes: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                          })}
-                          className="input-modern" 
-                          placeholder="2861, 2862, 3002, 3146 (comma separated)"
-                        />
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-2">
-                        <Label>Exclude Store Numbers</Label>
-                        <Input 
-                          value={filterSettings?.settings?.exclude_stores?.join(', ') || ''}
-                          onChange={(e) => updateFilterMutation.mutate({
-                            ...filterSettings?.settings,
-                            exclude_stores: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                          })}
-                          className="input-modern" 
-                          placeholder="999, 998 (comma separated)"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Never show work orders for these store numbers
-                        </p>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <input 
-                          type="checkbox" 
-                          id="exclude-completed"
-                          checked={filterSettings?.settings?.exclude_completed ?? true}
-                          onChange={(e) => updateFilterMutation.mutate({
-                            ...filterSettings?.settings,
-                            exclude_completed: e.target.checked
-                          })}
-                          className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                        />
-                        <Label htmlFor="exclude-completed" className="text-sm cursor-pointer">
-                          Exclude completed work orders
-                        </Label>
-                      </div>
-                    </div>
-
-                    <AnimatedButton
-                      onClick={() => {
-                        if (filterSettings?.settings) {
-                          updateFilterMutation.mutate(filterSettings.settings)
-                        }
-                      }}
-                      disabled={updateFilterMutation.isPending}
-                      animation="shimmer"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Filter Settings
-                    </AnimatedButton>
-                </CollapsibleSection>
-
-                {/* Automation Delay Settings */}
-                <CollapsibleSection
-                  id="automation-delays"
-                  title="Automation Delays"
-                  description="Fine-tune automation speed and timing for optimal performance"
-                  icon={Clock}
-                  isExpanded={expandedSections.has('automation-delays')}
-                  onToggle={() => toggleSection('automation-delays')}
-                >
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="field-delay">Form Field Delay (ms)</Label>
-                          <Input 
-                            id="field-delay"
-                            type="number"
-                            value={automationDelays?.settings?.form_field_delay || 500}
-                            onChange={(e) => updateDelayMutation.mutate({
-                              ...automationDelays?.settings,
-                              form_field_delay: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            min="0"
-                            max="5000"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Delay between filling form fields
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="nav-delay">Page Navigation Delay (ms)</Label>
-                          <Input 
-                            id="nav-delay"
-                            type="number"
-                            value={automationDelays?.settings?.page_navigation_delay || 2000}
-                            onChange={(e) => updateDelayMutation.mutate({
-                              ...automationDelays?.settings,
-                              page_navigation_delay: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            min="0"
-                            max="10000"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Wait time after page navigation
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="click-delay">Click Action Delay (ms)</Label>
-                          <Input 
-                            id="click-delay"
-                            type="number"
-                            value={automationDelays?.settings?.click_action_delay || 300}
-                            onChange={(e) => updateDelayMutation.mutate({
-                              ...automationDelays?.settings,
-                              click_action_delay: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            min="0"
-                            max="2000"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="dropdown-delay">Dropdown Select Delay (ms)</Label>
-                          <Input 
-                            id="dropdown-delay"
-                            type="number"
-                            value={automationDelays?.settings?.dropdown_select_delay || 500}
-                            onChange={(e) => updateDelayMutation.mutate({
-                              ...automationDelays?.settings,
-                              dropdown_select_delay: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            min="0"
-                            max="2000"
-                          />
-                        </div>
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-2">
-                        <Label htmlFor="speed-multiplier">Overall Speed Multiplier</Label>
-                        <div className="flex items-center gap-4">
-                          <Input 
-                            id="speed-multiplier"
-                            type="range"
-                            value={automationDelays?.settings?.overall_speed_multiplier || 1.0}
-                            onChange={(e) => updateDelayMutation.mutate({
-                              ...automationDelays?.settings,
-                              overall_speed_multiplier: parseFloat(e.target.value)
-                            })}
-                            className="flex-1" 
-                            min="0.1"
-                            max="5.0"
-                            step="0.1"
-                          />
-                          <span className="text-sm font-medium w-12">
-                            {automationDelays?.settings?.overall_speed_multiplier || 1.0}x
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          0.5x = Twice as fast, 2.0x = Twice as slow
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="browser-timeout">Browser Timeout (ms)</Label>
-                          <Input 
-                            id="browser-timeout"
-                            type="number"
-                            value={automationDelays?.settings?.browser_timeout || 30000}
-                            onChange={(e) => updateDelayMutation.mutate({
-                              ...automationDelays?.settings,
-                              browser_timeout: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            min="5000"
-                            max="120000"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="max-retries">Max Retry Attempts</Label>
-                          <Input 
-                            id="max-retries"
-                            type="number"
-                            value={automationDelays?.settings?.max_retries || 3}
-                            onChange={(e) => updateDelayMutation.mutate({
-                              ...automationDelays?.settings,
-                              max_retries: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            min="0"
-                            max="10"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <AnimatedButton
-                      onClick={() => {
-                        if (automationDelays?.settings) {
-                          updateDelayMutation.mutate(automationDelays.settings)
-                        }
-                      }}
-                      disabled={updateDelayMutation.isPending}
-                      animation="shimmer"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Delay Settings
-                    </AnimatedButton>
-                </CollapsibleSection>
-
-                {/* Browser Settings */}
-                <CollapsibleSection
-                  id="browser-settings"
-                  title="Browser Settings"
-                  description="Configure browser behavior for web scraping and automation"
-                  icon={Monitor}
-                  isExpanded={expandedSections.has('browser-settings')}
-                  onToggle={() => toggleSection('browser-settings')}
-                >
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1">
-                          <Label className="text-sm font-medium">Browser Visibility</Label>
-                          <p className="text-xs text-muted-foreground">
-                            Show browser window during scraping (useful for debugging)
-                          </p>
-                        </div>
-                        <input 
-                          type="checkbox" 
-                          checked={!browserSettings?.settings?.headless}
-                          onChange={(e) => {
-                            const newSettings = {
-                              ...browserSettings?.settings,
-                              headless: !e.target.checked
-                            }
-                            updateBrowserMutation.mutate(newSettings)
-                          }}
-                          className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Browser Type</Label>
-                        <select 
-                          value={browserSettings?.settings?.browser_type || 'chromium'}
-                          onChange={(e) => updateBrowserMutation.mutate({
-                            ...browserSettings?.settings,
-                            browser_type: e.target.value
-                          })}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring input-modern"
-                        >
-                          <option value="chromium">Chromium (Recommended)</option>
-                          <option value="firefox">Firefox</option>
-                          <option value="webkit">WebKit (Safari)</option>
-                        </select>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="viewport-width">Viewport Width</Label>
-                          <Input 
-                            id="viewport-width"
-                            type="number"
-                            value={browserSettings?.settings?.viewport_width || 1280}
-                            onChange={(e) => updateBrowserMutation.mutate({
-                              ...browserSettings?.settings,
-                              viewport_width: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            min="800"
-                            max="3840"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="viewport-height">Viewport Height</Label>
-                          <Input 
-                            id="viewport-height"
-                            type="number"
-                            value={browserSettings?.settings?.viewport_height || 720}
-                            onChange={(e) => updateBrowserMutation.mutate({
-                              ...browserSettings?.settings,
-                              viewport_height: parseInt(e.target.value)
-                            })}
-                            className="input-modern" 
-                            min="600"
-                            max="2160"
-                          />
-                        </div>
-                      </div>
-
-                      <Separator />
-
-                      <div className="space-y-3">
-                        <h4 className="text-sm font-medium">Performance Options</h4>
-                        
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={browserSettings?.settings?.enable_screenshots ?? true}
-                            onChange={(e) => updateBrowserMutation.mutate({
-                              ...browserSettings?.settings,
-                              enable_screenshots: e.target.checked
-                            })}
-                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                          />
-                          <span className="text-sm">Capture screenshots on errors</span>
-                        </label>
-
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={browserSettings?.settings?.disable_images ?? false}
-                            onChange={(e) => updateBrowserMutation.mutate({
-                              ...browserSettings?.settings,
-                              disable_images: e.target.checked
-                            })}
-                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                          />
-                          <span className="text-sm">Disable image loading (faster scraping)</span>
-                        </label>
-
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={browserSettings?.settings?.clear_cache_on_start ?? true}
-                            onChange={(e) => updateBrowserMutation.mutate({
-                              ...browserSettings?.settings,
-                              clear_cache_on_start: e.target.checked
-                            })}
-                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                          />
-                          <span className="text-sm">Clear browser cache on startup</span>
-                        </label>
-
-                        <label className="flex items-center space-x-2 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={browserSettings?.settings?.enable_debug_mode ?? false}
-                            onChange={(e) => updateBrowserMutation.mutate({
-                              ...browserSettings?.settings,
-                              enable_debug_mode: e.target.checked
-                            })}
-                            className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                          />
-                          <span className="text-sm">Enable debug logging</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    <AnimatedButton
-                      onClick={() => {
-                        if (browserSettings?.settings) {
-                          updateBrowserMutation.mutate(browserSettings.settings)
-                        }
-                      }}
-                      disabled={updateBrowserMutation.isPending}
-                      animation="shimmer"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Browser Settings
-                    </AnimatedButton>
-                </CollapsibleSection>
-
-                {/* Notification Display Settings */}
-                <CollapsibleSection
-                  id="notification-display"
-                  title="Notification Display"
-                  description="Choose what information appears in your notifications"
-                  icon={Eye}
-                  isExpanded={expandedSections.has('notification-display')}
-                  onToggle={() => toggleSection('notification-display')}
-                >
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-medium">Show in Notifications</h4>
-                      <div className="grid grid-cols-2 gap-3">
-                        {[
-                          { key: 'show_job_id', label: 'Job ID' },
-                          { key: 'show_store_number', label: 'Store Number' },
-                          { key: 'show_store_name', label: 'Store Name' },
-                          { key: 'show_location', label: 'Location' },
-                          { key: 'show_date', label: 'Date' },
-                          { key: 'show_time', label: 'Time' },
-                          { key: 'show_dispenser_count', label: 'Dispenser Count' },
-                          { key: 'show_service_code', label: 'Service Code' },
-                          { key: 'show_duration', label: 'Duration' }
-                        ].map((field) => (
-                          <label key={field.key} className="flex items-center space-x-2 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              checked={displaySettings?.settings?.[field.key] ?? true}
-                              onChange={(e) => updateDisplayMutation.mutate({
-                                ...displaySettings?.settings,
-                                [field.key]: e.target.checked
-                              })}
-                              className="w-4 h-4 rounded border-border text-primary focus:ring-primary" 
-                            />
-                            <span className="text-sm">{field.label}</span>
-                          </label>
-                        ))}
-                      </div>
-
-                      <Separator />
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="date-format">Date Format</Label>
-                          <select 
-                            id="date-format" 
-                            value={displaySettings?.settings?.date_format || 'MM/DD/YYYY'}
-                            onChange={(e) => updateDisplayMutation.mutate({
-                              ...displaySettings?.settings,
-                              date_format: e.target.value
-                            })}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring input-modern"
-                          >
-                            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
-                            <option value="DD/MM/YYYY">DD/MM/YYYY</option>
-                            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
-                            <option value="MMM DD, YYYY">MMM DD, YYYY</option>
-                          </select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="time-format">Time Format</Label>
-                          <select 
-                            id="time-format" 
-                            value={displaySettings?.settings?.time_format || '12h'}
-                            onChange={(e) => updateDisplayMutation.mutate({
-                              ...displaySettings?.settings,
-                              time_format: e.target.value
-                            })}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring input-modern"
-                          >
-                            <option value="12h">12-hour (1:30 PM)</option>
-                            <option value="24h">24-hour (13:30)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="timezone">Timezone</Label>
-                        <select 
-                          id="timezone" 
-                          value={displaySettings?.settings?.timezone || 'America/New_York'}
-                          onChange={(e) => updateDisplayMutation.mutate({
-                            ...displaySettings?.settings,
-                            timezone: e.target.value
-                          })}
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring input-modern"
-                        >
-                          <option value="America/New_York">Eastern Time</option>
-                          <option value="America/Chicago">Central Time</option>
-                          <option value="America/Denver">Mountain Time</option>
-                          <option value="America/Los_Angeles">Pacific Time</option>
-                          <option value="UTC">UTC</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <AnimatedButton
-                      onClick={() => {
-                        if (displaySettings?.settings) {
-                          updateDisplayMutation.mutate(displaySettings.settings)
-                        }
-                      }}
-                      disabled={updateDisplayMutation.isPending}
-                      animation="shimmer"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Display Settings
-                    </AnimatedButton>
                 </CollapsibleSection>
               </div>
             )}

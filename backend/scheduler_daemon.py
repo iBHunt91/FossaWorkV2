@@ -102,8 +102,28 @@ class SchedulerDaemon:
             from app.services.workfossa_automation import WorkFossaAutomationService
             from app.services.browser_automation import browser_automation
             
-            # Create WorkFossa automation service instance
-            workfossa_automation = WorkFossaAutomationService(headless=True)
+            # Get user's browser visibility preference from JSON settings file
+            headless = True  # Default to headless
+            try:
+                # Read browser settings from JSON file
+                settings_path = Path(f"data/users/{user_id}/settings/browser_settings.json")
+                if settings_path.exists():
+                    with open(settings_path, 'r') as f:
+                        browser_settings = json.load(f)
+                        # Check for show_browser_during_sync flag or inverse of headless
+                        if 'show_browser_during_sync' in browser_settings:
+                            headless = not browser_settings.get('show_browser_during_sync', False)
+                        else:
+                            # Use the headless setting from browser settings
+                            headless = browser_settings.get('headless', True)
+                        logger.info(f"Browser visibility setting for user {user_id[:8]}...: show_browser={not headless}")
+                else:
+                    logger.info(f"No browser settings file found for user {user_id[:8]}..., using default headless=True")
+            except Exception as e:
+                logger.warning(f"Failed to get browser settings: {e}, using default headless=True")
+            
+            # Create WorkFossa automation service instance with user's preference
+            workfossa_automation = WorkFossaAutomationService(headless=headless)
             scraper = WorkFossaScraper(browser_automation=browser_automation)
             
             # Get existing work orders to check for updates
@@ -130,8 +150,15 @@ class SchedulerDaemon:
             
             logger.info(f"✅ [SCHEDULER] Successfully authenticated session: {session_id}")
             
-            # Now scrape work orders with authenticated session
-            work_orders = await scraper.scrape_work_orders(session_id)
+            # Get the page from the WorkFossa automation service session
+            session_data = workfossa_automation.sessions.get(session_id)
+            if not session_data or 'page' not in session_data:
+                raise Exception("No browser page found in WorkFossa session")
+            
+            page = session_data['page']
+            
+            # Now scrape work orders with authenticated session and page
+            work_orders = await scraper.scrape_work_orders(session_id, page=page)
             
             # Update history with results
             history = db.query(ScrapingHistory).filter_by(id=history_id).first()

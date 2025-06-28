@@ -13,7 +13,7 @@ import { AnimatedText, ShimmerText, GradientText } from '@/components/ui/animate
 import { AnimatedCard, GlowCard } from '@/components/ui/animated-card'
 import { AnimatedButton, RippleButton } from '@/components/ui/animated-button'
 import { ProgressLoader, DotsLoader } from '@/components/ui/animated-loader'
-import { cleanSiteName } from '@/utils/storeColors'
+import { cleanSiteName, getBrandStyle } from '@/utils/storeColors'
 import { FilterCalculationResult, FilterSummary } from '../types/filters'
 import { cn } from '@/lib/utils'
 import { useWeekendMode } from '../hooks/useWeekendMode'
@@ -551,6 +551,56 @@ const Dashboard: React.FC = () => {
   const nextWeekTotal = Array.from(storeAnalysis.nextWeek.values()).reduce((a, b) => a + b, 0)
   const totalWorkOrders = workOrders?.length || 0
 
+  // Calculate dispenser statistics
+  const dispenserStats = useMemo(() => {
+    if (!workOrders || workOrders.length === 0) {
+      return {
+        totalWithDispensers: 0,
+        totalDispensers: 0,
+        completionPercentage: 0
+      }
+    }
+
+    const ordersWithDispensers = workOrders.filter(order => 
+      order.dispensers && Array.isArray(order.dispensers) && order.dispensers.length > 0
+    )
+
+    const totalDispensers = workOrders.reduce((total, order) => {
+      if (order.dispensers && Array.isArray(order.dispensers)) {
+        return total + order.dispensers.length
+      }
+      return total
+    }, 0)
+
+    const completionPercentage = totalWorkOrders > 0 
+      ? Math.round((ordersWithDispensers.length / totalWorkOrders) * 100)
+      : 0
+
+    return {
+      totalWithDispensers: ordersWithDispensers.length,
+      totalDispensers,
+      completionPercentage
+    }
+  }, [workOrders, totalWorkOrders])
+
+  // Calculate store chain breakdown
+  const storeChainStats = useMemo(() => {
+    if (!workOrders || workOrders.length === 0) {
+      return new Map<string, number>()
+    }
+
+    const chainCounts = new Map<string, number>()
+    
+    workOrders.forEach(order => {
+      const cleanedName = cleanSiteName(order.site_name || order.customer_name)
+      const currentCount = chainCounts.get(cleanedName) || 0
+      chainCounts.set(cleanedName, currentCount + 1)
+    })
+
+    // Sort by count (descending) and return as Map
+    return new Map([...chainCounts.entries()].sort((a, b) => b[1] - a[1]))
+  }, [workOrders])
+
   if (!token) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -648,28 +698,18 @@ const Dashboard: React.FC = () => {
         {/* Weekend Mode Banner */}
         {weekendModeEnabled && (
           <AnimatedCard className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/20">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Sparkles className="h-5 w-5 text-blue-500 animate-pulse" />
-                    <Sparkles className="h-5 w-5 text-blue-500 absolute inset-0 animate-ping opacity-50" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-blue-600 dark:text-blue-400">Weekend Mode Active</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Previewing upcoming work for better planning
-                    </p>
-                  </div>
+            <CardContent className="py-3">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Sparkles className="h-5 w-5 text-blue-500 animate-pulse" />
+                  <Sparkles className="h-5 w-5 text-blue-500 absolute inset-0 animate-ping opacity-50" />
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setWeekendModeEnabled(false)}
-                  className="text-blue-600 border-blue-500/50 hover:bg-blue-500/10"
-                >
-                  Exit Weekend Mode
-                </Button>
+                <div>
+                  <h3 className="font-semibold text-blue-600 dark:text-blue-400">Weekend Mode Active</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Previewing upcoming work for better planning
+                  </p>
+                </div>
               </div>
             </CardContent>
           </AnimatedCard>
@@ -687,9 +727,98 @@ const Dashboard: React.FC = () => {
               <div className="text-2xl font-bold">
                 <GradientText text={String(totalWorkOrders)} gradient="from-purple-600 to-pink-600" />
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mb-2">
                 All work orders in system
               </p>
+              
+              {/* Dispenser Statistics */}
+              {totalWorkOrders > 0 && (
+                <div className="mt-3 pt-3 border-t border-muted/50">
+                  {dispenserStats.totalWithDispensers > 0 ? (
+                    <div className="space-y-2">
+                      {/* Progress Bar for Data Completion */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground font-medium">Dispenser Data</span>
+                          <span className="text-purple-600 font-semibold">{dispenserStats.completionPercentage}%</span>
+                        </div>
+                        <Progress 
+                          value={dispenserStats.completionPercentage} 
+                          className="h-1.5 bg-muted"
+                        />
+                      </div>
+                      
+                      {/* Statistics Grid */}
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div className="flex flex-col items-center p-2 rounded-md bg-purple-500/5 border border-purple-500/10">
+                          <span className="text-muted-foreground">With Data</span>
+                          <span className="font-bold text-purple-600 text-sm">{dispenserStats.totalWithDispensers}</span>
+                        </div>
+                        <div className="flex flex-col items-center p-2 rounded-md bg-purple-500/5 border border-purple-500/10">
+                          <span className="text-muted-foreground">Dispensers</span>
+                          <span className="font-bold text-purple-600 text-sm">{dispenserStats.totalDispensers}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-2">
+                      <div className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                        No dispenser data available
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Scrape dispensers to see details
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Store Chain Breakdown */}
+              {storeChainStats.size > 0 && (
+                <div className="mt-3 pt-3 border-t border-muted/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-muted-foreground">Store Chains</span>
+                    <span className="text-xs text-muted-foreground">{storeChainStats.size} brands</span>
+                  </div>
+                  
+                  <div className="space-y-1.5">
+                    {Array.from(storeChainStats.entries()).slice(0, 4).map(([chainName, count]) => {
+                      const brandStyle = getBrandStyle(chainName)
+                      return (
+                        <div key={chainName} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div 
+                              className={cn(
+                                "w-2 h-2 rounded-full flex-shrink-0",
+                                brandStyle.color
+                              )}
+                            />
+                            <span className="text-xs font-medium truncate">{chainName}</span>
+                          </div>
+                          <Badge 
+                            variant="secondary" 
+                            className={cn(
+                              "text-xs font-semibold flex-shrink-0",
+                              brandStyle.bgColor,
+                              brandStyle.textColor,
+                              brandStyle.borderColor,
+                              "border"
+                            )}
+                          >
+                            {count}
+                          </Badge>
+                        </div>
+                      )
+                    })}
+                    
+                    {storeChainStats.size > 4 && (
+                      <div className="text-xs text-muted-foreground text-center pt-1">
+                        +{storeChainStats.size - 4} more chains
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </AnimatedCard>
 

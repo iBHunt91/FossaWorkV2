@@ -410,25 +410,41 @@ class UserCredential(Base):
     @property
     def username(self) -> str:
         """Get decrypted username"""
-        from ..services.encryption_service import decrypt_string
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
-            return decrypt_string(self.encrypted_username)
+            from ..services.encryption_service import decrypt_string
+            result = decrypt_string(self.encrypted_username)
+            if not result:
+                logger.warning(f"Decryption returned empty string for user {self.user_id}, returning encrypted value")
+                return self.encrypted_username
+            return result
         except Exception as e:
-            # Log error but don't expose it - fallback to returning encrypted data
-            import logging
-            logging.error(f"Failed to decrypt username for user {self.user_id}: {e}")
+            # Log error with more detail
+            logger.error(f"Failed to decrypt username for user {self.user_id}: {e}", exc_info=True)
+            logger.error(f"Encrypted username starts with: {self.encrypted_username[:20] if self.encrypted_username else 'None'}")
+            # Return the encrypted username as fallback
             return self.encrypted_username
     
     @property
     def password(self) -> str:
         """Get decrypted password"""
-        from ..services.encryption_service import decrypt_string
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
-            return decrypt_string(self.encrypted_password)
+            from ..services.encryption_service import decrypt_string
+            result = decrypt_string(self.encrypted_password)
+            if not result:
+                logger.warning(f"Decryption returned empty string for password of user {self.user_id}, returning encrypted value")
+                return self.encrypted_password
+            return result
         except Exception as e:
-            # Log error but don't expose it - fallback to returning encrypted data
-            import logging
-            logging.error(f"Failed to decrypt password for user {self.user_id}: {e}")
+            # Log error with more detail
+            logger.error(f"Failed to decrypt password for user {self.user_id}: {e}", exc_info=True)
+            logger.error(f"Encrypted password starts with: {self.encrypted_password[:20] if self.encrypted_password else 'None'}")
+            # Return the encrypted password as fallback
             return self.encrypted_password
     
     def set_username(self, username: str) -> None:

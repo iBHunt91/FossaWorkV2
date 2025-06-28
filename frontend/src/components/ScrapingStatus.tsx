@@ -5,6 +5,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { getRelativeTime } from '../utils/dateFormat';
+import { logger } from '../services/fileLoggingService';
 
 interface ScrapingStatusData {
   enabled: boolean;
@@ -28,25 +29,42 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
   const [status, setStatus] = useState<ScrapingStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const navigate = useNavigate();
 
   const fetchStatus = async () => {
+    const startTime = Date.now();
+    logger.info('components.ScrapingStatus', 'Fetching scraping status...', { retryCount });
+    
     try {
-      // Get schedules
-      const schedulesResponse = await apiClient.get('/api/scraping-schedules/');
+      setError(null);
+      
+      // Get schedules with a shorter timeout for quick status checks
+      const schedulesResponse = await apiClient.get('/api/scraping-schedules/', {
+        timeout: 10000 // 10 second timeout for status checks
+      });
       const schedules = schedulesResponse.data;
+      
+      logger.info('components.ScrapingStatus', 'Schedules fetched successfully', { 
+        scheduleCount: schedules?.length || 0,
+        duration: Date.now() - startTime
+      });
       
       if (schedules && schedules.length > 0) {
         const schedule = schedules[0];
         
-        // Get latest history
+        // Get latest history with error handling
         let lastRun = null;
         try {
-          const historyResponse = await apiClient.get(`/api/scraping-schedules/${schedule.id}/history?limit=1`);
+          const historyResponse = await apiClient.get(`/api/scraping-schedules/${schedule.id}/history?limit=1`, {
+            timeout: 5000 // 5 second timeout for history
+          });
           const history = historyResponse.data;
           lastRun = history && history.length > 0 ? history[0] : null;
-        } catch (error) {
-          console.error('Error fetching history:', error);
+        } catch (historyError: any) {
+          console.warn('Could not fetch history (non-critical):', historyError.message);
+          // Continue without history data - it's not critical for basic status
         }
         
         // Check if currently running (started within last 5 minutes without completion)
@@ -63,9 +81,39 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
           is_running: isRunning || false,
           consecutive_failures: schedule.consecutive_failures || 0
         });
+        
+        // Reset retry count on success
+        setRetryCount(0);
+      } else {
+        setStatus(null); // No schedules configured
       }
-    } catch (error) {
-      console.error('Error fetching scraping status:', error);
+    } catch (error: any) {
+      const errorDetails = {
+        message: error.message,
+        code: error.code,
+        status: error.response?.status,
+        duration: Date.now() - startTime,
+        retryCount
+      };
+      
+      logger.error('components.ScrapingStatus', 'Error fetching scraping status', errorDetails);
+      
+      // Set user-friendly error message
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        setError('Unable to fetch status (timeout). The server might be busy.');
+        logger.warn('components.ScrapingStatus', 'Request timeout after 10 seconds', errorDetails);
+      } else if (error.response?.status === 401) {
+        setError('Authentication required. Please log in again.');
+      } else if (error.response?.status >= 500) {
+        setError('Server error. Please try again later.');
+      } else if (!navigator.onLine) {
+        setError('No internet connection.');
+      } else {
+        setError('Unable to fetch scraping status.');
+      }
+      
+      // Increment retry count for exponential backoff
+      setRetryCount(prev => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -74,8 +122,12 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
   useEffect(() => {
     fetchStatus();
     
-    // Refresh status every 30 seconds
-    const interval = setInterval(fetchStatus, 30000);
+    // Dynamic refresh interval with exponential backoff on errors
+    const baseInterval = 30000; // 30 seconds
+    const maxInterval = 300000; // 5 minutes
+    const currentInterval = Math.min(baseInterval * Math.pow(2, retryCount), maxInterval);
+    
+    const interval = setInterval(fetchStatus, currentInterval);
     
     // Listen for schedule updates
     const handleScheduleUpdate = (event: CustomEvent) => {
@@ -90,6 +142,7 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
         });
       }
       console.log('Refreshing status display...');
+      setRetryCount(0); // Reset retry count on manual update
       fetchStatus();
     };
     
@@ -99,16 +152,40 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
       clearInterval(interval);
       window.removeEventListener('scraping-schedule-updated', handleScheduleUpdate as any);
     };
-  }, []);
+  }, [retryCount]);
 
   const handleNavigate = () => {
-    navigate('/schedules');
+    navigate('/settings?tab=scraping&section=scraping-schedule');
   };
 
-  if (loading) {
+  if (loading && !error) {
     return (
       <div className="animate-pulse">
         <div className="h-4 bg-gray-200 rounded w-32"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-sm">
+          <AlertCircle className="w-4 h-4 text-yellow-500" />
+          <span className="text-gray-600">{error}</span>
+        </div>
+        {!compact && (
+          <button
+            onClick={() => {
+              setRetryCount(0);
+              setLoading(true);
+              fetchStatus();
+            }}
+            className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Retry
+          </button>
+        )}
       </div>
     );
   }
@@ -161,21 +238,35 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
 
   if (compact) {
     return (
-      <button
-        onClick={handleNavigate}
-        className="flex items-center gap-2 text-sm hover:bg-gray-50 rounded-lg p-2 transition-colors"
-      >
-        {getStatusIcon()}
-        <span className={cn("font-medium", getStatusColor())}>
-          {getStatusText()}
-        </span>
-        {status.enabled && status.next_run && (
-          <span className="text-gray-500">
-            • {formatNextRun()}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleNavigate}
+          className="flex items-center gap-2 text-sm hover:bg-gray-50 rounded-lg p-2 transition-colors flex-1"
+        >
+          {getStatusIcon()}
+          <span className={cn("font-medium", getStatusColor())}>
+            {getStatusText()}
           </span>
-        )}
-        <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
-      </button>
+          {status.enabled && status.next_run && (
+            <span className="text-gray-500">
+              • {formatNextRun()}
+            </span>
+          )}
+          <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setRetryCount(0);
+            setLoading(true);
+            fetchStatus();
+          }}
+          className="p-2 hover:bg-gray-50 rounded-lg transition-colors"
+          title="Refresh status"
+        >
+          <RefreshCw className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+        </button>
+      </div>
     );
   }
 

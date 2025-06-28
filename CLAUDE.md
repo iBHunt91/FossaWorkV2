@@ -1064,6 +1064,108 @@ npm run test:e2e
 
 **Example:** See `/scripts/interactive_dispenser_test.py` (interactive) and `/tests/backend/test_dispenser_extraction.py` (automated)
 
+## Workflow Automation Patterns
+
+### Quick Start Commands
+
+**Morning Startup Routine:**
+```yaml
+/fossa:startup:
+  1. Check git status and pull latest
+  2. Verify environment setup
+  3. Start backend and frontend
+  4. Run quick health check
+  5. Display pending tasks
+  6. Show recent notifications
+```
+
+**End of Day Routine:**
+```yaml
+/fossa:shutdown:
+  1. Commit any uncommitted changes
+  2. Push to remote
+  3. Generate daily summary
+  4. Backup critical data
+  5. Clean temporary files
+  6. Stop all services
+```
+
+### Context Priming Patterns
+
+**Before Major Work:**
+```yaml
+Pattern: Load → Analyze → Plan → Execute
+Commands:
+  /fossa:context [area]     # Load domain knowledge
+  /fossa:analyze [target]   # Understand current state
+  TodoWrite                 # Plan tasks
+  /fossa:feature [name]     # Execute implementation
+```
+
+**Debugging Session:**
+```yaml
+Pattern: Reproduce → Isolate → Fix → Verify
+Commands:
+  /fossa:debug [component]  # Interactive debugging
+  /fossa:monitor [metric]   # Collect data
+  /fossa:fix [issue]       # Apply solution
+  /fossa:test [category]   # Verify fix
+```
+
+### Error Recovery Patterns
+
+**Scraping Failure Recovery:**
+```yaml
+On Failure:
+  1. /fossa:debug scraper
+  2. Check selectors against current UI
+  3. Update selectors if changed
+  4. Test with single work order
+  5. Run full scrape if successful
+```
+
+**Authentication Timeout Recovery:**
+```yaml
+On Timeout:
+  1. /fossa:debug auth
+  2. Check token expiry settings
+  3. Implement refresh mechanism
+  4. Test with extended session
+  5. Update authentication flow
+```
+
+## Enhanced Development Workflows
+
+### Performance Optimization Workflow
+```yaml
+Identify: /fossa:monitor performance
+Analyze: /fossa:analyze performance
+Plan: TodoWrite optimization tasks
+Execute: Implement optimizations
+Verify: /fossa:test performance
+Document: Update performance guidelines
+```
+
+### Security Hardening Workflow
+```yaml
+Audit: /fossa:analyze security
+Prioritize: Review CRITICAL issues
+Fix: Implement security patches
+Test: /fossa:test auth
+Deploy: /fossa:deploy-check
+Monitor: /fossa:monitor errors
+```
+
+### Feature Development Workflow
+```yaml
+Design: /fossa:context [area]
+Scaffold: /fossa:feature [name]
+Implement: Code with sub-agents
+Test: /fossa:test all
+Review: /fossa:analyze architecture
+Ship: /fossa:pr main
+```
+
 ## Error Handling & Logging
 
 **Error Handling Patterns:**
@@ -1719,3 +1821,153 @@ CORS_ORIGINS=https://yourdomain.com
    - **Issue:** Chromium fails to start
    - **Workaround:** Add `--no-sandbox` flag
    - **Fix:** Proper sandbox configuration
+
+## Continuous Improvement Patterns
+
+### Code Quality Evolution
+
+**Regular Quality Audits:**
+```yaml
+Weekly:
+  /fossa:analyze architecture  # Check for technical debt
+  /fossa:analyze dependencies  # Update outdated packages
+  /fossa:test all            # Ensure all tests pass
+
+Monthly:
+  /fossa:analyze security     # Full security audit
+  /fossa:analyze performance  # Performance profiling
+  Generate improvement roadmap
+```
+
+**Refactoring Cycles:**
+```yaml
+Identify: Use /fossa:analyze to find problem areas
+Prioritize: Focus on high-impact, low-risk improvements
+Implement: Refactor in small, testable chunks
+Verify: Run comprehensive tests after each change
+Document: Update architecture docs with changes
+```
+
+### Knowledge Management
+
+**Documentation Evolution:**
+```yaml
+After Each Feature:
+  1. Update technical docs in /ai_docs/
+  2. Update user guides in /docs/guides/
+  3. Update API documentation
+  4. Add to quick reference
+  5. Update Notion documentation
+
+Weekly Review:
+  1. Check for outdated information
+  2. Consolidate duplicate content
+  3. Fill documentation gaps
+  4. Update troubleshooting guides
+```
+
+**Learning from Issues:**
+```yaml
+Pattern: Issue → Fix → Prevention
+Process:
+  1. Document issue in Known Issues
+  2. Create automated test
+  3. Add to /fossa:fix command
+  4. Update monitoring
+  5. Share knowledge in CLAUDE.md
+```
+
+### Automation Evolution
+
+**Command Enhancement:**
+```yaml
+Track Usage:
+  - Monitor which commands used most
+  - Identify repetitive patterns
+  - Create new automation
+
+Improve Commands:
+  - Add parameters for flexibility
+  - Combine related commands
+  - Optimize execution speed
+  - Add error recovery
+```
+
+**Workflow Optimization:**
+```yaml
+Monthly Review:
+  1. Analyze development patterns
+  2. Identify bottlenecks
+  3. Create new workflows
+  4. Test and refine
+  5. Document best practices
+```
+
+### Project Metrics & Insights
+
+**Development Velocity:**
+```yaml
+Track:
+  - Feature completion time
+  - Bug resolution speed
+  - Test coverage trends
+  - Code quality metrics
+  - User satisfaction
+
+Improve:
+  - Automate repetitive tasks
+  - Enhance tooling
+  - Optimize workflows
+  - Remove blockers
+```
+
+**System Health Monitoring:**
+```yaml
+Daily: /fossa:monitor performance
+Weekly: /fossa:analyze architecture  
+Monthly: Full system audit
+Quarterly: Strategic planning
+
+Key Metrics:
+  - API response times
+  - Scraping success rates
+  - Automation reliability
+  - Error frequencies
+  - Resource usage
+```
+
+### Future-Proofing Strategies
+
+**Technology Evolution:**
+```yaml
+Stay Current:
+  - Monitor framework updates
+  - Evaluate new tools
+  - Test in isolated environments
+  - Plan migration strategies
+  - Document decisions
+
+Adopt Carefully:
+  - Proof of concept first
+  - Measure impact
+  - Train team
+  - Update documentation
+  - Monitor stability
+```
+
+**Scalability Planning:**
+```yaml
+Growth Considerations:
+  - User load projections
+  - Data volume estimates
+  - Performance benchmarks
+  - Infrastructure needs
+  - Cost optimization
+
+Implementation:
+  - Design for horizontal scaling
+  - Optimize database queries
+  - Implement caching strategies
+  - Use queue systems
+  - Monitor resource usage
+```

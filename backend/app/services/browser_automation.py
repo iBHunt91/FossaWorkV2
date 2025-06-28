@@ -756,10 +756,16 @@ class BrowserAutomationService:
             # Close browser
             if self.browser:
                 await self.browser.close()
+                self.browser = None  # Important: set to None after closing
             
             # Stop playwright
             if self.playwright:
                 await self.playwright.stop()
+                self.playwright = None  # Important: set to None after stopping
+            
+            # Clear all session data
+            self.contexts.clear()
+            self.pages.clear()
             
             logger.info("Browser automation service cleaned up")
             

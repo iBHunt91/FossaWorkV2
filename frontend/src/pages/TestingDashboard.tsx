@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, AlertCircle, Loader2, Play, RefreshCw, Shield, Database, Globe, Zap, Users, Bell, FileText, Settings, FlaskConical, ChevronRight, ChevronDown, Wifi, WifiOff, Circle, Calendar } from 'lucide-react';
+import { Check, X, AlertCircle, Loader2, Play, RefreshCw, Shield, Database, Globe, Zap, Users, Bell, FileText, Settings, FlaskConical, ChevronRight, ChevronDown, Wifi, WifiOff, Circle, Calendar, Clock } from 'lucide-react';
 import api from '../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -317,14 +317,113 @@ export const TestingDashboard: React.FC = () => {
           endpoint: '/notifications/test-email-config'
         },
         {
+          id: 'email-smtp-connection',
+          name: 'SMTP Connection Test',
+          description: 'Test SMTP server connection and authentication',
+          endpoint: '/notifications/test-smtp-connection'
+        },
+        {
+          id: 'email-send-test',
+          name: 'Email Delivery Test',
+          description: 'Send a real test email to verify delivery',
+          testFunction: async () => {
+            try {
+              const response = await api.post('/api/test/notifications/test-email-send');
+              return {
+                status: response.data.success ? 'success' : 'error',
+                message: response.data.message,
+                details: response.data.data
+              };
+            } catch (error: any) {
+              return {
+                status: 'error',
+                message: `Email test failed: ${error.response?.data?.message || error.message}`,
+                details: error.response?.data
+              };
+            }
+          }
+        },
+        {
+          id: 'email-templates',
+          name: 'Email Template Rendering',
+          description: 'Test email template rendering for all notification types',
+          endpoint: '/notifications/test-email-templates'
+        },
+        {
           id: 'pushover-config',
           name: 'Pushover Configuration',
           description: 'Verify Pushover API credentials',
           endpoint: '/notifications/test-pushover-config'
         },
         {
+          id: 'pushover-api-test',
+          name: 'Pushover API Connection',
+          description: 'Test Pushover API connection and user validation',
+          endpoint: '/notifications/test-pushover-api'
+        },
+        {
+          id: 'pushover-send-test',
+          name: 'Pushover Delivery Test',
+          description: 'Send a real test Pushover notification',
+          testFunction: async () => {
+            try {
+              const response = await api.post('/api/test/notifications/test-pushover-send');
+              return {
+                status: response.data.success ? 'success' : 'error',
+                message: response.data.message,
+                details: response.data.data
+              };
+            } catch (error: any) {
+              return {
+                status: 'error',
+                message: `Pushover test failed: ${error.response?.data?.message || error.message}`,
+                details: error.response?.data
+              };
+            }
+          }
+        },
+        {
+          id: 'desktop-support',
+          name: 'Desktop Notification Support',
+          description: 'Check platform support and library availability',
+          endpoint: '/notifications/test-desktop-support'
+        },
+        {
+          id: 'desktop-send-test',
+          name: 'Desktop Notification Test',
+          description: 'Send a test desktop notification',
+          testFunction: async () => {
+            try {
+              const response = await api.post('/api/test/notifications/test-desktop-send');
+              return {
+                status: response.data.success ? 'success' : 'error',
+                message: response.data.message,
+                details: response.data.data
+              };
+            } catch (error: any) {
+              return {
+                status: 'error',
+                message: `Desktop notification test failed: ${error.response?.data?.message || error.message}`,
+                details: error.response?.data
+              };
+            }
+          }
+        },
+        {
+          id: 'notification-manager',
+          name: 'Notification Manager Integration',
+          description: 'Test unified notification manager with all channels',
+          endpoint: '/notifications/test-manager-integration'
+        },
+        {
+          id: 'notification-preferences',
+          name: 'User Preferences System',
+          description: 'Test notification preferences loading and validation',
+          endpoint: '/notifications/test-preferences'
+        },
+        {
           id: 'test-notification',
-          name: 'Send Test Notification',
+          name: 'Send Test Notification (All Channels)',
           description: 'Send a test notification to all configured channels',
           testFunction: async () => {
             try {
@@ -1469,6 +1568,257 @@ export const TestingDashboard: React.FC = () => {
           name: 'Filters Work Week',
           description: 'Verify filters page uses work week settings',
           endpoint: '/work-week/test-filters'
+        }
+      ]
+    },
+    {
+      id: 'scheduling',
+      title: 'Work Order Sync Schedule',
+      description: 'Test automated work order synchronization and scheduling',
+      icon: Clock,
+      tests: [
+        {
+          id: 'scheduler-status',
+          name: 'Scheduler Service Status',
+          description: 'Check if the scheduler daemon is running',
+          testFunction: async () => {
+            try {
+              const response = await api.get('/api/scraping-schedules/status/daemon');
+              const data = response.data;
+              
+              if (data.daemon_status === 'running') {
+                return {
+                  status: 'success',
+                  message: `Scheduler is running with ${data.active_schedules} active schedules`,
+                  details: {
+                    daemon_status: data.daemon_status,
+                    total_schedules: data.total_schedules,
+                    active_schedules: data.active_schedules,
+                    last_execution: data.last_execution,
+                    message: data.message
+                  }
+                };
+              } else {
+                return {
+                  status: 'warning',
+                  message: 'Scheduler status unknown (no recent activity)',
+                  details: data
+                };
+              }
+            } catch (error) {
+              return {
+                status: 'error',
+                message: 'Failed to check scheduler status',
+                details: error
+              };
+            }
+          }
+        },
+        {
+          id: 'active-schedule',
+          name: 'Active Schedule Configuration',
+          description: 'Verify if a work order sync schedule is configured',
+          testFunction: async () => {
+            try {
+              const response = await api.get('/api/scraping-schedules/');
+              const schedules = response.data || [];
+              
+              if (schedules.length === 0) {
+                return {
+                  status: 'error',
+                  message: 'No sync schedule configured',
+                  details: { hint: 'Create a schedule in Settings > Automation' }
+                };
+              }
+              
+              const schedule = schedules[0];
+              const isActive = schedule.enabled;
+              const intervalHours = schedule.interval_hours;
+              
+              return {
+                status: isActive ? 'success' : 'warning',
+                message: isActive 
+                  ? `Schedule active: syncing every ${intervalHours} hours`
+                  : 'Schedule exists but is paused',
+                details: {
+                  enabled: schedule.enabled,
+                  interval_hours: intervalHours,
+                  last_run: schedule.last_run,
+                  next_run: schedule.next_run,
+                  consecutive_failures: schedule.consecutive_failures,
+                  active_hours: schedule.active_hours
+                }
+              };
+            } catch (error) {
+              return {
+                status: 'error',
+                message: 'Failed to check schedule configuration',
+                details: error
+              };
+            }
+          }
+        },
+        {
+          id: 'schedule-history',
+          name: 'Recent Sync History',
+          description: 'Check recent work order synchronization results',
+          testFunction: async () => {
+            try {
+              // First get the schedule
+              const scheduleResponse = await api.get('/api/scraping-schedules/');
+              const schedules = scheduleResponse.data || [];
+              
+              if (schedules.length === 0) {
+                return {
+                  status: 'error',
+                  message: 'No schedule exists to check history',
+                  details: { hint: 'Create a schedule first' }
+                };
+              }
+              
+              const schedule = schedules[0];
+              
+              // Get history
+              const historyResponse = await api.get(`/api/scraping-schedules/${schedule.id}/history`);
+              const history = historyResponse.data || [];
+              
+              if (history.length === 0) {
+                return {
+                  status: 'warning',
+                  message: 'No sync history found',
+                  details: { hint: 'Schedule has not run yet' }
+                };
+              }
+              
+              const recentRuns = history.slice(0, 5);
+              const successCount = recentRuns.filter(run => run.success).length;
+              const successRate = (successCount / recentRuns.length) * 100;
+              
+              return {
+                status: successRate >= 80 ? 'success' : successRate >= 50 ? 'warning' : 'error',
+                message: `Success rate: ${successRate.toFixed(0)}% (${successCount}/${recentRuns.length} successful)`,
+                details: {
+                  total_runs: history.length,
+                  recent_runs: recentRuns.map(run => ({
+                    started_at: run.started_at,
+                    success: run.success,
+                    items_processed: run.items_processed,
+                    duration: run.duration_seconds,
+                    error: run.error_message
+                  }))
+                }
+              };
+            } catch (error) {
+              return {
+                status: 'error',
+                message: 'Failed to check sync history',
+                details: error
+              };
+            }
+          }
+        },
+        {
+          id: 'manual-sync-test',
+          name: 'Manual Sync Trigger',
+          description: 'Test triggering a manual work order synchronization',
+          testFunction: async () => {
+            try {
+              // First check if schedule exists
+              const scheduleResponse = await api.get('/api/scraping-schedules/');
+              const schedules = scheduleResponse.data || [];
+              
+              if (schedules.length === 0) {
+                return {
+                  status: 'error',
+                  message: 'Cannot test manual sync - no schedule exists',
+                  details: { hint: 'Create a schedule in Settings > Automation first' }
+                };
+              }
+              
+              const schedule = schedules[0];
+              
+              // Trigger manual run
+              const runResponse = await api.post(`/api/scraping-schedules/${schedule.id}/run`);
+              
+              return {
+                status: 'success',
+                message: runResponse.data.message || 'Manual sync triggered successfully',
+                details: {
+                  job_id: runResponse.data.job_id,
+                  hint: 'Check sync history in a few moments to see results'
+                }
+              };
+            } catch (error: any) {
+              return {
+                status: 'error',
+                message: error.response?.data?.detail || 'Failed to trigger manual sync',
+                details: error.response?.data
+              };
+            }
+          }
+        },
+        {
+          id: 'next-run-calculation',
+          name: 'Next Run Time Calculation',
+          description: 'Verify next sync time is calculated correctly',
+          testFunction: async () => {
+            try {
+              const response = await api.get('/api/scraping-schedules/');
+              const schedules = response.data || [];
+              
+              if (schedules.length === 0) {
+                return {
+                  status: 'error',
+                  message: 'No schedule to check next run time',
+                  details: { hint: 'Create a schedule first' }
+                };
+              }
+              
+              const schedule = schedules[0];
+              
+              if (!schedule.enabled) {
+                return {
+                  status: 'warning',
+                  message: 'Schedule is paused - no next run scheduled',
+                  details: { enabled: false }
+                };
+              }
+              
+              if (!schedule.next_run) {
+                return {
+                  status: 'error',
+                  message: 'Next run time is not set',
+                  details: schedule
+                };
+              }
+              
+              const nextRun = new Date(schedule.next_run);
+              const now = new Date();
+              const hoursUntilNext = (nextRun.getTime() - now.getTime()) / (1000 * 60 * 60);
+              
+              // Allow some flexibility - next run might be up to 2x interval if using cron-style scheduling
+              const isValid = hoursUntilNext > 0 && hoursUntilNext <= (schedule.interval_hours * 2);
+              
+              return {
+                status: isValid ? 'success' : 'warning',
+                message: isValid 
+                  ? `Next sync in ${hoursUntilNext.toFixed(1)} hours`
+                  : `Next sync in ${hoursUntilNext.toFixed(1)} hours (may use cron scheduling)`,
+                details: {
+                  next_run: schedule.next_run,
+                  interval_hours: schedule.interval_hours,
+                  hours_until_next: hoursUntilNext.toFixed(1),
+                  calculation_valid: isValid
+                }
+              };
+            } catch (error) {
+              return {
+                status: 'error',
+                message: 'Failed to check next run calculation',
+                details: error
+              };
+            }
+          }
         }
       ]
     }

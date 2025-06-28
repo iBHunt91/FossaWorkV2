@@ -90,12 +90,22 @@ class ScrapingHistory(Base):
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""
+        # Helper to ensure UTC timezone suffix
+        def format_datetime_utc(dt):
+            if dt:
+                iso_str = dt.isoformat()
+                # Add 'Z' suffix if not already present to indicate UTC
+                if not iso_str.endswith('Z') and '+' not in iso_str:
+                    iso_str += 'Z'
+                return iso_str
+            return None
+            
         return {
             "id": self.id,
             "user_id": self.user_id,
             "schedule_type": self.schedule_type,
-            "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "started_at": format_datetime_utc(self.started_at),
+            "completed_at": format_datetime_utc(self.completed_at),
             "success": self.success,
             "items_processed": self.items_processed,
             "items_added": self.items_added,
@@ -103,6 +113,7 @@ class ScrapingHistory(Base):
             "items_failed": self.items_failed,
             "error_message": self.error_message,
             "error_details": self.error_details,
+            "has_error_log": bool(self.error_details and 'error_log_path' in self.error_details),
             "duration_seconds": self.duration_seconds,
             "memory_usage_mb": self.memory_usage_mb,
             "metadata": self.run_metadata,
@@ -143,6 +154,16 @@ class ScrapingStatistics(Base):
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation"""
+        # Helper to ensure UTC timezone suffix
+        def format_datetime_utc(dt):
+            if dt:
+                iso_str = dt.isoformat()
+                # Add 'Z' suffix if not already present to indicate UTC
+                if not iso_str.endswith('Z') and '+' not in iso_str:
+                    iso_str += 'Z'
+                return iso_str
+            return None
+            
         return {
             "id": self.id,
             "user_id": self.user_id,
@@ -155,8 +176,8 @@ class ScrapingStatistics(Base):
             "total_items_updated": self.total_items_updated,
             "avg_duration_seconds": self.avg_duration_seconds,
             "avg_items_per_run": self.avg_items_per_run,
-            "first_run": self.first_run.isoformat() if self.first_run else None,
-            "last_successful_run": self.last_successful_run.isoformat() if self.last_successful_run else None,
-            "last_failed_run": self.last_failed_run.isoformat() if self.last_failed_run else None,
-            "updated_at": self.updated_at.isoformat()
+            "first_run": format_datetime_utc(self.first_run),
+            "last_successful_run": format_datetime_utc(self.last_successful_run),
+            "last_failed_run": format_datetime_utc(self.last_failed_run),
+            "updated_at": format_datetime_utc(self.updated_at)
         }
