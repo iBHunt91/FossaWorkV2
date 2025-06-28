@@ -145,11 +145,6 @@ const Dashboard: React.FC = () => {
       }
     })
     
-      totalDispensers: allDispensers.length,
-      workOrdersWithServiceItems,
-      workOrdersWithDispensers
-    })
-    
     // Transform dispensers to match backend expected format
     const transformedDispensers = allDispensers.map(d => {
       // Convert fuel_grades object to array format expected by backend

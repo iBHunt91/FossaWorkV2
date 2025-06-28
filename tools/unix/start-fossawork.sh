@@ -61,7 +61,7 @@ else
 fi
 
 # Start backend in background
-python start_backend.py &
+python ../scripts/setup/start_backend.py &
 BACKEND_PID=$!
 echo "Backend started with PID: $BACKEND_PID"
 
