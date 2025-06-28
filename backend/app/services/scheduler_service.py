@@ -77,7 +77,7 @@ async def execute_work_order_scraping(user_id: str, trigger_type: str = "schedul
         logger.info(f"Starting scheduled work order scraping for user {user_id}")
         
         # Get user credentials using credential manager
-        from ..services.credential_manager import credential_manager
+        from ..services.credential_manager_deprecated import credential_manager
         
         # Set FOSSAWORK_MASTER_KEY environment variable if not set
         if not os.environ.get('FOSSAWORK_MASTER_KEY'):

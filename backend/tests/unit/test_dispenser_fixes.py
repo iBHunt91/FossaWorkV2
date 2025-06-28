@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.services.dispenser_scraper import DispenserScraper
 from app.services.workfossa_automation import WorkFossaAutomationService
-from app.services.credential_manager import credential_manager
+from app.services.credential_manager_deprecated import credential_manager
 
 async def test_dispenser_scraping():
     """Test dispenser scraping with the fixes"""

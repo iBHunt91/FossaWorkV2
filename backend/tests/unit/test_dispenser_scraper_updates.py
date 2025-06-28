@@ -16,7 +16,7 @@ os.environ['FOSSAWORK_MASTER_KEY'] = '8mwFZv2Yv0FeZIgG1XHP2CM-1PAD_Kvwd-bTANycUH
 
 from app.services.dispenser_scraper import DispenserScraper
 from app.services.workfossa_automation import WorkFossaAutomationService
-from app.services.credential_manager import credential_manager
+from app.services.credential_manager_deprecated import credential_manager
 
 
 async def test_updated_scraper():

@@ -65,7 +65,7 @@ async def test_auth_integration():
     # Test 3: Check that credential manager is not imported
     print("\n3. Testing Over-Engineering Elimination...")
     try:
-        from app.services.credential_manager import CredentialManager
+        from app.services.credential_manager_deprecated import CredentialManager
         print("   ⚠ CredentialManager still importable - should be removed")
     except ImportError:
         print("   ✓ CredentialManager properly removed from imports")

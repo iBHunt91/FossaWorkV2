@@ -13,7 +13,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 # Set environment
 os.environ['SECRET_KEY'] = "Am7t7lXtMeZQJ48uYGgh2L0Uy7OzBnvEfGaqoXKPzcw"
 
-from app.services.credential_manager import CredentialManager
+from app.services.credential_manager_deprecated import CredentialManager
 from app.services.workfossa_scraper import WorkFossaScraper
 import httpx
 

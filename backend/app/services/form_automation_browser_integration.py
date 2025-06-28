@@ -37,7 +37,6 @@ from ..services.browser_automation import (
 from ..services.logging_service import LoggingService
 from ..services.notification_manager import NotificationManager, NotificationTrigger
 from ..services.email_notification import EmailSettings
-from ..services.pushover_notification import PushoverSettings
 from ..database import get_db
 from sqlalchemy.orm import Session
 
@@ -96,11 +95,7 @@ class FormAutomationBrowserIntegration:
                 username="fossawork@example.com",
                 password="app_password"
             )
-            pushover_settings = PushoverSettings(
-                api_token="pushover_token",
-                user_key="pushover_user"
-            )
-            self.notification_manager = NotificationManager(db, email_settings, pushover_settings)
+            self.notification_manager = NotificationManager(email_settings)
             self.notifications_enabled = True
         except Exception as e:
             logger.warning(f"Notifications not available: {e}")

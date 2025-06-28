@@ -98,7 +98,7 @@ async def login_to_workfossa(
         else:
             # Try to get stored credentials
             try:
-                from ..services.credential_manager import credential_manager
+                from ..services.credential_manager_deprecated import credential_manager
                 stored_creds = await credential_manager.get_credentials(user_id, "workfossa")
                 if stored_creds:
                     credentials = stored_creds
@@ -805,7 +805,7 @@ async def process_batch_automation(
         # Get credentials from secure storage if not provided
         if not credentials or not credentials.get('username'):
             try:
-                from ..services.credential_manager import credential_manager
+                from ..services.credential_manager_deprecated import credential_manager
                 stored_credentials = await credential_manager.get_credentials(user_id, "workfossa")
                 if stored_credentials:
                     credentials = stored_credentials

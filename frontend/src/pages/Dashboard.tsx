@@ -183,35 +183,22 @@ const Dashboard: React.FC = () => {
       const result = response.data as FilterCalculationResult
       
       if (result) {
-          totalFilters: result.totalFilters || 0,
-          totalBoxes: result.totalBoxes || 0,
-          summaryCount: result.summary?.length || 0,
-          warningsCount: result.warnings?.length || 0
-        })
+        // Filter calculation result received successfully
         
         // Log summary details
         if (result.summary && result.summary.length > 0) {
-            partNumber: f.partNumber,
-            description: f.description,
-            quantity: f.quantity
-          })))
+          // Summary data available
         }
         
         // Log warnings
         if (result.warnings && result.warnings.length > 0) {
-            message: w.message,
-            severity: w.severity
-          })))
+          // Warnings data available
         }
-      } else {
       }
       
       return result
     } catch (error) {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      })
+      // Error occurred during filter calculation
       return null
     }
   }
@@ -220,9 +207,7 @@ const Dashboard: React.FC = () => {
   const { data: currentWeekFilters, isLoading: currentWeekFiltersLoading, error: currentWeekFiltersError } = useQuery({
     queryKey: ['filters', 'current', currentUserId, currentWeek.start, currentWeek.end],
     queryFn: async () => {
-        start: currentWeek.start.toISOString().split('T')[0],
-        end: currentWeek.end.toISOString().split('T')[0]
-      })
+      // Getting current week date range
       
       const weekOrders = workOrders?.filter(order => {
         if (!order.scheduled_date) {
@@ -232,20 +217,13 @@ const Dashboard: React.FC = () => {
         const inRange = scheduledDate >= currentWeek.start && scheduledDate <= currentWeek.end
         
         if (!inRange) {
-            id: order.id || order.external_id,
-            scheduledDate: scheduledDate.toISOString().split('T')[0],
-            inRange: false
-          })
+          // Order not in current week range
         }
         
         return inRange
       }) || []
       
-        id: order.id || order.external_id,
-        scheduledDate: order.scheduled_date,
-        serviceCode: order.service_code,
-        siteName: order.site_name
-      })))
+      // Orders filtered for current week
       
       const result = await calculateFilters(weekOrders)
       
@@ -259,9 +237,7 @@ const Dashboard: React.FC = () => {
   const { data: nextWeekFilters, isLoading: nextWeekFiltersLoading, error: nextWeekFiltersError } = useQuery({
     queryKey: ['filters', 'next', currentUserId, nextWeek.start, nextWeek.end],
     queryFn: async () => {
-        start: nextWeek.start.toISOString().split('T')[0],
-        end: nextWeek.end.toISOString().split('T')[0]
-      })
+      // Getting next week date range
       
       const weekOrders = workOrders?.filter(order => {
         if (!order.scheduled_date) {
@@ -271,20 +247,13 @@ const Dashboard: React.FC = () => {
         const inRange = scheduledDate >= nextWeek.start && scheduledDate <= nextWeek.end
         
         if (!inRange) {
-            id: order.id || order.external_id,
-            scheduledDate: scheduledDate.toISOString().split('T')[0],
-            inRange: false
-          })
+          // Order not in next week range
         }
         
         return inRange
       }) || []
       
-        id: order.id || order.external_id,
-        scheduledDate: order.scheduled_date,
-        serviceCode: order.service_code,
-        siteName: order.site_name
-      })))
+      // Orders filtered for next week
       
       const result = await calculateFilters(weekOrders)
       
@@ -300,19 +269,13 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     if (currentWeekFilters) {
-        totalFilters: currentWeekFilters.totalFilters,
-        totalBoxes: currentWeekFilters.totalBoxes,
-        summaryLength: currentWeekFilters.summary?.length || 0
-      })
+      // Current week filters loaded
     }
   }, [currentWeekFiltersLoading, currentWeekFiltersError, currentWeekFilters])
 
   useEffect(() => {
     if (nextWeekFilters) {
-        totalFilters: nextWeekFilters.totalFilters,
-        totalBoxes: nextWeekFilters.totalBoxes,
-        summaryLength: nextWeekFilters.summary?.length || 0
-      })
+      // Next week filters loaded
     }
   }, [nextWeekFiltersLoading, nextWeekFiltersError, nextWeekFilters])
 

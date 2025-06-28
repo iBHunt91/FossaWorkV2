@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.user_models import User, generate_user_id
-from ..services.credential_manager import CredentialManager
+from ..services.credential_manager_deprecated import CredentialManager
 from ..services.workfossa_automation import WorkFossaAutomationService
 import os
 import logging
@@ -129,7 +129,7 @@ class AuthenticationService:
                     logger.info(f"Created WorkFossa credentials for user: {user_id}")
                 
                 # Also update in credential manager
-                from ..services.credential_manager import WorkFossaCredentials
+                from ..services.credential_manager_deprecated import WorkFossaCredentials
                 workfossa_creds = WorkFossaCredentials(
                     username=username,
                     password=password,
@@ -165,7 +165,7 @@ class AuthenticationService:
             self.db.add(new_user)
             
             # Store encrypted WorkFossa credentials using credential manager
-            from ..services.credential_manager import WorkFossaCredentials
+            from ..services.credential_manager_deprecated import WorkFossaCredentials
             
             workfossa_creds = WorkFossaCredentials(
                 username=username,

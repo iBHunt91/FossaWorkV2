@@ -15,7 +15,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 os.environ['SECRET_KEY'] = "Am7t7lXtMeZQJ48uYGgh2L0Uy7OzBnvEfGaqoXKPzcw"
 
 from app.services.workfossa_scraper import WorkFossaScraper
-from app.services.credential_manager import CredentialManager
+from app.services.credential_manager_deprecated import CredentialManager
 from app.database import SessionLocal
 from app.models.scraping_models import ScrapingHistory
 

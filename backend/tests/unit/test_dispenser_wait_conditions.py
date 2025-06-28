@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ['FOSSAWORK_MASTER_KEY'] = '8mwFZv2Yv0FeZIgG1XHP2CM-1PAD_Kvwd-bTANycUHw'
 
 from app.services.workfossa_automation import WorkFossaAutomationService
-from app.services.credential_manager import credential_manager
+from app.services.credential_manager_deprecated import credential_manager
 
 
 async def wait_for_equipment_tab_ready(page):

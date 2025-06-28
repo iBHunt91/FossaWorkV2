@@ -324,7 +324,7 @@ class FormAutomationService:
             # If no credentials provided, try to get from credential manager
             if not credentials or not credentials.get('username'):
                 try:
-                    from ..services.credential_manager import credential_manager
+                    from ..services.credential_manager_deprecated import credential_manager
                     stored_credentials = await credential_manager.get_credentials(user_id, "workfossa")
                     if stored_credentials:
                         credentials = stored_credentials

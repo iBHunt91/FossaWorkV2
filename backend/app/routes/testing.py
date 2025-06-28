@@ -1170,7 +1170,7 @@ async def test_notification_manager_integration(current_user: User = Depends(get
             user_id=current_user.id,
             trigger=NotificationTrigger.AUTOMATION_STARTED,
             data=test_data,
-            priority=PushoverPriority.NORMAL
+            priority="normal"
         )
         
         # Check results

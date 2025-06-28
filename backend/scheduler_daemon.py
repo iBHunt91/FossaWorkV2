@@ -84,7 +84,7 @@ class SchedulerDaemon:
             logger.info(f"Starting work order scraping for user {user_id}")
             
             # Get user credentials using the new encrypted credential system
-            from app.services.credential_manager import CredentialManager
+            from app.services.credential_manager_deprecated import CredentialManager
             credential_manager = CredentialManager()
             
             credentials_obj = credential_manager.retrieve_credentials(user_id)

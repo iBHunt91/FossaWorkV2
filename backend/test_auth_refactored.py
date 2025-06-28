@@ -87,7 +87,7 @@ async def test_auth_refactoring():
     
     # Check that we don't import the old complex systems
     try:
-        from app.services.credential_manager import CredentialManager
+        from app.services.credential_manager_deprecated import CredentialManager
         print("   ⚠ CredentialManager still exists - should be removed")
     except ImportError:
         print("   ✓ CredentialManager removed from imports")

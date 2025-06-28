@@ -12,7 +12,7 @@ from datetime import datetime
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from app.services.credential_manager import credential_manager
+from app.services.credential_manager_deprecated import credential_manager
 from app.services.browser_automation import browser_automation
 from app.services.workfossa_scraper import workfossa_scraper
 from app.services.logging_service import get_logger

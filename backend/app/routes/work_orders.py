@@ -619,7 +619,7 @@ async def trigger_scrape(
             }
         else:
             # Try credential manager as fallback
-            from ..services.credential_manager import CredentialManager
+            from ..services.credential_manager_deprecated import CredentialManager
             credential_manager = CredentialManager()
             credentials_obj = credential_manager.retrieve_credentials(user_id)
             
@@ -1159,7 +1159,7 @@ async def scrape_dispensers(
         
         if not user_credential:
             # Try credential manager as fallback
-            from ..services.credential_manager import CredentialManager
+            from ..services.credential_manager_deprecated import CredentialManager
             credential_manager = CredentialManager()
             credentials_obj = credential_manager.retrieve_credentials(user_id)
             
@@ -1521,7 +1521,7 @@ async def scrape_dispensers_batch(
         
         if not user_credential:
             # Try credential manager as fallback
-            from ..services.credential_manager import CredentialManager
+            from ..services.credential_manager_deprecated import CredentialManager
             credential_manager = CredentialManager()
             credentials_obj = credential_manager.retrieve_credentials(user_id)
             
