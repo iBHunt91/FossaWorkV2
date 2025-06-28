@@ -176,11 +176,6 @@ const Dashboard: React.FC = () => {
       overrides: {}
     }
     
-      workOrdersCount: requestData.workOrders.length,
-      dispensersCount: requestData.dispensers.length,
-      overridesKeys: Object.keys(requestData.overrides)
-    })
-    
     try {
       const response = await api.post(`/api/v1/filters/calculate`, requestData)
       

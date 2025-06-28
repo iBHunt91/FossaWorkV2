@@ -14,7 +14,7 @@ from datetime import datetime
 
 from ..database import get_db
 from ..models import User, UserCredential as UserCredentials
-from ..services.credential_manager import credential_manager, WorkFossaCredentials
+from ..services.credential_manager_deprecated import credential_manager, WorkFossaCredentials
 from ..core.security_deps import require_auth, require_user_access, log_security_violation
 
 logger = logging.getLogger(__name__)
