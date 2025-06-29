@@ -498,16 +498,74 @@ const Dashboard: React.FC = () => {
               <Store className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
-                <span className="text-3xl font-bold text-purple-600">{totalWorkOrders}</span>
+              {/* Top Section: Total Count and Store Distribution */}
+              <div className="flex items-center justify-between mb-3">
+                {/* Left Side - Main Total */}
+                <div className="flex-1">
+                  <div className="text-2xl font-bold">
+                    <span className="text-3xl font-bold text-purple-600">{totalWorkOrders}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    All work orders in system
+                  </p>
+                </div>
+
+                {/* Right Side - Store Chain Distribution */}
+                {storeChainStats.size > 0 && (
+                  <div className="flex items-center gap-3 mr-6">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-purple-700 dark:text-purple-400">Store Chains</span>
+                      <Badge variant="outline" className="text-xs font-medium text-purple-600 border-purple-300 bg-purple-50/50 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-300">
+                        {storeChainStats.size}
+                      </Badge>
+                    </div>
+                    
+                    {/* True horizontal layout for chains */}
+                    <div className="flex items-center gap-2">
+                      {Array.from(storeChainStats.entries()).slice(0, 3).map(([chainName, count]) => {
+                        const brandStyle = getBrandStyle(chainName)
+                        return (
+                          <div 
+                            key={chainName} 
+                            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-gray-50/80 to-gray-50/40 dark:from-gray-800/40 dark:to-gray-800/20 border border-gray-200/50 dark:border-gray-700/50 hover:border-purple-300/50 transition-colors"
+                          >
+                            <div 
+                              className={cn(
+                                "w-2 h-2 rounded-full flex-shrink-0",
+                                brandStyle.color
+                              )}
+                            />
+                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{chainName}</span>
+                            <Badge 
+                              variant="secondary" 
+                              className={cn(
+                                "text-xs font-bold px-1.5 py-0.5 min-w-[1.25rem] justify-center",
+                                brandStyle.bgColor,
+                                brandStyle.textColor,
+                                brandStyle.borderColor,
+                                "border"
+                              )}
+                            >
+                              {count}
+                            </Badge>
+                          </div>
+                        )
+                      })}
+                      
+                      {/* More chains indicator - horizontal */}
+                      {storeChainStats.size > 3 && (
+                        <div className="text-xs text-muted-foreground font-medium">
+                          +{storeChainStats.size - 3}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground mb-2">
-                All work orders in system
-              </p>
               
-              {/* Dispenser Statistics */}
+              {/* Bottom Section: Dispenser Statistics (Full Width) */}
               {totalWorkOrders > 0 && (
-                <div className="mt-3 pt-3 border-t border-muted/50">
+                <div className="pt-3 border-t border-muted/50">
                   {dispenserStats.totalWithDispensers > 0 ? (
                     <div className="space-y-2">
                       {/* Progress Bar for Data Completion */}
@@ -544,53 +602,6 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Store Chain Breakdown */}
-              {storeChainStats.size > 0 && (
-                <div className="mt-3 pt-3 border-t border-muted/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-muted-foreground">Store Chains</span>
-                    <span className="text-xs text-muted-foreground">{storeChainStats.size} brands</span>
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    {Array.from(storeChainStats.entries()).slice(0, 4).map(([chainName, count]) => {
-                      const brandStyle = getBrandStyle(chainName)
-                      return (
-                        <div key={chainName} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div 
-                              className={cn(
-                                "w-2 h-2 rounded-full flex-shrink-0",
-                                brandStyle.color
-                              )}
-                            />
-                            <span className="text-xs font-medium truncate">{chainName}</span>
-                          </div>
-                          <Badge 
-                            variant="secondary" 
-                            className={cn(
-                              "text-xs font-semibold flex-shrink-0",
-                              brandStyle.bgColor,
-                              brandStyle.textColor,
-                              brandStyle.borderColor,
-                              "border"
-                            )}
-                          >
-                            {count}
-                          </Badge>
-                        </div>
-                      )
-                    })}
-                    
-                    {storeChainStats.size > 4 && (
-                      <div className="text-xs text-muted-foreground text-center pt-1">
-                        +{storeChainStats.size - 4} more chains
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
             </CardContent>
