@@ -329,21 +329,23 @@ FossaWork Automation System
             return False
     
     def _get_user_email(self, user_id: str) -> Optional[str]:
-        """Get user email from user_id - simplified implementation"""
-        # In a real implementation, this would query the database
-        # For now, return a placeholder
-        import json
-        from pathlib import Path
+        """Get user email from user_id - queries the database for the user's notification email"""
+        from ..database import SessionLocal
+        from ..models.user_models import User
         
         try:
-            # Try to get email from user settings
-            settings_path = Path(f"data/users/{user_id}/settings/smtp.json")
-            if settings_path.exists():
-                with open(settings_path, 'r') as f:
-                    smtp_config = json.load(f)
-                return smtp_config.get('from_email', smtp_config.get('username'))
-        except:
-            pass
+            # Query the database for the user
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.id == user_id).first()
+                if user:
+                    # Return configured_email if set, otherwise use the main email
+                    return user.configured_email or user.email
+            finally:
+                db.close()
+        except Exception as e:
+            self.logger.error(f"Failed to get user email from database: {e}")
         
-        # Fallback to default
+        # Fallback - this should never happen in normal operation
+        self.logger.warning(f"Could not find email for user {user_id}, using sender email as fallback")
         return self.email_settings.from_email

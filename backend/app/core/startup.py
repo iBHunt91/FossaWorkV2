@@ -69,8 +69,9 @@ async def lifespan(app: FastAPI):
     # Start scheduler if enabled
     try:
         from ..services.scheduler_service import scheduler_service
+        from ..database import DATABASE_URL
         if os.getenv("DISABLE_SCHEDULER", "false").lower() != "true":
-            await scheduler_service.start()
+            await scheduler_service.initialize(DATABASE_URL)
             logger.info("Scheduler service started")
     except Exception as e:
         logger.error(f"Failed to start scheduler: {e}")
@@ -83,7 +84,7 @@ async def lifespan(app: FastAPI):
     # Stop scheduler
     try:
         from ..services.scheduler_service import scheduler_service
-        await scheduler_service.stop()
+        await scheduler_service.shutdown()
         logger.info("Scheduler service stopped")
     except Exception as e:
         logger.error(f"Error stopping scheduler: {e}")

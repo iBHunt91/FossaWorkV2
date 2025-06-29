@@ -352,7 +352,7 @@ export const TestingDashboard: React.FC = () => {
         {
           id: 'pushover-config',
           name: 'Pushover Configuration',
-          description: 'Verify Pushover API credentials',
+          description: 'Verify Pushover credentials are configured and enabled',
           endpoint: '/notifications/test-pushover-config'
         },
         {

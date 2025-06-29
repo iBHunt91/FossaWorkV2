@@ -320,6 +320,19 @@ async def execute_work_order_scraping(user_id: str, trigger_type: str = "schedul
                 if user_id in scraping_progress:
                     scraping_progress[user_id]["status"] = "completed"
                     scraping_progress[user_id]["completed_at"] = datetime.now().isoformat()
+                    
+                    # Schedule cleanup of progress after 10 seconds (reduced from 30)
+                    import asyncio
+                    async def cleanup_progress():
+                        await asyncio.sleep(10)
+                        if user_id in scraping_progress:
+                            status = scraping_progress[user_id].get("status")
+                            if status in ["completed", "failed", "idle"]:
+                                del scraping_progress[user_id]
+                                logger.info(f"Cleaned up {status} progress for user {user_id}")
+                    
+                    # Run cleanup in background
+                    asyncio.create_task(cleanup_progress())
             except:
                 pass
             
@@ -373,6 +386,19 @@ async def execute_work_order_scraping(user_id: str, trigger_type: str = "schedul
                 scraping_progress[user_id]["error"] = str(e)
                 scraping_progress[user_id]["error_log_path"] = str(error_log_path)
                 scraping_progress[user_id]["completed_at"] = datetime.now().isoformat()
+                
+                # Schedule cleanup of progress after 10 seconds (reduced from 30)
+                import asyncio
+                async def cleanup_progress():
+                    await asyncio.sleep(10)
+                    if user_id in scraping_progress:
+                        status = scraping_progress[user_id].get("status")
+                        if status in ["completed", "failed", "idle"]:
+                            del scraping_progress[user_id]
+                            logger.info(f"Cleaned up {status} progress for user {user_id}")
+                
+                # Run cleanup in background
+                asyncio.create_task(cleanup_progress())
         except:
             pass
     

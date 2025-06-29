@@ -5,9 +5,13 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { getRelativeTime } from '../utils/dateFormat';
+import { formatScheduledTime, getScheduleStatusMessage, getMinutesUntilSync } from '../utils/schedulerTimeFormat';
 import { logger } from '../services/fileLoggingService';
+import CompactSyncProgress from './CompactSyncProgress';
+import { useWorkOrderSyncProgress } from '../hooks/useProgressPolling';
 
 interface ScrapingStatusData {
+  id?: number;
   enabled: boolean;
   next_run: string | null;
   last_run: string | null;
@@ -31,7 +35,15 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [, forceUpdate] = useState(0); // Force re-render for time updates
+  const [isSyncing, setIsSyncing] = useState(false);
   const navigate = useNavigate();
+  
+  // Progress tracking hook
+  const { data: syncProgress } = useWorkOrderSyncProgress(
+    status?.id || null,
+    isSyncing
+  );
 
   const fetchStatus = async () => {
     const startTime = Date.now();
@@ -73,6 +85,7 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
           new Date(lastRun.started_at).getTime() > Date.now() - 5 * 60 * 1000;
         
         setStatus({
+          id: schedule.id,
           enabled: schedule.enabled,
           next_run: schedule.next_run,
           last_run: schedule.last_run,
@@ -146,16 +159,78 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
       fetchStatus();
     };
     
+    // Listen for sync started events
+    const handleSyncStarted = () => {
+      logger.info('ScrapingStatus', 'Sync started event received');
+      setIsSyncing(true);
+      // Force immediate update by re-fetching status
+      setRetryCount(0);
+      fetchStatus();
+    };
+    
     window.addEventListener('scraping-schedule-updated', handleScheduleUpdate as any);
+    window.addEventListener('work-order-sync-started', handleSyncStarted as any);
     
     return () => {
       clearInterval(interval);
       window.removeEventListener('scraping-schedule-updated', handleScheduleUpdate as any);
+      window.removeEventListener('work-order-sync-started', handleSyncStarted as any);
     };
   }, [retryCount]);
 
+  // Separate timer to update the time display every 30 seconds
+  useEffect(() => {
+    // Update time display every 30 seconds
+    const displayInterval = setInterval(() => {
+      forceUpdate(prev => prev + 1);
+    }, 30000); // 30 seconds
+    
+    return () => clearInterval(displayInterval);
+  }, []);
+
+  // Check sync progress and update sync status
+  useEffect(() => {
+    if (syncProgress) {
+      logger.info('ScrapingStatus', 'Sync progress update in sidebar', { 
+        status: syncProgress.status,
+        percentage: syncProgress.percentage,
+        message: syncProgress.message
+      });
+      
+      if (syncProgress.status === 'in_progress') {
+        setIsSyncing(true);
+      } else if (syncProgress.status === 'completed' || syncProgress.status === 'failed' || syncProgress.status === 'not_found') {
+        logger.info('ScrapingStatus', 'Sync ended, clearing sync state', { status: syncProgress.status });
+        setIsSyncing(false);
+      }
+    } else {
+      // No sync progress means no sync active
+      setIsSyncing(false);
+    }
+  }, [syncProgress]);
+
+  // Check for existing sync on mount and when running state changes
+  useEffect(() => {
+    if (status?.id) {
+      // Always check for existing sync when we have a schedule ID
+      logger.info('ScrapingStatus', 'Checking for existing sync', { id: status.id, is_running: status.is_running });
+      
+      apiClient.get(`/api/scraping-schedules/${status.id}/sync-progress`)
+        .then(response => {
+          logger.info('ScrapingStatus', 'Sync progress check response', response.data);
+          if (response.data && response.data.status === 'in_progress') {
+            logger.info('ScrapingStatus', 'Found existing sync in progress in sidebar');
+            setIsSyncing(true);
+          }
+        })
+        .catch((error) => {
+          logger.error('ScrapingStatus', 'Error checking sync progress in sidebar', error);
+        });
+    }
+  }, [status?.id]);
+
   const handleNavigate = () => {
-    navigate('/settings?tab=scraping&section=scraping-schedule');
+    navigate('/settings?tab=automation&section=scraping-schedule');
   };
 
   if (loading && !error) {
@@ -233,39 +308,41 @@ const ScrapingStatus: React.FC<ScrapingStatusProps> = ({
 
   const formatNextRun = () => {
     if (!status.next_run || !status.enabled) return null;
-    return getRelativeTime(status.next_run);
+    return formatScheduledTime(status.next_run);
   };
 
   if (compact) {
     return (
-      <div className="flex items-center gap-2">
-        <button
-          onClick={handleNavigate}
-          className="flex items-center gap-2 text-sm hover:bg-gray-50 rounded-lg p-2 transition-colors flex-1"
-        >
-          {getStatusIcon()}
-          <span className={cn("font-medium", getStatusColor())}>
-            {getStatusText()}
-          </span>
-          {status.enabled && status.next_run && (
-            <span className="text-gray-500">
-              • {formatNextRun()}
-            </span>
-          )}
-          <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setRetryCount(0);
-            setLoading(true);
-            fetchStatus();
-          }}
-          className="p-2 hover:bg-gray-50 rounded-lg transition-colors"
-          title="Refresh status"
-        >
-          <RefreshCw className="w-4 h-4 text-gray-400 hover:text-gray-600" />
-        </button>
+      <div className="space-y-2">
+        {/* Show sync progress if active */}
+        {isSyncing && syncProgress && syncProgress.status === 'in_progress' && (
+          <CompactSyncProgress 
+            scheduleId={status?.id}
+            isActive={true}
+            onClick={() => navigate('/work-orders')}
+          />
+        )}
+        
+        {/* Regular status display */}
+        {(!isSyncing || !syncProgress || syncProgress.status !== 'in_progress') && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleNavigate}
+              className="flex items-center gap-2 text-sm hover:bg-gray-50 rounded-lg p-2 transition-colors flex-1"
+            >
+              {getStatusIcon()}
+              <span className={cn("font-medium", getStatusColor())}>
+                {getStatusText()}
+              </span>
+              {status.enabled && status.next_run && (
+                <span className="text-gray-500">
+                  • {getMinutesUntilSync(status.next_run)}
+                </span>
+              )}
+              <ChevronRight className="w-4 h-4 text-gray-400 ml-auto" />
+            </button>
+          </div>
+        )}
       </div>
     );
   }

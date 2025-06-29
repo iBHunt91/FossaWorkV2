@@ -413,8 +413,8 @@ const Dashboard: React.FC = () => {
         {/* Page Header with Work Week Info */}
         <header className="mb-8">
           <div className="flex flex-col items-center space-y-4">
-            <h1 className="text-3xl font-bold tracking-tight">
-              <h1 className="text-2xl font-bold text-blue-600">Fossa Monitor Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-blue-600">
+              Fossa Monitor Dashboard
             </h1>
             <div className="flex items-center gap-4">
               {preferences?.work_week && (

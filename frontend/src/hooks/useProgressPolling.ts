@@ -222,3 +222,36 @@ export const useSingleDispenserProgress = (userId: string, workOrderId: string |
     timeout: 120000 // 2 minutes for single dispenser
   })
 }
+
+// Specific hook for work order sync progress
+export const useWorkOrderSyncProgress = (scheduleId: number | null, isActive: boolean) => {
+  const pollFunction = useCallback(async () => {
+    if (!scheduleId) return null
+    
+    const response = await fetch(
+      `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/scraping-schedules/${scheduleId}/sync-progress`,
+      {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    
+    if (!response.ok) {
+      // If 404, return a not_found status instead of throwing
+      if (response.status === 404) {
+        return { status: 'not_found', message: 'No active sync session' }
+      }
+      throw new Error(`Progress fetch failed: ${response.status}`)
+    }
+    
+    return response.json()
+  }, [scheduleId])
+
+  return useProgressPolling(pollFunction, isActive && !!scheduleId, {
+    interval: 1000,
+    timeout: 300000 // 5 minutes for work order sync
+  })
+}

@@ -183,13 +183,32 @@ const Login: React.FC = () => {
       } else {
         const errorData = await response.json()
         setVerificationStatus(null) // Clear verification status on error
+        
+        let errorMessage = 'Authentication failed. Please try again.'
+        
         if (response.status === 401) {
-          setError('Invalid WorkFossa credentials. Please check your username and password.')
+          errorMessage = 'Invalid WorkFossa credentials. Please check your username and password.'
         } else if (response.status === 400) {
-          setError(errorData.detail || 'Invalid request. Please check your input.')
+          errorMessage = errorData.detail || 'Invalid request. Please check your input.'
+        } else if (response.status === 422) {
+          // Handle FastAPI validation errors
+          if (Array.isArray(errorData.detail)) {
+            // Extract meaningful error messages from Pydantic validation errors
+            const errorMessages = errorData.detail.map((err: any) => {
+              if (err.msg) {
+                return err.msg
+              }
+              return `Invalid ${err.loc?.join(' ') || 'input'}`
+            })
+            errorMessage = errorMessages.join('. ')
+          } else {
+            errorMessage = errorData.detail || 'Validation error. Please check your input.'
+          }
         } else {
-          setError(errorData.detail || 'Authentication failed. Please try again.')
+          errorMessage = errorData.detail || errorData.message || 'Authentication failed. Please try again.'
         }
+        
+        setError(errorMessage)
       }
     } catch (err) {
       setVerificationStatus(null) // Clear verification status on error

@@ -1,201 +1,338 @@
 #!/usr/bin/env python3
 """
-Simple Scheduler Service (No APScheduler)
-
-This service provides a simple interface for managing schedules
-without APScheduler. It only handles database operations and
-relies on the standalone scheduler_daemon.py for execution.
+Simplified Scheduler Service for Work Order Scraping
+Uses APScheduler for accurate hourly execution
 """
 
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import and_
+import asyncio
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Dict, Optional, Any
+import json
+from pathlib import Path
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED
+
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
+from ..database import get_db, SessionLocal
 from ..models.scraping_models import ScrapingSchedule, ScrapingHistory
+from ..services.credential_manager_deprecated import credential_manager
+from ..services.workfossa_automation import WorkFossaAutomationService
+from ..services.workfossa_scraper import WorkFossaScraper
+from ..services.browser_automation import browser_automation
+from ..services.notification_manager import get_notification_manager, NotificationTrigger
 from ..services.logging_service import get_logger
 
 logger = get_logger("scheduler.simple")
 
 
 class SimpleSchedulerService:
-    """Simple scheduler service for managing schedule configurations"""
+    """Simplified scheduler using APScheduler for accurate timing"""
     
     def __init__(self):
-        self.logger = logger
-    
-    def create_schedule(
-        self,
-        db: Session,
-        user_id: str,
-        schedule_type: str,
-        interval_hours: float,
-        active_hours: Optional[Dict[str, int]] = None,
-        enabled: bool = True
-    ) -> ScrapingSchedule:
-        """Create a new schedule in the database"""
-        # Check if schedule already exists
-        existing = db.query(ScrapingSchedule).filter(
-            and_(
-                ScrapingSchedule.user_id == user_id,
-                ScrapingSchedule.schedule_type == schedule_type
+        self.scheduler: Optional[AsyncIOScheduler] = None
+        self.active_jobs: Dict[str, str] = {}  # user_id -> job_id mapping
+        
+    async def initialize(self):
+        """Initialize the scheduler"""
+        if self.scheduler is None:
+            self.scheduler = AsyncIOScheduler(
+                timezone='UTC',
+                job_defaults={
+                    'coalesce': True,  # Coalesce missed jobs
+                    'max_instances': 1,  # Only one instance per job
+                    'misfire_grace_time': 300  # 5 minutes grace period
+                }
             )
-        ).first()
+            
+            # Add event listeners
+            self.scheduler.add_listener(
+                self._on_job_executed,
+                EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED
+            )
+            
+            self.scheduler.start()
+            logger.info("Simple scheduler initialized and started")
+            
+    def _on_job_executed(self, event):
+        """Handle job execution events"""
+        if event.exception:
+            logger.error(f"Job {event.job_id} failed: {event.exception}")
+        else:
+            logger.info(f"Job {event.job_id} executed successfully")
+            
+    async def validate_credentials(self, user_id: str) -> bool:
+        """Validate that credentials exist and are decryptable"""
+        try:
+            creds = credential_manager.retrieve_credentials(user_id)
+            if not creds or not creds.username or not creds.password:
+                logger.error(f"Missing or incomplete credentials for user {user_id}")
+                return False
+            logger.info(f"Credentials validated for user {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to validate credentials for user {user_id}: {e}")
+            return False
+            
+    async def schedule_hourly_scraping(self, user_id: str, schedule_id: int) -> Dict[str, Any]:
+        """Schedule hourly work order scraping"""
         
-        if existing:
-            raise ValueError(f"Schedule for {schedule_type} already exists")
+        # Validate credentials first
+        if not await self.validate_credentials(user_id):
+            raise ValueError("Invalid or missing credentials. Please update your WorkFossa credentials.")
+            
+        # Remove existing job if any
+        if user_id in self.active_jobs:
+            self.scheduler.remove_job(self.active_jobs[user_id])
+            
+        # Create job ID
+        job_id = f"work_orders_{user_id}"
         
-        # Create new schedule
-        schedule = ScrapingSchedule(
-            user_id=user_id,
-            schedule_type=schedule_type,
-            interval_hours=interval_hours,
-            active_hours=active_hours,
-            enabled=enabled,
-            next_run=datetime.utcnow() if enabled else None
+        # Schedule job to run every hour on the hour
+        job = self.scheduler.add_job(
+            self._execute_scraping,
+            CronTrigger(minute=0),  # Run at :00 of every hour
+            id=job_id,
+            args=[user_id, schedule_id],
+            name=f"Work Order Scraping - User {user_id[:8]}",
+            replace_existing=True
         )
         
-        db.add(schedule)
+        self.active_jobs[user_id] = job_id
+        
+        # Update database with next run time
+        db = SessionLocal()
+        try:
+            schedule = db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
+            if schedule:
+                schedule.next_run = job.next_run_time.replace(tzinfo=timezone.utc)
+                schedule.enabled = True
+                schedule.interval_hours = 1.0
+                db.commit()
+                
+            return {
+                "success": True,
+                "job_id": job_id,
+                "next_run": job.next_run_time.isoformat(),
+                "message": f"Scheduled to run every hour at :00"
+            }
+        finally:
+            db.close()
+            
+    async def _execute_scraping(self, user_id: str, schedule_id: int):
+        """Execute the actual scraping job"""
+        start_time = datetime.now(timezone.utc)
+        db = SessionLocal()
+        
+        # Create history entry
+        history = ScrapingHistory(
+            user_id=user_id,
+            schedule_type="work_orders",
+            started_at=start_time,
+            trigger_type="scheduled"
+        )
+        db.add(history)
         db.commit()
-        db.refresh(schedule)
+        history_id = history.id
         
-        self.logger.info(f"Created schedule {schedule.id} for user {user_id}")
-        return schedule
-    
-    def update_schedule(
-        self,
-        db: Session,
-        schedule_id: int,
-        interval_hours: Optional[float] = None,
-        active_hours: Optional[Dict[str, int]] = None,
-        enabled: Optional[bool] = None
-    ) -> ScrapingSchedule:
-        """Update an existing schedule"""
-        logger.info(f"=== UPDATE SCHEDULE {schedule_id} ===")
-        logger.info(f"Parameters: interval_hours={interval_hours}, active_hours={active_hours}, enabled={enabled}")
-        
-        schedule = db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
-        
-        if not schedule:
-            logger.error(f"Schedule {schedule_id} not found")
-            raise ValueError(f"Schedule {schedule_id} not found")
-        
-        logger.info(f"Current schedule state: enabled={schedule.enabled}, interval={schedule.interval_hours}h, last_run={schedule.last_run}, next_run={schedule.next_run}")
-        
-        # Update fields if provided
-        if interval_hours is not None:
-            old_interval = schedule.interval_hours
-            schedule.interval_hours = interval_hours
-            logger.info(f"Interval changed: {old_interval}h -> {interval_hours}h")
-            # When interval changes, calculate next run from current time
-            # This ensures the schedule runs soon after the change
-            if schedule.enabled:  # Only update next_run if schedule is enabled
-                current_time = datetime.utcnow()
-                schedule.next_run = current_time + timedelta(hours=interval_hours)
-                logger.info(f"Next run recalculated due to interval change: {schedule.next_run} (current time: {current_time})")
-        
-        if active_hours is not None:
-            old_hours = schedule.active_hours
-            schedule.active_hours = active_hours
-            logger.info(f"Active hours changed: {old_hours} -> {active_hours}")
-        
-        if enabled is not None:
-            old_enabled = schedule.enabled
-            schedule.enabled = enabled
-            logger.info(f"Enabled state changed: {old_enabled} -> {enabled}")
-        
-        # Always recalculate next run for enabled schedules when any field changes
-        # This ensures the schedule reflects the latest settings
-        if schedule.enabled:
-            current_time = datetime.utcnow()
-            old_next_run = schedule.next_run
-            schedule.next_run = current_time + timedelta(hours=schedule.interval_hours)
-            logger.info(f"=== NEXT RUN RECALCULATED ===")
-            logger.info(f"Current UTC time: {current_time}")
-            logger.info(f"Interval: {schedule.interval_hours} hours")
-            logger.info(f"Old next run: {old_next_run}")
-            logger.info(f"New next run: {schedule.next_run}")
-            logger.info(f"Time difference: {(schedule.next_run - current_time).total_seconds() / 3600:.2f} hours")
-        
-        schedule.updated_at = datetime.utcnow()
-        db.commit()
-        db.refresh(schedule)
-        
-        logger.info(f"=== SCHEDULE UPDATE COMPLETE ===")
-        logger.info(f"Final state: enabled={schedule.enabled}, interval={schedule.interval_hours}h, next_run={schedule.next_run}")
-        logger.info(f"Schedule {schedule_id} successfully updated")
-        return schedule
-    
-    def delete_schedule(self, db: Session, schedule_id: int) -> bool:
-        """Delete a schedule"""
-        schedule = db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
-        
-        if not schedule:
-            return False
-        
-        db.delete(schedule)
-        db.commit()
-        
-        self.logger.info(f"Deleted schedule {schedule_id}")
-        return True
-    
-    def get_schedule(self, db: Session, schedule_id: int) -> Optional[ScrapingSchedule]:
-        """Get a specific schedule"""
-        return db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
-    
-    def get_user_schedules(self, db: Session, user_id: str) -> List[ScrapingSchedule]:
-        """Get all schedules for a user"""
-        return db.query(ScrapingSchedule).filter_by(user_id=user_id).all()
-    
-    def get_schedule_history(
-        self,
-        db: Session,
-        user_id: str,
-        schedule_type: str,
-        limit: int = 10
-    ) -> List[ScrapingHistory]:
-        """Get execution history for a schedule type"""
-        return db.query(ScrapingHistory).filter(
-            and_(
-                ScrapingHistory.user_id == user_id,
-                ScrapingHistory.schedule_type == schedule_type
+        try:
+            logger.info(f"Starting scheduled work order scraping for user {user_id}")
+            
+            # Get credentials
+            creds = credential_manager.retrieve_credentials(user_id)
+            if not creds:
+                raise Exception("Credentials not found")
+                
+            credentials = {
+                'username': creds.username,
+                'password': creds.password
+            }
+            
+            # Get browser visibility preference
+            headless = True
+            settings_path = Path(f"data/users/{user_id}/settings/browser_settings.json")
+            if settings_path.exists():
+                with open(settings_path, 'r') as f:
+                    settings = json.load(f)
+                    headless = not settings.get('show_browser_during_sync', False)
+                    
+            # Create session
+            session_id = f"scheduled_{user_id}_{int(start_time.timestamp())}"
+            workfossa = WorkFossaAutomationService(headless=headless)
+            
+            # Login and scrape
+            if not await workfossa.create_session(session_id, user_id, credentials):
+                raise Exception("Failed to create session")
+                
+            if not await workfossa.login_to_workfossa(session_id):
+                raise Exception("Failed to login")
+                
+            # Scrape work orders
+            scraper = WorkFossaScraper(browser_automation=browser_automation)
+            work_orders = await scraper.scrape_work_orders(
+                session_id=session_id,
+                user_id=user_id,
+                progress_callback=None  # No progress for scheduled runs
             )
-        ).order_by(ScrapingHistory.started_at.desc()).limit(limit).all()
-    
-    def trigger_immediate_run(self, db: Session, schedule_id: int) -> ScrapingSchedule:
-        """Trigger a schedule to run immediately by setting next_run to now"""
-        schedule = db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
+            
+            # Update history
+            history.completed_at = datetime.now(timezone.utc)
+            history.success = True
+            history.items_processed = len(work_orders)
+            history.notes = f"Successfully scraped {len(work_orders)} work orders"
+            
+            # Update schedule
+            schedule = db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
+            if schedule:
+                schedule.last_run = start_time
+                schedule.consecutive_failures = 0
+                # Calculate next run (next hour)
+                next_job = self.scheduler.get_job(self.active_jobs.get(user_id))
+                if next_job:
+                    schedule.next_run = next_job.next_run_time.replace(tzinfo=timezone.utc)
+                    
+            db.commit()
+            
+            # Send notification if configured
+            notification_manager = get_notification_manager()
+            if notification_manager:
+                await notification_manager.send_notification(
+                    user_id=user_id,
+                    trigger=NotificationTrigger.SCRAPE_COMPLETE,
+                    data={
+                        'work_order_count': len(work_orders),
+                        'duration': int((datetime.now(timezone.utc) - start_time).total_seconds())
+                    }
+                )
+                
+            logger.info(f"Completed scheduled scraping for user {user_id}: {len(work_orders)} orders")
+            
+        except Exception as e:
+            logger.error(f"Scheduled scraping failed for user {user_id}: {e}")
+            
+            # Update history
+            history.completed_at = datetime.now(timezone.utc)
+            history.success = False
+            history.error_message = str(e)
+            
+            # Update schedule
+            schedule = db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
+            if schedule:
+                schedule.consecutive_failures += 1
+                
+            db.commit()
+            
+            # Send error notification
+            notification_manager = get_notification_manager()
+            if notification_manager:
+                await notification_manager.send_notification(
+                    user_id=user_id,
+                    trigger=NotificationTrigger.SCRAPE_ERROR,
+                    data={'error': str(e)}
+                )
+                
+        finally:
+            # Cleanup
+            try:
+                if 'workfossa' in locals():
+                    await workfossa.cleanup_session(session_id)
+            except:
+                pass
+            db.close()
+            
+    async def pause_schedule(self, user_id: str, schedule_id: int) -> Dict[str, Any]:
+        """Pause scheduled scraping"""
+        if user_id in self.active_jobs:
+            self.scheduler.pause_job(self.active_jobs[user_id])
+            
+            # Update database
+            db = SessionLocal()
+            try:
+                schedule = db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
+                if schedule:
+                    schedule.enabled = False
+                    db.commit()
+                    
+                return {"success": True, "message": "Schedule paused"}
+            finally:
+                db.close()
+        else:
+            return {"success": False, "message": "No active schedule found"}
+            
+    async def resume_schedule(self, user_id: str, schedule_id: int) -> Dict[str, Any]:
+        """Resume scheduled scraping"""
+        if user_id in self.active_jobs:
+            self.scheduler.resume_job(self.active_jobs[user_id])
+            
+            # Update database
+            db = SessionLocal()
+            try:
+                schedule = db.query(ScrapingSchedule).filter_by(id=schedule_id).first()
+                if schedule:
+                    schedule.enabled = True
+                    # Update next run time
+                    job = self.scheduler.get_job(self.active_jobs[user_id])
+                    if job:
+                        schedule.next_run = job.next_run_time.replace(tzinfo=timezone.utc)
+                    db.commit()
+                    
+                return {"success": True, "message": "Schedule resumed"}
+            finally:
+                db.close()
+        else:
+            # Need to reschedule
+            return await self.schedule_hourly_scraping(user_id, schedule_id)
+            
+    async def get_schedule_status(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get current schedule status"""
+        db = SessionLocal()
+        try:
+            schedule = db.query(ScrapingSchedule).filter_by(
+                user_id=user_id,
+                schedule_type="work_orders"
+            ).first()
+            
+            if not schedule:
+                return None
+                
+            # Get job info if active
+            job = None
+            if user_id in self.active_jobs:
+                job = self.scheduler.get_job(self.active_jobs[user_id])
+                
+            return {
+                "enabled": schedule.enabled,
+                "next_run": schedule.next_run.isoformat() if schedule.next_run else None,
+                "last_run": schedule.last_run.isoformat() if schedule.last_run else None,
+                "consecutive_failures": schedule.consecutive_failures,
+                "is_running": job.pending if job else False,
+                "interval_hours": schedule.interval_hours
+            }
+        finally:
+            db.close()
+            
+    async def run_now(self, user_id: str, schedule_id: int) -> Dict[str, Any]:
+        """Trigger immediate execution"""
+        if user_id in self.active_jobs:
+            # Run job immediately
+            job = self.scheduler.get_job(self.active_jobs[user_id])
+            if job:
+                job.modify(next_run_time=datetime.now(timezone.utc))
+                return {"success": True, "message": "Scraping triggered"}
         
-        if not schedule:
-            raise ValueError(f"Schedule {schedule_id} not found")
-        
-        schedule.next_run = datetime.utcnow()
-        db.commit()
-        db.refresh(schedule)
-        
-        self.logger.info(f"Triggered immediate run for schedule {schedule_id}")
-        return schedule
-    
-    def get_daemon_status(self, db: Session) -> Dict[str, Any]:
-        """Get scheduler daemon status based on recent activity"""
-        # Check for recent executions
-        recent_execution = db.query(ScrapingHistory).filter(
-            ScrapingHistory.started_at >= datetime.utcnow() - timedelta(minutes=5)
-        ).first()
-        
-        # Get schedule counts
-        total_schedules = db.query(ScrapingSchedule).count()
-        active_schedules = db.query(ScrapingSchedule).filter(
-            ScrapingSchedule.enabled == True
-        ).count()
-        
-        return {
-            "daemon_status": "running" if recent_execution else "unknown",
-            "last_execution": recent_execution.started_at if recent_execution else None,
-            "total_schedules": total_schedules,
-            "active_schedules": active_schedules
-        }
+        return {"success": False, "message": "No active schedule found"}
 
 
-# Global instance
-scheduler_service = SimpleSchedulerService()
+# Singleton instance
+simple_scheduler = SimpleSchedulerService()
+
+
+async def get_simple_scheduler() -> SimpleSchedulerService:
+    """Get the singleton scheduler instance"""
+    if simple_scheduler.scheduler is None:
+        await simple_scheduler.initialize()
+    return simple_scheduler

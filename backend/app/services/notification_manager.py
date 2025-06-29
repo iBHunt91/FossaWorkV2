@@ -15,6 +15,7 @@ from enum import Enum
 
 from .email_notification import EmailNotificationService, EmailSettings, NotificationType, NotificationPriority
 from .desktop_notification import DesktopNotificationService, DesktopNotificationSettings
+from .pushover_notification import PushoverNotificationService, PushoverSettings, PushoverPriority, get_pushover_service
 from .logging_service import LoggingService
 
 logger = logging.getLogger(__name__)
@@ -30,18 +31,30 @@ class NotificationTrigger(Enum):
 
 @dataclass
 class NotificationPreferences:
-    """Simple user notification preferences - 8 toggles maximum"""
+    """Simple user notification preferences - 10 toggles maximum"""
     user_id: str
     
-    # Channel toggles (4 toggles)
+    # Channel toggles (3 toggles)
     email_enabled: bool = True
     desktop_enabled: bool = True
+    pushover_enabled: bool = False
     
-    # Trigger toggles (4 toggles)
+    # Notification type channel settings (values: 'email', 'pushover', 'all', 'none')
+    automation_started: str = "email"
+    automation_completed: str = "email"
+    automation_failed: str = "email"
+    error_alert: str = "email"
+    
+    # Legacy support - will be removed
     automation_started_enabled: bool = True
     automation_completed_enabled: bool = True
     automation_failed_enabled: bool = True
     error_alert_enabled: bool = True
+    
+    # Pushover settings
+    pushover_user_key: str = ""
+    pushover_api_token: str = ""
+    pushover_sound: str = "pushover"
 
 
 class NotificationManager:
@@ -56,6 +69,9 @@ class NotificationManager:
         
         # Simple preferences storage
         self.user_preferences: Dict[str, NotificationPreferences] = {}
+        
+        # Pushover services per user (lazy loaded)
+        self.pushover_services: Dict[str, Optional[PushoverNotificationService]] = {}
     
     async def initialize(self) -> bool:
         """Initialize notification manager"""
@@ -85,24 +101,71 @@ class NotificationManager:
             
             # Check if this trigger is enabled
             if not self._is_trigger_enabled(trigger, preferences):
-                return {"email": True, "desktop": True}  # Return success for disabled triggers
+                return {"email": True, "desktop": True, "pushover": True}  # Return success for disabled triggers
             
-            results = {"email": True, "desktop": True}  # Default to success for disabled channels
+            # Get the channel setting for this trigger
+            trigger_mapping = {
+                NotificationTrigger.AUTOMATION_STARTED: preferences.automation_started,
+                NotificationTrigger.AUTOMATION_COMPLETED: preferences.automation_completed,
+                NotificationTrigger.AUTOMATION_FAILED: preferences.automation_failed,
+                NotificationTrigger.ERROR_ALERT: preferences.error_alert,
+            }
+            channel_setting = trigger_mapping.get(trigger, "none")
             
-            # Send email notification if enabled
-            if preferences.email_enabled:
-                notification_type = self._trigger_to_notification_type(trigger)
-                results["email"] = await self.email_service.send_automation_notification(
-                    user_id, notification_type, data, priority
-                )
+            results = {"email": False, "desktop": False, "pushover": False}
             
-            # Send desktop notification if enabled
-            if preferences.desktop_enabled:
+            # Send notifications based on channel setting
+            if channel_setting in ["email", "all"]:
+                # Send email notification if the email channel is enabled globally
+                if preferences.email_enabled:
+                    notification_type = self._trigger_to_notification_type(trigger)
+                    results["email"] = await self.email_service.send_automation_notification(
+                        user_id, notification_type, data, priority
+                    )
+                else:
+                    await self.logging_service.log_warning(
+                        f"Email requested for {trigger.value} but email channel is disabled"
+                    )
+            
+            # Desktop notification (always if not 'none' and desktop is enabled)
+            if channel_setting != "none" and preferences.desktop_enabled:
                 results["desktop"] = await self.desktop_service.send_automation_notification(
                     user_id, trigger.value, data, 
                     self.desktop_service.NotificationPriority.URGENT if priority == NotificationPriority.URGENT 
                     else self.desktop_service.NotificationPriority.NORMAL
                 )
+            
+            # Send Pushover notification if selected
+            if channel_setting in ["pushover", "all"]:
+                # Send pushover if the pushover channel is enabled globally
+                if preferences.pushover_enabled:
+                    pushover_service = await self._get_pushover_service(user_id, preferences)
+                    if pushover_service:
+                        pushover_priority = PushoverPriority.HIGH if priority == NotificationPriority.URGENT else PushoverPriority.NORMAL
+                        try:
+                            await self.logging_service.log_info(
+                                f"Attempting to send Pushover notification for user {user_id} with trigger {trigger.value}"
+                            )
+                            results["pushover"] = await pushover_service.send_automation_notification(
+                                user_id, trigger.value, data, pushover_priority
+                            )
+                            await self.logging_service.log_info(
+                                f"Pushover notification sent for user {user_id}: {results['pushover']}"
+                            )
+                        except Exception as e:
+                            results["pushover"] = False
+                            await self.logging_service.log_error(
+                                f"Error sending Pushover notification for user {user_id}: {str(e)}"
+                            )
+                    else:
+                        results["pushover"] = False
+                        await self.logging_service.log_warning(
+                            f"Pushover service unavailable for user {user_id} - check credentials"
+                        )
+                else:
+                    await self.logging_service.log_warning(
+                        f"Pushover requested for {trigger.value} but pushover channel is disabled"
+                    )
             
             # Log notification attempt
             channels_used = []
@@ -110,6 +173,8 @@ class NotificationManager:
                 channels_used.append("email")
             if preferences.desktop_enabled:
                 channels_used.append("desktop")
+            if preferences.pushover_enabled:
+                channels_used.append("pushover")
             
             success_count = sum(1 for r in results.values() if r)
             total_count = len(channels_used)
@@ -125,7 +190,7 @@ class NotificationManager:
             await self.logging_service.log_error(
                 f"Error sending automation notification: {str(e)}"
             )
-            return {"email": False, "desktop": False}
+            return {"email": False, "desktop": False, "pushover": False}
     
     async def send_system_alert(
         self,
@@ -139,9 +204,9 @@ class NotificationManager:
             
             # Check if error alerts are enabled
             if not preferences.error_alert_enabled:
-                return {"email": True, "desktop": True}
+                return {"email": True, "desktop": True, "pushover": True}
             
-            results = {"email": True, "desktop": True}
+            results = {"email": True, "desktop": True, "pushover": True}
             
             # Send via email if enabled
             if preferences.email_enabled:
@@ -161,13 +226,23 @@ class NotificationManager:
                     user_id, message, self.desktop_service.NotificationPriority.URGENT
                 )
             
+            # Send via Pushover if enabled
+            if preferences.pushover_enabled:
+                pushover_service = await self._get_pushover_service(user_id, preferences)
+                if pushover_service:
+                    results["pushover"] = await pushover_service.send_notification(
+                        title=title, message=message, priority=PushoverPriority.HIGH
+                    )
+                else:
+                    results["pushover"] = False
+            
             return results
             
         except Exception as e:
             await self.logging_service.log_error(
                 f"Error sending system alert: {str(e)}"
             )
-            return {"email": False, "desktop": False}
+            return {"email": False, "desktop": False, "pushover": False}
     
     async def update_user_preferences(
         self,
@@ -176,12 +251,31 @@ class NotificationManager:
     ) -> bool:
         """Update user notification preferences"""
         try:
-            # Convert dict to NotificationPreferences
-            user_prefs = NotificationPreferences(user_id=user_id)
+            # Get existing preferences first
+            existing_prefs = self._get_user_preferences(user_id)
             
-            # Update from provided preferences
+            # Create a new preferences object starting with existing values
+            user_prefs = NotificationPreferences(
+                user_id=user_id,
+                email_enabled=existing_prefs.email_enabled,
+                desktop_enabled=existing_prefs.desktop_enabled,
+                pushover_enabled=existing_prefs.pushover_enabled,
+                automation_started=existing_prefs.automation_started,
+                automation_completed=existing_prefs.automation_completed,
+                automation_failed=existing_prefs.automation_failed,
+                error_alert=existing_prefs.error_alert,
+                automation_started_enabled=existing_prefs.automation_started_enabled,
+                automation_completed_enabled=existing_prefs.automation_completed_enabled,
+                automation_failed_enabled=existing_prefs.automation_failed_enabled,
+                error_alert_enabled=existing_prefs.error_alert_enabled,
+                pushover_user_key=existing_prefs.pushover_user_key,
+                pushover_api_token=existing_prefs.pushover_api_token,
+                pushover_sound=existing_prefs.pushover_sound
+            )
+            
+            # Update only the provided preferences (skip None values)
             for key, value in preferences.items():
-                if hasattr(user_prefs, key):
+                if value is not None and hasattr(user_prefs, key):
                     setattr(user_prefs, key, value)
             
             # Store preferences
@@ -208,10 +302,20 @@ class NotificationManager:
         return {
             'email_enabled': preferences.email_enabled,
             'desktop_enabled': preferences.desktop_enabled,
+            'pushover_enabled': preferences.pushover_enabled,
+            # New channel settings
+            'automation_started': preferences.automation_started,
+            'automation_completed': preferences.automation_completed,
+            'automation_failed': preferences.automation_failed,
+            'error_alert': preferences.error_alert,
+            # Legacy enabled fields
             'automation_started_enabled': preferences.automation_started_enabled,
             'automation_completed_enabled': preferences.automation_completed_enabled,
             'automation_failed_enabled': preferences.automation_failed_enabled,
-            'error_alert_enabled': preferences.error_alert_enabled
+            'error_alert_enabled': preferences.error_alert_enabled,
+            'pushover_user_key': preferences.pushover_user_key,
+            'pushover_api_token': preferences.pushover_api_token,
+            'pushover_sound': preferences.pushover_sound
         }
     
     async def get_pending_desktop_notifications(self, user_id: str) -> list:
@@ -236,14 +340,19 @@ class NotificationManager:
     
     def _is_trigger_enabled(self, trigger: NotificationTrigger, preferences: NotificationPreferences) -> bool:
         """Check if notification trigger is enabled"""
+        # Map trigger to preference field
         trigger_mapping = {
-            NotificationTrigger.AUTOMATION_STARTED: preferences.automation_started_enabled,
-            NotificationTrigger.AUTOMATION_COMPLETED: preferences.automation_completed_enabled,
-            NotificationTrigger.AUTOMATION_FAILED: preferences.automation_failed_enabled,
-            NotificationTrigger.ERROR_ALERT: preferences.error_alert_enabled,
+            NotificationTrigger.AUTOMATION_STARTED: preferences.automation_started,
+            NotificationTrigger.AUTOMATION_COMPLETED: preferences.automation_completed,
+            NotificationTrigger.AUTOMATION_FAILED: preferences.automation_failed,
+            NotificationTrigger.ERROR_ALERT: preferences.error_alert,
         }
         
-        return trigger_mapping.get(trigger, True)
+        # Get the channel setting for this trigger
+        channel_setting = trigger_mapping.get(trigger, "none")
+        
+        # If set to 'none', trigger is disabled
+        return channel_setting != "none"
     
     def _trigger_to_notification_type(self, trigger: NotificationTrigger) -> NotificationType:
         """Convert trigger to email notification type"""
@@ -292,10 +401,21 @@ class NotificationManager:
             data = {
                 'email_enabled': preferences.email_enabled,
                 'desktop_enabled': preferences.desktop_enabled,
+                'pushover_enabled': preferences.pushover_enabled,
+                # New channel settings
+                'automation_started': preferences.automation_started,
+                'automation_completed': preferences.automation_completed,
+                'automation_failed': preferences.automation_failed,
+                'error_alert': preferences.error_alert,
+                # Legacy boolean fields
                 'automation_started_enabled': preferences.automation_started_enabled,
                 'automation_completed_enabled': preferences.automation_completed_enabled,
                 'automation_failed_enabled': preferences.automation_failed_enabled,
-                'error_alert_enabled': preferences.error_alert_enabled
+                'error_alert_enabled': preferences.error_alert_enabled,
+                # Pushover settings
+                'pushover_user_key': preferences.pushover_user_key,
+                'pushover_api_token': preferences.pushover_api_token,
+                'pushover_sound': preferences.pushover_sound
             }
             
             with open(prefs_path, 'w') as f:
@@ -303,6 +423,94 @@ class NotificationManager:
                 
         except Exception as e:
             logger.error(f"Error persisting user preferences: {e}")
+    
+    async def _get_pushover_service(self, user_id: str, preferences: NotificationPreferences) -> Optional[PushoverNotificationService]:
+        """Get or create Pushover service for user"""
+        try:
+            # Check if service is already cached
+            if user_id in self.pushover_services:
+                return self.pushover_services[user_id]
+            
+            # Check if user has valid Pushover settings
+            if not preferences.pushover_user_key or not preferences.pushover_api_token:
+                await self.logging_service.log_warning(
+                    f"Pushover credentials missing for user {user_id} - "
+                    f"user_key: {'present' if preferences.pushover_user_key else 'missing'}, "
+                    f"api_token: {'present' if preferences.pushover_api_token else 'missing'}"
+                )
+                self.pushover_services[user_id] = None
+                return None
+            
+            # Create Pushover service
+            pushover_settings = PushoverSettings(
+                user_key=preferences.pushover_user_key,
+                api_token=preferences.pushover_api_token,
+                sound=preferences.pushover_sound
+            )
+            
+            service = PushoverNotificationService(pushover_settings)
+            self.pushover_services[user_id] = service
+            
+            await self.logging_service.log_info(
+                f"Pushover service created successfully for user {user_id}"
+            )
+            
+            return service
+            
+        except ValueError as e:
+            await self.logging_service.log_error(
+                f"Invalid Pushover credentials for user {user_id}: {e}"
+            )
+            self.pushover_services[user_id] = None
+            return None
+        except Exception as e:
+            await self.logging_service.log_error(
+                f"Error creating Pushover service for user {user_id}: {e}"
+            )
+            self.pushover_services[user_id] = None
+            return None
+    
+    async def validate_pushover_credentials(self, user_id: str, user_key: str = None, api_token: str = None) -> dict:
+        """Validate Pushover credentials"""
+        try:
+            # Get current preferences for fallback values
+            preferences = self._get_user_preferences(user_id)
+            
+            # Use provided values or fall back to stored preferences
+            test_user_key = user_key or preferences.pushover_user_key
+            test_api_token = api_token or preferences.pushover_api_token
+            
+            if not test_user_key or not test_api_token:
+                return {
+                    "valid": False,
+                    "message": "Both user key and application token are required"
+                }
+            
+            # Create a temporary service to validate credentials
+            temp_settings = PushoverSettings(
+                user_key=test_user_key,
+                api_token=test_api_token
+            )
+            temp_service = PushoverNotificationService(temp_settings)
+            return await temp_service.validate_credentials(test_user_key, test_api_token)
+            
+        except ValueError as e:
+            # Handle validation errors from PushoverSettings
+            return {
+                "valid": False,
+                "message": str(e)
+            }
+        except Exception as e:
+            logger.error(f"Error validating Pushover credentials: {e}")
+            return {
+                "valid": False,
+                "message": f"Validation error: {str(e)}"
+            }
+    
+    async def validate_pushover_key(self, user_id: str, user_key: str) -> bool:
+        """Validate a Pushover user key (legacy method for backward compatibility)"""
+        result = await self.validate_pushover_credentials(user_id, user_key=user_key)
+        return result.get("valid", False)
     
     async def cleanup(self):
         """Cleanup notification manager resources"""

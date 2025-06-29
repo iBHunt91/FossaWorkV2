@@ -7,9 +7,9 @@ No direct APScheduler integration - schedules are stored in database
 and processed by the separate scheduler_daemon.py process.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
@@ -255,6 +255,7 @@ async def get_schedule_history(
 @router.post("/{schedule_id}/run")
 async def run_schedule_now(
     schedule_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -269,9 +270,30 @@ async def run_schedule_now(
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
     
-    # Set next_run to now to trigger immediate execution
-    schedule.next_run = datetime.utcnow()
-    db.commit()
+    # Import the scheduler service to trigger the job
+    from ..services.scheduler_service import scheduler_service
+    
+    # If scheduler is initialized, trigger the job immediately
+    if scheduler_service.scheduler and scheduler_service.is_initialized:
+        job_id = f"work_order_scrape_{current_user.id}"
+        job = scheduler_service.scheduler.get_job(job_id)
+        
+        if job:
+            # Reschedule job to run immediately
+            job.modify(next_run_time=datetime.now(timezone.utc))
+            message = "Work order sync started"
+        else:
+            # Job doesn't exist, return error
+            raise HTTPException(status_code=400, detail="Schedule job not found in scheduler")
+    else:
+        # Fallback: Just run the scraping directly in background
+        from ..routes.work_orders import trigger_scrape_background
+        background_tasks.add_task(
+            trigger_scrape_background,
+            user_id=current_user.id,
+            db_session=db
+        )
+        message = "Work order sync triggered in background"
     
     log_automation_event("schedule_manual_run", {
         "user_id": current_user.id,
@@ -280,7 +302,7 @@ async def run_schedule_now(
     })
     
     return {
-        "message": "Schedule will run within the next minute",
+        "message": message,
         "schedule_id": schedule_id
     }
 
@@ -399,3 +421,116 @@ def _format_schedule_response(schedule: ScrapingSchedule) -> ScheduleResponse:
         updated_at=format_datetime_utc(schedule.updated_at),
         status=status
     )
+
+
+@router.get("/simple-status")
+async def get_simple_scheduler_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get simple scheduler status for UI display"""
+    # Get user's work order schedule
+    schedule = db.query(ScrapingSchedule).filter(
+        and_(
+            ScrapingSchedule.user_id == current_user.id,
+            ScrapingSchedule.schedule_type == "work_orders"
+        )
+    ).first()
+    
+    if not schedule:
+        return {
+            "status": "not_configured",
+            "message": "No sync schedule configured"
+        }
+    
+    # Check if scheduler service is running
+    from ..services.scheduler_service import scheduler_service
+    scheduler_running = scheduler_service.is_initialized and scheduler_service.scheduler is not None
+    
+    # Determine status based on schedule state
+    if not schedule.enabled:
+        status = "paused"
+        message = "Sync paused"
+    elif schedule.consecutive_failures >= 5:
+        status = "failed"
+        message = f"Failed • {schedule.consecutive_failures} errors"
+    elif not scheduler_running:
+        status = "starting"
+        message = "Starting scheduler..."
+    else:
+        # Check if there's a recent successful run
+        recent_success = db.query(ScrapingHistory).filter(
+            and_(
+                ScrapingHistory.user_id == current_user.id,
+                ScrapingHistory.schedule_type == "work_orders",
+                ScrapingHistory.success == True,
+                ScrapingHistory.completed_at >= datetime.utcnow() - timedelta(hours=2)
+            )
+        ).first()
+        
+        if recent_success:
+            status = "active"
+            message = f"Active • Last sync {recent_success.items_processed or 0} items"
+        else:
+            status = "active"
+            message = "Active • Waiting for next sync"
+    
+    return {
+        "status": status,
+        "message": message,
+        "enabled": schedule.enabled,
+        "next_run": schedule.next_run.isoformat() if schedule.next_run else None
+    }
+
+
+@router.get("/{schedule_id}/sync-progress")
+async def get_sync_progress(
+    schedule_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get real-time progress of work order sync"""
+    # Verify schedule ownership
+    schedule = db.query(ScrapingSchedule).filter(
+        and_(
+            ScrapingSchedule.id == schedule_id,
+            ScrapingSchedule.user_id == current_user.id
+        )
+    ).first()
+    
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+    
+    # Import the shared progress dictionary from work_orders route
+    try:
+        from ..routes.work_orders import scraping_progress
+        
+        # Check if there's any progress for this user
+        progress = scraping_progress.get(current_user.id)
+        
+        if progress:
+            # Add schedule context to the progress
+            logger.info(f"Found sync progress for user {current_user.id}: status={progress.get('status')}, percentage={progress.get('percentage')}")
+            return {
+                **progress,
+                "schedule_id": schedule_id,
+                "schedule_type": schedule.schedule_type
+            }
+        else:
+            # No progress data at all
+            logger.info(f"No sync progress found for user {current_user.id}")
+            return {
+                "status": "not_found",
+                "phase": "not_started",
+                "percentage": 0,
+                "message": "No sync data available",
+                "schedule_id": schedule_id,
+                "schedule_type": schedule.schedule_type
+            }
+    except ImportError:
+        logger.error("Failed to import scraping_progress from work_orders")
+        return {
+            "status": "error",
+            "message": "Progress tracking unavailable",
+            "schedule_id": schedule_id
+        }

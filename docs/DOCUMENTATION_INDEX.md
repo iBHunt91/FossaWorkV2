@@ -6,8 +6,10 @@ This index tracks all documentation files that were organized from the root dire
 
 ### /docs/features/
 Feature documentation and setup guides:
-- `HOURLY_SCRAPING_QUICKSTART.md` - Quick start guide for hourly scraping feature
-- `HOURLY_SCRAPING_SETUP.md` - Detailed setup instructions for hourly scraping
+- `work-order-sync-comprehensive.md` - Complete guide for work order sync with progress tracking (NEW - Consolidates hourly scraping docs)
+- `HOURLY_SCRAPING_QUICKSTART.md` - (Deprecated - See work-order-sync-comprehensive.md)
+- `HOURLY_SCRAPING_SETUP.md` - (Deprecated - See work-order-sync-comprehensive.md)
+- `hourly-scraping.md` - (Deprecated - See work-order-sync-comprehensive.md)
 
 ### /docs/implementation-complete/
 Completed implementation summaries:
@@ -19,6 +21,7 @@ Completed implementation summaries:
 - `WORK_ORDER_SYNC_UX_IMPROVEMENTS.md` - Work order sync UX enhancements
 - `SCRAPING_STATUS_UI.md` - Scraping status UI implementation
 - `SCRAPING_STATUS_UI_IMPROVEMENTS.md` - Scraping status UI improvements
+- `sync-progress-fixes-summary.md` - Work order sync progress tracking implementation (NEW - Jan 29, 2025)
 
 ### /docs/maintenance/fixes/
 Fix summaries and maintenance documentation:

@@ -593,6 +593,21 @@ export const getNotificationChannelsStatus = async (): Promise<any> => {
   return response.data
 }
 
+export const validatePushoverCredentials = async (
+  userId: string, 
+  pushoverUserKey: string,
+  pushoverApiToken: string
+): Promise<any> => {
+  const response = await apiClient.post(`/api/notifications/validate-pushover/${userId}`, null, {
+    params: { 
+      pushover_user_key: pushoverUserKey,
+      pushover_api_token: pushoverApiToken
+    }
+  })
+  return response.data
+}
+
+// Legacy function for backward compatibility
 export const validatePushoverKey = async (
   userId: string, 
   pushoverUserKey: string

@@ -9,8 +9,6 @@ import Login from './pages/Login'
 import DesignSystem from './pages/DesignSystem'
 import Filters from './pages/Filters'
 import TestingDashboard from './pages/TestingDashboard'
-import ImprovedTestingDashboard from './pages/ImprovedTestingDashboard'
-import TestingDashboardSimple from './pages/TestingDashboardSimple'
 import Navigation from './components/Navigation'
 import { MobileNavigation } from './components/MobileNavigation'
 import { MobileDrawer } from './components/MobileDrawer'
@@ -66,9 +64,8 @@ function AppContent() {
             <Route path="/filters" element={<Filters />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/design" element={<DesignSystem />} />
-            <Route path="/testing" element={<TestingDashboardSimple />} />
-            <Route path="/testing-improved" element={<ImprovedTestingDashboard />} />
-            <Route path="/testing-legacy" element={<TestingDashboard />} />
+            <Route path="/testing" element={<TestingDashboard />} />
+            {/* Removed mock testing dashboards - using real API-based testing only */}
             {/* Add profile route for mobile navigation */}
             <Route path="/profile" element={<Settings />} />
             <Route path="/dispensers" element={<WorkOrders />} />

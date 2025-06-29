@@ -268,6 +268,9 @@ def to_http_exception(exception: FossaWorkException) -> HTTPException:
 # Decorator for automatic exception conversion
 def handle_exceptions(func):
     """Decorator to automatically convert custom exceptions to HTTP exceptions"""
+    import functools
+    
+    @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)

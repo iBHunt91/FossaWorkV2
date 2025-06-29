@@ -1984,11 +1984,6 @@ const WorkOrders: React.FC = () => {
           </div>
         </div>
 
-        {/* Hourly Scraping Status */}
-        <div className="animate-slide-in-from-top" style={{animationDelay: '0.2s'}}>
-          <ScrapingStatus compact={false} showDetails={true} />
-        </div>
-
         {/* Weekend Mode Banner - Enhanced Design */}
         {weekendModeEnabled && (
           <div className="animate-slide-in-from-top" style={{animationDelay: '0.3s'}}>

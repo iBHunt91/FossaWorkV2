@@ -70,9 +70,13 @@ class WorkFossaAutomationService:
     
     SUCCESS_INDICATORS = [
         '**/app/dashboard',
+        '**/app/work',
+        '**/app/customers',
         'nav.main-nav',
         '.dashboard-content',
-        '.work-orders-nav'
+        '.work-orders-nav',
+        'a[href*="/app/work"]',  # Work orders link visible
+        'button[aria-label="User menu"]'  # User menu button (logged in state)
     ]
     
     def __init__(self, headless: bool = True, timeout: int = 30000, user_settings: Dict[str, Any] = None):
@@ -329,7 +333,40 @@ class WorkFossaAutomationService:
                 current_url = page.url
                 logger.info(f"[VERIFY] After login attempt, current URL: {current_url}")
                 
-                if "login" in current_url.lower() or current_url == self.LOGIN_URL:
+                # Check if we're still on a login-related page (failed login)
+                # This includes various URL patterns that indicate login failure
+                # But we need to be careful not to match successful URLs like /app/dashboard
+                
+                # First check for success indicators in the URL
+                url_indicates_success = any([
+                    "/app/dashboard" in current_url,
+                    "/app/work" in current_url,
+                    "/app/customers" in current_url,
+                    "/app/visits" in current_url,
+                    "/app/schedule" in current_url
+                ])
+                
+                # Only check for login page patterns if we're NOT on a success page
+                if not url_indicates_success:
+                    login_url_patterns = [
+                        "/login" in current_url.lower(),
+                        "/auth" in current_url.lower(),
+                        "/signin" in current_url.lower(),
+                        "/sign-in" in current_url.lower(),
+                        current_url == self.LOGIN_URL,
+                        current_url.startswith(self.LOGIN_URL) and len(current_url) <= len(self.LOGIN_URL) + 1,
+                        "error=" in current_url.lower(),
+                        "failed=" in current_url.lower()
+                    ]
+                    
+                    is_still_on_login = any(login_url_patterns)
+                else:
+                    is_still_on_login = False
+                
+                if is_still_on_login:
+                    # We're likely still on a login or error page
+                    logger.info(f"[VERIFY] Still on login/error page after submission: {current_url}")
+                    
                     # Check for error message
                     error_element = await page.query_selector(self.LOGIN_SELECTORS['error'])
                     error_text = await error_element.inner_text() if error_element else "Invalid credentials"
@@ -358,10 +395,14 @@ class WorkFossaAutomationService:
                             }
                 
                 # If we're not on login page but can't find success indicators
-                logger.info(f"[VERIFY] Login successful but no dashboard found for user: {username}")
+                logger.warning(f"[VERIFY] No success indicators found after login attempt for user: {username}")
+                logger.warning(f"[VERIFY] Current URL: {current_url}")
+                
+                # This is likely a failed login that redirected to an error page
+                # We must NOT assume success without positive confirmation
                 return {
-                    "success": True,
-                    "message": "Credentials verified successfully"
+                    "success": False,
+                    "message": "Login verification failed - no success indicators found"
                 }
                 
             except Exception as e:
